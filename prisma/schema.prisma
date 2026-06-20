@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum CustomerStatus {
+  Active
+  Inactive
+}
+
+enum SalesOrderStatus {
+  Draft
+  Confirmed
+  Shipped
+  Invoiced
+  Cancelled
+}
+
+enum SalesOrderApprovalStatus {
+  NotRequired
+  Pending
+  Approved
+  Rejected
+}
+
+enum InvoiceStatus {
+  Unpaid
+  Partial
+  Paid
+  Overdue
+  Cancelled
+}
+
+enum PaymentMethod {
+  Cash
+  BankTransfer
+  Other
+}
+
+enum PaymentTermType {
+  DEBIT
+  CREDIT
+}
+
+enum FollowUpStatus {
+  Planned
+  Done
+  Cancelled
+}
+
+enum DeliveryNoteStatus {
+  Draft
+  Issued
+  Delivered
+  Cancelled
+}
+
+enum UserRole {
+  ADMIN
+  SALES
+  MANAGER
+}
+
+enum UserStatus {
+  Active
+  Inactive
+}
+
+model User {
+  id           String     @id @default(cuid())
+  username     String     @unique
+  passwordHash String
+  displayName  String
+  role         UserRole   @default(SALES)
+  status       UserStatus @default(Active)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model AuditTrail {
+  id               String   @id @default(cuid())
+  actorUserId      String?
+  actorUsername    String
+  actorDisplayName String?
+  actorRole        String
+  moduleName       String
+  entityType       String
+  entityId         String
+  transactionCode  String
+  action           String
+  changeSummary    String
+  oldValue         String?
+  newValue         String?
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([moduleName])
+  @@index([actorUsername])
+  @@index([transactionCode])
+}
+
+model Customer {
+  id           String         @id @default(cuid())
+  name         String
+  companyName  String
+  phone        String
+  email        String
+  address      String
+  customerType String
+  status       CustomerStatus @default(Active)
+  notes        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  salesOrders      SalesOrder[]
+  invoices         Invoice[]
+  followUps        FollowUp[]
+  productFollowUps CustomerProductFollowUp[]
+  deliveryNotes    DeliveryNote[]
+}
+
+model SalesOrder {
+  id                   String                   @id @default(cuid())
+  orderNumber          String                   @unique
+  customerId           String
+  orderDate            DateTime
+  status               SalesOrderStatus         @default(Draft)
+  subtotal             Int
+  total                Int
+  paymentTermType      PaymentTermType          @default(DEBIT)
+  creditTermMonths     Int?
+  notes                String?
+  approvalStatus       SalesOrderApprovalStatus @default(NotRequired)
+  approvalRisk         String?
+  approvalDecisionNote String?
+  approvalDecidedAt    DateTime?
+  approvalDecidedById  String?
+  createdByUserId      String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  customer      Customer         @relation(fields: [customerId], references: [id])
+  items         SalesOrderItem[]
+  invoice       Invoice?
+  deliveryNotes DeliveryNote[]
+
+  @@index([approvalStatus])
+}
+
+model SalesOrderItem {
+  id           String @id @default(cuid())
+  salesOrderId String
+  itemName     String
+  quantity     Int
+  unitPrice    Int
+  subtotal     Int
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id               String          @id @default(cuid())
+  invoiceNumber    String          @unique
+  salesOrderId     String          @unique
+  customerId       String
+  issueDate        DateTime
+  dueDate          DateTime
+  totalAmount      Int
+  paidAmount       Int             @default(0)
+  remainingAmount  Int
+  paymentTermType  PaymentTermType @default(DEBIT)
+  creditTermMonths Int?
+  status           InvoiceStatus   @default(Unpaid)
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  payments      Payment[]
+  followUps     FollowUp[]
+  deliveryNotes DeliveryNote[]
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  invoiceId     String
+  paymentDate   DateTime
+  amount        Int
+  paymentMethod PaymentMethod
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model FollowUp {
+  id           String         @id @default(cuid())
+  customerId   String
+  invoiceId    String?
+  followUpDate DateTime
+  status       FollowUpStatus @default(Planned)
+  notes        String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  invoice  Invoice? @relation(fields: [invoiceId], references: [id])
+}
+
+model CustomerProductFollowUp {
+  id          String   @id @default(cuid())
+  customerId  String
+  contactDate DateTime
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, contactDate])
+}
+
+model DeliveryNote {
+  id                 String             @id @default(cuid())
+  deliveryNoteNumber String             @unique
+  invoiceId          String?
+  salesOrderId       String?
+  customerId         String
+  recipientName      String
+  recipientPhone     String
+  recipientAddress   String
+  deliveryDate       DateTime
+  status             DeliveryNoteStatus @default(Draft)
+  notes              String?
+  receiverName       String?
+  senderName         String?
+  authorizedBy       String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  invoice    Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  salesOrder SalesOrder?        @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  customer   Customer           @relation(fields: [customerId], references: [id])
+  items      DeliveryNoteItem[]
+}
+
+model DeliveryNoteItem {
+  id             String  @id @default(cuid())
+  deliveryNoteId String
+  productCode    String?
+  itemName       String
+  quantity       Int
+  unit           String  @default("PCS")
+  description    String?
+
+  deliveryNote DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+}

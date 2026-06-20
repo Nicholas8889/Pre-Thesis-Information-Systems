@@ -1,0 +1,117 @@
+CV TAJUK - REVENUE CYCLE MVP
+CURRENT APPLICATION FEATURES
+Updated: 19 June 2026
+
+1. LOGIN AND USER IDENTITY
+- Secure login and logout.
+- Password field includes a Show/Hide icon so users can verify the entered password.
+- Demo accounts for Manager, Admin, and Sales roles.
+- The active user's name and role are visible in the application header/sidebar.
+- Manager can view and use every current feature.
+- Sales can view every module and create Sales Orders, but Invoice, Payment, Surat Jalan, and account creation controls are disabled.
+- Admin can view every module and handle Invoice, Payment, Surat Jalan, Billing, and accounts, but Sales Order creation is disabled and Audit Trail remains read-only.
+- Restricted controls stay visible in a disabled style and show a role explanation when hovered.
+
+2. ROLE-SPECIFIC DASHBOARDS
+- Manager: complete business overview, recent sales orders, revenue-cycle status, and sales/customer insights.
+- Admin: compact recent sales orders plus operational insight into invoices, Surat Jalan, upcoming or overdue receivables, and Billing work that needs attention.
+- Sales: customer-focused dashboard with overdue-payment customers, searchable customer categories, and recommended price markup.
+- Manager dashboard shows the top 5 popular products by quantity sold in a compact horizontal bar chart.
+
+3. NOTIFICATION CENTER
+- Notification button is located beside the Help button.
+- An orange dot appears when the current user has unread notifications.
+- Admin receives reminders for Billing deadlines that are near or overdue.
+- Sales receives reminders to follow up customers with no transaction in the last three months.
+- Notifications show a short description and sent date, and can link to the related Billing or Follow Up page.
+- Opening the notification panel marks the current notifications as read for that user.
+
+4. CUSTOMER MANAGEMENT AND INTELLIGENCE
+- View, search, add, and open customer records.
+- Customer table includes category and payment-risk columns.
+- Customer categories:
+  * Loyal Customer: more than 3 transactions per month - recommended markup 0%.
+  * Normal Customer: approximately 1 transaction per month - recommended markup 5%.
+  * Occasional Customer: less than 1 transaction per month - recommended markup 10-15%.
+  * New Customer: added less than 1 month ago - recommended markup 0%.
+- Payment-risk indicators:
+  * Late Payment: currently has an overdue unpaid receivable.
+  * Historically Late: previously paid after the due date.
+  * Clean: no detected late-payment history.
+- Customer detail shows category and payment-risk summary cards.
+- Customer detail lists every transaction with order number, order date, payment term, status, invoice, Surat Jalan, total, and a button to open the transaction.
+
+5. SALES ORDER MANAGEMENT
+- Create, view, search, filter, edit, delete, and print sales orders.
+- Clean Sales-created orders stop at Confirmed so an Admin or Manager can generate the Invoice.
+- Sales-created orders for customers with Late Payment or Historically Late risk require Manager approval before invoicing.
+- A Need Approval tab lets Managers review transaction details, add an optional decision note, and approve or reject the order.
+- Managers receive a notification when a new sales order needs approval.
+- Approved orders generate their invoice and continue through the revenue cycle; rejected orders are cancelled.
+- Manage order items, quantities, prices, discounts, taxes, payment terms, notes, and totals.
+- Track order progress through Draft, Confirmed, Invoiced, and Cancelled statuses.
+- Download Sales Order data as an Excel (.xlsx) file.
+- Excel export opens a date-range popup with start-date and end-date calendars.
+- Exported workbook contains Summary and Items sheets with formatted headings and filters.
+
+6. INVOICE MANAGEMENT
+- Create invoices from sales orders.
+- View, search, filter, edit, delete, and print invoices.
+- Track invoice status, issue date, due date, payment term, and totals.
+- Identify sales orders that still need an invoice.
+
+7. PAYMENT MANAGEMENT
+- Record customer payments against invoices.
+- View, search, filter, edit, and delete payment records.
+- Track payment date, method, amount, and reference.
+
+8. SURAT JALAN MANAGEMENT
+- Create Surat Jalan records from sales orders.
+- View, search, filter, edit, delete, and print delivery documents.
+- Track delivery date, recipient, vehicle, notes, and status.
+- Identify sales orders that still need a Surat Jalan.
+
+9. RECEIVABLE MONITORING
+- Monitor invoice totals, paid amounts, outstanding balances, and due dates.
+- Highlight overdue and upcoming unpaid receivables.
+- Show unpaid receivables when no overdue receivable exists.
+
+10. BILLING
+- Dedicated Billing menu for customer payment collection work.
+- Create and review Billing tasks linked to customers and invoices.
+- Record due date, assigned user, status, and notes.
+- Dashboard and notifications highlight Billing tasks requiring Admin attention.
+
+11. PRODUCT FOLLOW UP
+- Dedicated Follow Up menu showing all customers.
+- Shows the most recent product follow-up date for each customer.
+- Search customers and identify customers that have never been contacted.
+- Record contact date and an optional note about the conversation.
+- Selecting Record Contact from a customer row automatically fills that customer in the contact form.
+- Supports Sales reminders when customers have not ordered for three months.
+
+12. AUDIT TRAIL
+- Records important business actions and changes.
+- Supports filtering by date, action, module, and user.
+- Includes Sales Order, Invoice, Payment, Surat Jalan, Billing, and Follow Up activity.
+
+13. REPORTING, PRINTING, AND HELP
+- Dashboard summaries and status counts for revenue-cycle operations.
+- Printable Sales Order, Invoice, and Surat Jalan documents.
+- Contextual Help is available from the application header.
+- Every operational table supports sortable columns and one simple table-wide search that shows rows containing the entered text in any field.
+- Each meaningful column has a compact sort icon in its header.
+- Funnel filters appear only for date columns or columns with meaningfully repeated values.
+- Repeated-value filters open a popup with a value search and selectable checkboxes.
+- Date-column filter popups provide Start Date, End Date, and a Start Filter button.
+- Table filters include visible-result counts and a Reset action; print views remain unchanged.
+
+14. DEMO DATA AND QUALITY CHECKS
+- Seed data includes 100 generated customers with connected revenue-cycle activity, in addition to the original demonstration records.
+- Generated data covers varied order approvals, Invoice statuses, Payments, Surat Jalan, Billing, product Follow Up, and Audit Trail entries.
+- Automated tests cover access, dashboard behavior, customer intelligence, Billing, Follow Up, notifications, and Excel export.
+- The project includes linting, type checking, production build validation, and database migrations.
+
+CURRENT SCOPE
+- This is an MVP focused on the revenue cycle: Customer -> Sales Order -> Invoice -> Delivery -> Payment -> Receivable -> Billing/Follow Up.
+- Roles currently control the dashboard experience and reminders; full page-by-page permission restrictions are not yet implemented.

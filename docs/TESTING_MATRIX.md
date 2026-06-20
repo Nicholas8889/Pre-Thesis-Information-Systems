@@ -1,0 +1,41 @@
+# Testing Matrix
+
+| Test Type | Scenario ID | Scenario Name | User Role | Steps | Expected Result | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Unit Testing | UT-AUTH-001 | Verify password hash | System | Compare entered password with stored password hash. | Correct password is accepted and incorrect password is rejected. | Prepared |
+| Unit Testing | UT-001 | Sales order total calculation | System | Input item quantity and unit price. | Line subtotals and order total are correct. | Prepared |
+| Unit Testing | UT-002 | Invoice remaining amount calculation | System | Input total amount and paid amount. | Remaining amount equals total minus paid amount. | Prepared |
+| Unit Testing | UT-003 | Invoice payment status calculation | System | Input unpaid, partial, paid, and overdue payment values. | Status returns Unpaid, Partial, Paid, or Overdue correctly. | Prepared |
+| Unit Testing | UT-004 | Invoice draft from sales order | System | Input sales order ID, customer ID, total, and issue date. | Invoice draft uses sales order/customer data, starts Unpaid, and due date is 14 days after issue date. | Prepared |
+| Unit Testing | UT-005 | Receivable derivation | System | Input invoice statuses and remaining amounts. | Unpaid, Partial, and Overdue invoices with remaining balance are active receivables; Paid invoices are excluded. | Prepared |
+| Unit Testing | UT-006 | Payment term validation | System | Input Debit, valid Credit, and invalid Credit terms. | Debit is accepted without credit term; Credit requires 1-12 months. | Prepared |
+| Unit Testing | UT-007 | Debit and Credit due dates | System | Input Debit and Credit invoice issue dates. | Debit due date equals issue date; Credit due date adds selected months. | Prepared |
+| Unit Testing | UT-008 | Surat Jalan payment-term rule | System | Input Debit unpaid, Debit paid, and Credit unpaid invoice states. | Debit unpaid blocks Surat Jalan; Debit paid and Credit unpaid allow Surat Jalan. | Prepared |
+| Integration Testing / SIT | SIT-AUTH-001 | Successful login to dashboard | Admin | Open app, enter active username and password, then submit. | User is redirected to Dashboard. | Prepared |
+| Integration Testing / SIT | SIT-AUTH-002 | Failed login | Admin | Open Login and enter wrong username or password. | System shows a simple error message. | Prepared |
+| Integration Testing / SIT | SIT-AUTH-003 | Logout redirects to login | Admin | Select Logout from the sidebar. | Session is cleared and Login page opens. | Prepared |
+| Integration Testing / SIT | SIT-AUTH-004 | Inactive account cannot log in | Admin | Create inactive account, then try to log in. | Login is rejected with an error message. | Prepared |
+| Integration Testing / SIT | SIT-001 | Customer to sales order | Admin | Create a customer, then create a sales order for that customer. | Sales order is linked to the selected customer. | Prepared |
+| Integration Testing / SIT | SIT-002 | Sales order to invoice | Admin | Create sales order, choose Debit or Credit, and select Confirm & Generate Invoice. | One invoice is created from sales order data, payment term is copied, due date is calculated, and sales order is marked Invoiced. | Prepared |
+| Integration Testing / SIT | SIT-003 | Invoice to payment | Admin | Select Record Payment from the payment queue and save a payment. | Paid amount, remaining amount, and invoice status update correctly. | Prepared |
+| Integration Testing / SIT | SIT-INV-PRINT-01 | Invoice detail to printable invoice | Admin | Open invoice detail and select View / Print Invoice. | Printable invoice shows customer data, sales order items, totals, payment status, and signature area. | Prepared |
+| Integration Testing / SIT | SIT-SJ-001 | Invoice to Surat Jalan | Admin | Open invoice detail and select Create Surat Jalan. | Surat Jalan form opens with invoice, customer, and item data copied. | Prepared |
+| Integration Testing / SIT | SIT-SJ-TERM-001 | Debit Surat Jalan rule | Admin | Try creating Surat Jalan from unpaid Debit invoice, then after full payment. | Surat Jalan is blocked before payment and allowed after invoice is Paid. | Prepared |
+| Integration Testing / SIT | SIT-SJ-TERM-002 | Credit Surat Jalan rule | Admin | Create Surat Jalan from unpaid Credit invoice. | Surat Jalan is allowed from Credit invoice before full payment. | Prepared |
+| Integration Testing / SIT | SIT-SJ-002 | Printable Surat Jalan | Admin | Open a Surat Jalan record and select View / Print. | Printable Surat Jalan shows recipient, item table, attention notes, and signature lines. | Prepared |
+| Integration Testing / SIT | SIT-004 | Invoice to receivable status | Admin | Open receivables after creating unpaid, partial, paid, and overdue invoices. | Only invoices with remaining amount appear as active receivables. | Prepared |
+| Integration Testing / SIT | SIT-005 | Receivable to follow-up | Sales | Select Create Follow-up from a receivable row. | Follow-up form opens with customer and invoice preselected. | Prepared |
+| System Acceptance Testing / SAT | SAT-001 | Access all modules | Manager | Open Dashboard, Customers, Sales Orders, Invoices, Payments, Surat Jalan, Receivables, Follow-ups, Audit Trail, and Settings. | All pages load successfully and Audit Trail appears after Follow-ups in the sidebar. | Prepared |
+| System Acceptance Testing / SAT | SAT-002 | Dashboard data accuracy | Manager | Compare dashboard totals with invoice and payment data. | Dashboard reflects sales, paid, unpaid, overdue, and follow-up values. | Prepared |
+| User Acceptance Testing / UAT | UAT-AUTH-001 | Admin logs in | Admin | Open Login and enter default Admin username and password. | Dashboard opens after successful login. | Prepared |
+| User Acceptance Testing / UAT | UAT-AUTH-002 | Admin adds account from Settings | Admin | Open Settings, enter username, display name, password, role, and status, then save. | New account appears without showing password hash. | Prepared |
+| User Acceptance Testing / UAT | UAT-AUTH-003 | Inactive account is rejected | Admin | Create inactive account, log out, then try logging in with that account. | Inactive account cannot access the system. | Prepared |
+| User Acceptance Testing / UAT | UAT-001 | Admin records customer | Admin | Add customer details and save. | Customer appears in the customer list. | Prepared |
+| User Acceptance Testing / UAT | UAT-002 | Sales creates order and invoice | Sales | Select customer, enter items, choose Debit or Credit term, and select Confirm & Generate Invoice. | Sales order appears with correct total and invoice is created with correct due date. | Prepared |
+| User Acceptance Testing / UAT | UAT-003 | Admin reviews generated invoice | Admin | Open Invoices after sales order confirmation. | Invoice shows copied customer, sales order, item, and amount data. | Prepared |
+| User Acceptance Testing / UAT | UAT-004 | Admin records payment from queue | Admin | Open Payments, select Record Payment from invoice row, and save payment. | Invoice status and remaining amount update correctly. | Prepared |
+| User Acceptance Testing / UAT | UAT-SJ-001 | Admin creates Surat Jalan from invoice | Admin | Open invoice detail, select Create Surat Jalan, review copied data, and save. | Surat Jalan is created and linked to invoice or sales order data. | Prepared |
+| User Acceptance Testing / UAT | UAT-SJ-002 | Admin creates Surat Jalan manually | Admin | Open Surat Jalan, select Add Surat Jalan, choose customer, enter items, and save. | Manual Surat Jalan appears in the list. | Prepared |
+| User Acceptance Testing / UAT | UAT-SJ-003 | Admin prints Surat Jalan | Admin | Open a Surat Jalan record and select View / Print. | Printable Surat Jalan opens clearly and Print Surat Jalan is available. | Prepared |
+| User Acceptance Testing / UAT | UAT-INV-PRINT-01 | Admin views and prints invoice document | Admin | Open Invoices, view invoice detail, and select View / Print Invoice. | System displays printable invoice with customer data, invoice items, total amount, payment status, and signature area. | Prepared |
+| User Acceptance Testing / UAT | UAT-005 | Manager checks receivables | Manager | Open dashboard and receivables. | Overdue and unpaid invoices are clearly visible. | Prepared |
