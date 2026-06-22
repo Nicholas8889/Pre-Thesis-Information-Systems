@@ -60,3 +60,23 @@ export function shouldOfferCheckboxFilter(values: string[]) {
     repeatedRowCount >= Math.max(1, Math.ceil(normalized.length * 0.2))
   );
 }
+
+export function getTablePageRange(totalRows: number, requestedPage: number, pageSize = 10) {
+  const safeTotal = Math.max(0, Math.trunc(totalRows));
+  const safePageSize = Math.max(1, Math.trunc(pageSize));
+  const totalPages = Math.max(1, Math.ceil(safeTotal / safePageSize));
+  const page = Math.min(Math.max(1, Math.trunc(requestedPage) || 1), totalPages);
+  const start = (page - 1) * safePageSize;
+
+  return {
+    page,
+    pageSize: safePageSize,
+    totalPages,
+    start,
+    end: Math.min(start + safePageSize, safeTotal)
+  };
+}
+
+export function shouldOfferTableTextExpansion(value: string, minimumLength = 40) {
+  return value.trim().length > minimumLength;
+}

@@ -126,8 +126,6 @@ export default async function ReceivablesPage({
                   <th className="py-3 pr-4">Sales Order</th>
                   <th className="py-3 pr-4">Customer</th>
                   <th className="py-3 pr-4">Payment Term</th>
-                  <th className="py-3 pr-4 text-right">Total</th>
-                  <th className="py-3 pr-4 text-right">Paid</th>
                   <th className="py-3 pr-4">Due Date</th>
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4 text-right">Remaining</th>
@@ -154,12 +152,6 @@ export default async function ReceivablesPage({
                           Billing reminder suggested near due date
                         </span>
                       )}
-                    </td>
-                    <td className="py-3 pr-4 text-right font-medium">
-                      {formatCurrency(invoice.totalAmount)}
-                    </td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
-                      {formatCurrency(invoice.paidAmount)}
                     </td>
                     <td className="py-3 pr-4 text-slate-600">{formatDate(invoice.dueDate)}</td>
                     <td className="py-3 pr-4">

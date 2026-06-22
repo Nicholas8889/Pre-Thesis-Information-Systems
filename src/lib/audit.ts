@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { AUTH_COOKIE_NAME, roleLabel } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { normalizeActionNote } from "@/lib/action-notes";
 
 type AuditTrailInput = {
   moduleName: string;
@@ -11,6 +12,7 @@ type AuditTrailInput = {
   transactionCode: string;
   action: string;
   changeSummary: string;
+  actionNote?: string | null;
   oldValue?: unknown;
   newValue?: unknown;
 };
@@ -31,6 +33,7 @@ export async function createAuditTrailLog(input: AuditTrailInput) {
         transactionCode: input.transactionCode || input.entityId,
         action: input.action,
         changeSummary: input.changeSummary,
+        actionNote: normalizeActionNote(input.actionNote ?? "") || null,
         oldValue: stringifyAuditValue(input.oldValue),
         newValue: stringifyAuditValue(input.newValue)
       }

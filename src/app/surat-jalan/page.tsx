@@ -351,6 +351,7 @@ export default async function SuratJalanPage({
                   <th className="py-3 pr-4">Recipient</th>
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Status</th>
+                  <th className="py-3 pr-4">Notes</th>
                   <th className="py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -371,6 +372,9 @@ export default async function SuratJalanPage({
                     </td>
                     <td className="py-3 pr-4">
                       <StatusBadge status={deliveryNote.status} />
+                    </td>
+                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                      {deliveryNote.notes ?? "-"}
                     </td>
                     <td className="py-3">
                       <div className="flex justify-end gap-2">

@@ -1,7 +1,17 @@
 import Link from "next/link";
-import { ArrowRight, Eye, Pencil, Plus, Search, ShieldCheck, Tags } from "lucide-react";
+import {
+  ArrowRight,
+  Eye,
+  Pencil,
+  Plus,
+  Search,
+  ShieldCheck,
+  Tags,
+  UserCheck,
+  UserX
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { createCustomer, updateCustomer } from "@/lib/actions";
+import { createCustomer, updateCustomer, updateCustomerStatus } from "@/lib/actions";
 import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
@@ -16,6 +26,7 @@ import {
 } from "@/lib/customer-intelligence";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getSearchMessage } from "@/lib/workflow";
+import { getOppositeCustomerStatus } from "@/lib/customer-status";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -132,7 +143,33 @@ export default async function CustomersPage({
               <h2 className="text-lg font-semibold">{selectedCustomer.companyName}</h2>
               <p className="mt-1 text-sm text-slate-600">{selectedCustomer.name}</p>
             </div>
-            <StatusBadge status={selectedCustomer.status} />
+            <div className="flex flex-wrap items-center gap-3">
+              <StatusBadge status={selectedCustomer.status} />
+              <form action={updateCustomerStatus}>
+                <input type="hidden" name="id" value={selectedCustomer.id} />
+                <input
+                  type="hidden"
+                  name="status"
+                  value={getOppositeCustomerStatus(selectedCustomer.status)}
+                />
+                <button
+                  className={
+                    selectedCustomer.status === "Active"
+                      ? "inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      : "inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                  }
+                >
+                  {selectedCustomer.status === "Active" ? (
+                    <UserX aria-hidden="true" className="h-4 w-4" />
+                  ) : (
+                    <UserCheck aria-hidden="true" className="h-4 w-4" />
+                  )}
+                  {selectedCustomer.status === "Active"
+                    ? "Make Inactive"
+                    : "Make Active"}
+                </button>
+              </form>
+            </div>
           </div>
           <div className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
             <Detail label="Phone" value={selectedCustomer.phone} />
@@ -141,7 +178,7 @@ export default async function CustomersPage({
             <Detail label="Address" value={selectedCustomer.address} />
           </div>
           {selectedCustomer.notes && (
-            <p className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+            <p className="mt-4 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-600">
               {selectedCustomer.notes}
             </p>
           )}
@@ -251,6 +288,7 @@ export default async function CustomersPage({
                   <th className="py-3 pr-4">Customer Category</th>
                   <th className="py-3 pr-4">Payment Risk</th>
                   <th className="py-3 pr-4">Status</th>
+                  <th className="py-3 pr-4">Notes</th>
                   <th className="py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -267,6 +305,9 @@ export default async function CustomersPage({
                     <td className="py-3 pr-4"><PaymentRiskBadge risk={paymentRisk} /></td>
                     <td className="py-3 pr-4">
                       <StatusBadge status={customer.status} />
+                    </td>
+                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                      {customer.notes ?? "-"}
                     </td>
                     <td className="py-3">
                       <div className="flex justify-end gap-2">

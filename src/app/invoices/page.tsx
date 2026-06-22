@@ -220,6 +220,7 @@ export default async function InvoicesPage({
                   {activeTab === "done" && <th className="py-3 pr-4 text-right">Paid</th>}
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4 text-right">Remaining</th>
+                  <th className="py-3 pr-4">Notes</th>
                   <th className="py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -249,6 +250,9 @@ export default async function InvoicesPage({
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(invoice.remainingAmount)}
+                    </td>
+                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                      {invoice.notes ?? "-"}
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex justify-end gap-2">

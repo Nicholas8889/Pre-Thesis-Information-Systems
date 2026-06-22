@@ -1,0 +1,12 @@
+ALTER TABLE "User" RENAME COLUMN "id" TO "idUser";
+ALTER TABLE "AuditTrail" RENAME COLUMN "id" TO "idAuditTrail";
+ALTER TABLE "Customer" RENAME COLUMN "id" TO "idCustomer";
+ALTER TABLE "SalesOrder" RENAME COLUMN "id" TO "idSalesOrder";
+ALTER TABLE "SalesOrderItem" RENAME COLUMN "id" TO "idSalesOrderItem";
+ALTER TABLE "Invoice" RENAME COLUMN "id" TO "idInvoice";
+ALTER TABLE "Payment" RENAME COLUMN "id" TO "idPayment";
+ALTER TABLE "FollowUp" RENAME COLUMN "id" TO "idFollowUp";
+ALTER TABLE "CustomerProductFollowUp" RENAME COLUMN "id" TO "idCustomerProductFollowUp";
+ALTER TABLE "DeliveryNote" RENAME COLUMN "id" TO "idDeliveryNote";
+ALTER TABLE "DeliveryNoteItem" RENAME COLUMN "id" TO "idDeliveryNoteItem";
+ALTER TABLE "HistoryLog" RENAME COLUMN "id" TO "idHistoryLog";

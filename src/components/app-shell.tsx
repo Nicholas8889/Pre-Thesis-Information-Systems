@@ -23,6 +23,8 @@ import { PageHelpButton } from "@/components/page-help-button";
 import { NotificationButton } from "@/components/notification-button";
 import type { AppNotification } from "@/lib/notifications";
 import { TableEnhancer } from "@/components/table-enhancer";
+import { ActionConfirmationDialog } from "@/components/action-confirmation-dialog";
+import { CardHelpEnhancer } from "@/components/card-help-enhancer";
 
 const navigation = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -107,7 +109,7 @@ export function AppShell({
           })}
         </nav>
 
-        <form action={logout} className="mt-6 shrink-0 border-t border-slate-200 pt-4">
+        <form action={logout} data-no-action-confirmation="true" className="mt-6 shrink-0 border-t border-slate-200 pt-4">
           <button className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-ink">
             <LogOut aria-hidden="true" className="h-4 w-4" />
             Logout
@@ -150,7 +152,7 @@ export function AppShell({
                 </Link>
               );
             })}
-            <form action={logout}>
+            <form action={logout} data-no-action-confirmation="true">
               <button title="Logout" className="flex h-10 min-w-10 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-600">
                 <LogOut aria-hidden="true" className="h-4 w-4" />
                 <span className="sr-only">Logout</span>
@@ -163,6 +165,8 @@ export function AppShell({
           {children}
         </main>
         <TableEnhancer />
+        <CardHelpEnhancer />
+        <ActionConfirmationDialog />
         {userId && <NotificationButton notifications={notifications} userId={userId} />}
         <PageHelpButton />
       </div>

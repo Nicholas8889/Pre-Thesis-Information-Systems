@@ -27,6 +27,7 @@ export default async function AuditTrailPage({
           OR: [
             { transactionCode: { contains: query } },
             { changeSummary: { contains: query } },
+            { actionNote: { contains: query } },
             { actorUsername: { contains: query } },
             { actorDisplayName: { contains: query } },
             { moduleName: { contains: query } },
@@ -149,6 +150,7 @@ export default async function AuditTrailPage({
                   <th className="py-3 pr-4">Transaction Code</th>
                   <th className="py-3 pr-4">Action</th>
                   <th className="py-3 pr-4">Change Summary</th>
+                  <th className="py-3 pr-4">Confirmation Note</th>
                   <th className="py-3">Details</th>
                 </tr>
               </thead>
@@ -175,6 +177,9 @@ export default async function AuditTrailPage({
                     <td className="min-w-72 py-3 pr-4 text-slate-600">
                       {record.changeSummary}
                     </td>
+                    <td className="min-w-56 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                      {record.actionNote ?? "-"}
+                    </td>
                     <td className="min-w-64 py-3">
                       <details>
                         <summary className="cursor-pointer text-sm font-semibold text-brand">
@@ -184,6 +189,7 @@ export default async function AuditTrailPage({
                           <Detail label="Entity ID" value={record.entityId} />
                           <Detail label="Entity Type" value={record.entityType} />
                           <Detail label="Full Summary" value={record.changeSummary} />
+                          <Detail label="Confirmation Note" value={record.actionNote ?? "-"} preserve />
                           <Detail label="Old Value" value={record.oldValue ?? "-"} preserve />
                           <Detail label="New Value" value={record.newValue ?? "-"} preserve />
                         </div>

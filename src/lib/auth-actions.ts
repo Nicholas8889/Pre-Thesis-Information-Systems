@@ -9,6 +9,7 @@ import { createAuditTrailLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { canRole } from "@/lib/role-access";
 import { getCurrentUser } from "@/lib/session";
+import { normalizeActionNote } from "@/lib/action-notes";
 
 const protectedPaths = [
   "/",
@@ -55,6 +56,7 @@ export async function logout() {
 
 export async function createAccount(formData: FormData) {
   const currentUser = await getCurrentUser();
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   if (!canRole(currentUser?.role, "CREATE_ACCOUNT")) {
     redirect("/settings?error=Only Admin and Manager roles can create accounts");
   }
@@ -103,6 +105,7 @@ export async function createAccount(formData: FormData) {
     entityId: user.id,
     transactionCode: user.username,
     action: "ACCOUNT_CREATED",
+    actionNote,
     changeSummary: `Account ${user.username} created`,
     newValue: {
       username: user.username,

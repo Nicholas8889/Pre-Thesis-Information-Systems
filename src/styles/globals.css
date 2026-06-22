@@ -78,6 +78,66 @@ table {
   letter-spacing: 0.025em;
 }
 
+.card-generated-header {
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.75rem;
+}
+
+.card-title-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.card-info-help {
+  position: relative;
+  display: inline-flex;
+  height: 1.125rem;
+  width: 1.125rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #94a3b8;
+  border-radius: 9999px;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: help;
+}
+
+.card-info-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.5rem);
+  z-index: 70;
+  display: none;
+  width: min(18rem, 75vw);
+  transform: translateX(-50%);
+  border-radius: 0.375rem;
+  padding: 0.55rem 0.7rem;
+  background: #0f172a;
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+}
+
+.card-info-help:hover .card-info-tooltip,
+.card-info-help:focus .card-info-tooltip,
+.card-info-help:focus-visible .card-info-tooltip {
+  display: block;
+}
+
 thead {
   background: #f8fafc;
 }
@@ -90,6 +150,43 @@ tbody tr {
 
 tbody tr:hover {
   background: #f8fafc;
+}
+
+.table-cell-limited {
+  max-width: 20rem;
+  vertical-align: top;
+}
+
+.table-cell-content {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.table-cell-content-expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+.table-cell-toggle {
+  margin-top: 0.25rem;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: #cbd5e1;
+  text-underline-offset: 2px;
+}
+
+.table-cell-toggle:hover {
+  color: #475569;
+  text-decoration-color: #94a3b8;
 }
 
 .table-enhancer-toolbar {
@@ -150,6 +247,46 @@ tbody tr:hover {
   color: #1d4ed8;
   font-size: 0.8125rem;
   font-weight: 700;
+}
+
+.table-enhancer-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  margin-top: 0.875rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.table-enhancer-pagination[hidden] {
+  display: none;
+}
+
+.table-enhancer-page-button {
+  display: inline-flex;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.375rem;
+  padding: 0 0.75rem;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.table-enhancer-page-button:disabled {
+  cursor: not-allowed;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.table-enhancer-page-status {
+  color: #64748b;
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .table-enhanced-header {
@@ -344,6 +481,10 @@ textarea:focus-visible {
 
   .table-enhancer-count {
     justify-content: flex-start;
+  }
+
+  .table-enhancer-pagination {
+    justify-content: center;
   }
 }
 

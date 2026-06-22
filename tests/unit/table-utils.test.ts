@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   compareTableValues,
+  getTablePageRange,
   parseTableDate,
   parseTableNumber,
-  shouldOfferCheckboxFilter
+  shouldOfferCheckboxFilter,
+  shouldOfferTableTextExpansion
 } from "../../src/lib/table-utils";
 
 describe("table sorting and filtering utilities", () => {
@@ -28,5 +30,27 @@ describe("table sorting and filtering utilities", () => {
     expect(shouldOfferCheckboxFilter(["Paid", "Paid", "Unpaid", "Paid"])).toBe(true);
     expect(shouldOfferCheckboxFilter(["INV-001", "INV-002", "INV-003"])).toBe(false);
     expect(shouldOfferCheckboxFilter(["Only one"])).toBe(false);
+  });
+
+  it("calculates ten-row pages and clamps invalid page numbers", () => {
+    expect(getTablePageRange(101, 1)).toEqual({
+      page: 1,
+      pageSize: 10,
+      totalPages: 11,
+      start: 0,
+      end: 10
+    });
+    expect(getTablePageRange(101, 11)).toMatchObject({ start: 100, end: 101 });
+    expect(getTablePageRange(4, 99)).toMatchObject({ page: 1, totalPages: 1 });
+  });
+
+  it("offers expansion only for table text that is likely to exceed two lines", () => {
+    expect(shouldOfferTableTextExpansion("Short note")).toBe(false);
+    expect(
+      shouldOfferTableTextExpansion(
+        "This confirmation comment is deliberately long enough to need an expandable table row."
+      )
+    ).toBe(true);
+    expect(shouldOfferTableTextExpansion("A moderately sized sales note", 24)).toBe(true);
   });
 });

@@ -71,7 +71,7 @@ enum UserStatus {
 }
 
 model User {
-  id           String     @id @default(cuid())
+  id           String     @id @default(cuid()) @map("idUser")
   username     String     @unique
   passwordHash String
   displayName  String
@@ -82,7 +82,7 @@ model User {
 }
 
 model AuditTrail {
-  id               String   @id @default(cuid())
+  id               String   @id @default(cuid()) @map("idAuditTrail")
   actorUserId      String?
   actorUsername    String
   actorDisplayName String?
@@ -93,6 +93,7 @@ model AuditTrail {
   transactionCode  String
   action           String
   changeSummary    String
+  actionNote       String?
   oldValue         String?
   newValue         String?
   createdAt        DateTime @default(now())
@@ -104,7 +105,7 @@ model AuditTrail {
 }
 
 model Customer {
-  id           String         @id @default(cuid())
+  id           String         @id @default(cuid()) @map("idCustomer")
   name         String
   companyName  String
   phone        String
@@ -124,7 +125,7 @@ model Customer {
 }
 
 model SalesOrder {
-  id                   String                   @id @default(cuid())
+  id                   String                   @id @default(cuid()) @map("idSalesOrder")
   orderNumber          String                   @unique
   customerId           String
   orderDate            DateTime
@@ -152,7 +153,7 @@ model SalesOrder {
 }
 
 model SalesOrderItem {
-  id           String @id @default(cuid())
+  id           String @id @default(cuid()) @map("idSalesOrderItem")
   salesOrderId String
   itemName     String
   quantity     Int
@@ -163,7 +164,7 @@ model SalesOrderItem {
 }
 
 model Invoice {
-  id               String          @id @default(cuid())
+  id               String          @id @default(cuid()) @map("idInvoice")
   invoiceNumber    String          @unique
   salesOrderId     String          @unique
   customerId       String
@@ -187,7 +188,7 @@ model Invoice {
 }
 
 model Payment {
-  id            String        @id @default(cuid())
+  id            String        @id @default(cuid()) @map("idPayment")
   invoiceId     String
   paymentDate   DateTime
   amount        Int
@@ -200,7 +201,7 @@ model Payment {
 }
 
 model FollowUp {
-  id           String         @id @default(cuid())
+  id           String         @id @default(cuid()) @map("idFollowUp")
   customerId   String
   invoiceId    String?
   followUpDate DateTime
@@ -214,7 +215,7 @@ model FollowUp {
 }
 
 model CustomerProductFollowUp {
-  id          String   @id @default(cuid())
+  id          String   @id @default(cuid()) @map("idCustomerProductFollowUp")
   customerId  String
   contactDate DateTime
   notes       String?
@@ -227,7 +228,7 @@ model CustomerProductFollowUp {
 }
 
 model DeliveryNote {
-  id                 String             @id @default(cuid())
+  id                 String             @id @default(cuid()) @map("idDeliveryNote")
   deliveryNoteNumber String             @unique
   invoiceId          String?
   salesOrderId       String?
@@ -251,7 +252,7 @@ model DeliveryNote {
 }
 
 model DeliveryNoteItem {
-  id             String  @id @default(cuid())
+  id             String  @id @default(cuid()) @map("idDeliveryNoteItem")
   deliveryNoteId String
   productCode    String?
   itemName       String

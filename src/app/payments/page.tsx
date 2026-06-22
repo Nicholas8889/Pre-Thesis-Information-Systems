@@ -206,6 +206,7 @@ export default async function PaymentsPage({
                   <th className="py-3 pr-4">Date</th>
                   <th className="py-3 pr-4">Method</th>
                   <th className="py-3 text-right">Amount</th>
+                  <th className="py-3 pr-4">Notes</th>
                   <th className="py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -228,6 +229,9 @@ export default async function PaymentsPage({
                     </td>
                     <td className="py-3 text-right font-medium">
                       {formatCurrency(payment.amount)}
+                    </td>
+                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                      {payment.notes ?? "-"}
                     </td>
                     <td className="py-3">
                       <div className="flex justify-end gap-2">

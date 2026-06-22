@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { RestrictedAction } from "@/components/restricted-action";
+import { DeleteSalesOrderButton } from "@/components/delete-sales-order-button";
 import { generateInvoice } from "@/lib/actions";
 import {
   calculateTotalPaidFromPayments,
@@ -18,6 +19,7 @@ import { canGenerateInvoiceForApproval } from "@/lib/sales-order-approval";
 import { syncOverdueInvoices } from "@/lib/workflow";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
+import { canDeleteOngoingSalesOrder } from "@/lib/sales-order-deletion";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +47,7 @@ export default async function SalesOrderDetailPage({
   const canCreateInvoice = canRole(currentUser?.role, "CREATE_INVOICE");
   const canRecordPayment = canRole(currentUser?.role, "RECORD_PAYMENT");
   const canCreateSuratJalan = canRole(currentUser?.role, "CREATE_SURAT_JALAN");
+  const canDeleteSalesOrder = canRole(currentUser?.role, "DELETE_SALES_ORDER");
 
   await syncOverdueInvoices();
 
@@ -79,7 +82,11 @@ export default async function SalesOrderDetailPage({
 
   const invoice = salesOrder.invoice;
   const payments = invoice?.payments ?? [];
-  const deliveryNotes = salesOrder.deliveryNotes;
+  const deliveryNotes = Array.from(
+    new Map(
+      [...salesOrder.deliveryNotes, ...(invoice?.deliveryNotes ?? [])].map((note) => [note.id, note])
+    ).values()
+  );
   const followUps = invoice?.followUps ?? [];
   const paidAmount = invoice ? calculateTotalPaidFromPayments(payments) : 0;
   const remainingAmount = invoice?.remainingAmount ?? salesOrder.total;
@@ -97,6 +104,17 @@ export default async function SalesOrderDetailPage({
     remainingAmount,
     followUpCount: followUps.length
   });
+  const isOngoingAndDeletable = canDeleteOngoingSalesOrder({
+    salesOrderStatus: salesOrder.status,
+    invoiceStatus: invoice?.status,
+    deliveryNoteStatuses: deliveryNotes.map((note) => note.status)
+  });
+  const relatedRecordCount =
+    salesOrder.items.length +
+    (invoice ? 1 : 0) +
+    payments.length +
+    deliveryNotes.length +
+    followUps.length;
 
   return (
     <>
@@ -211,6 +229,20 @@ export default async function SalesOrderDetailPage({
               Sales Order Rejected
             </p>
           )}
+          {isOngoingAndDeletable &&
+            (canDeleteSalesOrder ? (
+              <DeleteSalesOrderButton
+                salesOrderId={salesOrder.id}
+                orderNumber={salesOrder.orderNumber}
+                relatedRecordCount={relatedRecordCount}
+              />
+            ) : (
+              <RestrictedAction message={getRestrictionMessage("DELETE_SALES_ORDER")}>
+                <button disabled className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-slate-50 px-4 text-sm font-semibold text-slate-400">
+                  Delete Sales Order
+                </button>
+              </RestrictedAction>
+            ))}
         </div>
       </section>
 
@@ -262,7 +294,7 @@ export default async function SalesOrderDetailPage({
             </table>
           </div>
           {salesOrder.notes && (
-            <p className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+            <p className="mt-4 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-600">
               {salesOrder.notes}
             </p>
           )}

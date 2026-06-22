@@ -188,6 +188,7 @@ export default async function SalesOrdersPage({
                   : "No Surat Jalan"
               }
             />
+            <Detail label="Notes" value={selectedOrder.notes ?? "-"} />
           </div>
 
           <div className="overflow-x-auto">
@@ -310,6 +311,7 @@ export default async function SalesOrdersPage({
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Surat Jalan</th>
                   <th className="py-3 pr-4 text-right">Total</th>
+                  <th className="py-3 pr-4">Notes</th>
                   <th className="py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -341,6 +343,9 @@ export default async function SalesOrdersPage({
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(order.total)}
+                    </td>
+                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                      {order.notes ?? "-"}
                     </td>
                     <td className="py-3">
                       <div className="flex justify-end gap-2">

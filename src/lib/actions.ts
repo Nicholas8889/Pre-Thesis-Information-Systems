@@ -24,6 +24,11 @@ import {
 } from "@/lib/sales-order-approval";
 import { getCurrentUser } from "@/lib/session";
 import {
+  canDeleteOngoingSalesOrder,
+  deleteSalesOrderProcess
+} from "@/lib/sales-order-deletion";
+import { mergeActionNotes, normalizeActionNote } from "@/lib/action-notes";
+import {
   calculateOrderTotals,
   getDueDateForPaymentTerm,
   getInvoiceStatusForAmounts,
@@ -50,6 +55,7 @@ const pathsToRefresh = [
 export async function createCustomer(formData: FormData) {
   const name = getRequiredString(formData, "name");
   const companyName = getRequiredString(formData, "companyName");
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   if (!name || !companyName) {
     redirectWithMessage("/customers", "error", "Customer name and company name are required");
@@ -65,7 +71,7 @@ export async function createCustomer(formData: FormData) {
       address: getString(formData, "address"),
       customerType: getString(formData, "customerType") || "Retail",
       status,
-      notes: getString(formData, "notes") || null
+      notes: mergeActionNotes(getString(formData, "notes"), actionNote)
     }
   });
 
@@ -75,6 +81,7 @@ export async function createCustomer(formData: FormData) {
     entityId: customer.id,
     transactionCode: customer.companyName || customer.name,
     action: "CREATED",
+    actionNote,
     changeSummary: `Customer ${customer.companyName || customer.name} created`,
     newValue: summarizeCustomer(customer)
   });
@@ -87,6 +94,7 @@ export async function updateCustomer(formData: FormData) {
   const id = getRequiredString(formData, "id");
   const name = getRequiredString(formData, "name");
   const companyName = getRequiredString(formData, "companyName");
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   if (!id || !name || !companyName) {
     redirectWithMessage(
@@ -113,7 +121,7 @@ export async function updateCustomer(formData: FormData) {
       address: getString(formData, "address"),
       customerType: getString(formData, "customerType") || "Retail",
       status,
-      notes: getString(formData, "notes") || null
+      notes: mergeActionNotes(getString(formData, "notes"), actionNote)
     }
   });
 
@@ -123,6 +131,7 @@ export async function updateCustomer(formData: FormData) {
     entityId: customer.id,
     transactionCode: customer.companyName || customer.name,
     action: oldCustomer.status !== customer.status ? "STATUS_CHANGED" : "UPDATED",
+    actionNote,
     changeSummary:
       oldCustomer.status !== customer.status
         ? `Customer status changed from ${oldCustomer.status} to ${customer.status}`
@@ -135,10 +144,52 @@ export async function updateCustomer(formData: FormData) {
   redirect(`/customers?view=${id}&success=${encodeURIComponent("Customer updated")}`);
 }
 
+export async function updateCustomerStatus(formData: FormData) {
+  const id = getRequiredString(formData, "id");
+  const requestedStatus = getString(formData, "status");
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
+
+  if (!id || !["Active", "Inactive"].includes(requestedStatus)) {
+    redirectWithMessage("/customers", "error", "Customer and a valid status are required");
+  }
+
+  const oldCustomer = await prisma.customer.findUnique({ where: { id } });
+
+  if (!oldCustomer) {
+    redirectWithMessage("/customers", "error", "Customer was not found");
+  }
+
+  const status = requestedStatus as CustomerStatus;
+  const customer = await prisma.customer.update({
+    where: { id },
+    data: { status, notes: mergeActionNotes(oldCustomer.notes, actionNote) }
+  });
+
+  await createAuditTrailLog({
+    moduleName: "Customers",
+    entityType: "CUSTOMER",
+    entityId: customer.id,
+    transactionCode: customer.companyName || customer.name,
+    action: "STATUS_CHANGED",
+    actionNote,
+    changeSummary: `Customer status changed from ${oldCustomer.status} to ${customer.status}`,
+    oldValue: { status: oldCustomer.status },
+    newValue: { status: customer.status }
+  });
+
+  refreshApp();
+  redirect(
+    `/customers?view=${id}&success=${encodeURIComponent(
+      `Customer marked as ${customer.status.toLowerCase()}`
+    )}`
+  );
+}
+
 export async function createSalesOrder(formData: FormData) {
   const customerId = getRequiredString(formData, "customerId");
   const rawItems = getString(formData, "items");
   const notes = getString(formData, "notes");
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   const items = normalizeOrderItems(safeJsonParse(rawItems));
   const rawPaymentTermType = getString(formData, "paymentTermType");
   const rawCreditTermMonths = formData.get("creditTermMonths");
@@ -210,7 +261,7 @@ export async function createSalesOrder(formData: FormData) {
         total: totals.total,
         paymentTermType,
         creditTermMonths,
-        notes: notes || null,
+        notes: mergeActionNotes(notes, actionNote),
         approvalStatus: "Pending",
         approvalRisk: paymentRisk,
         createdByUserId: currentUser?.id ?? null,
@@ -231,6 +282,7 @@ export async function createSalesOrder(formData: FormData) {
       entityId: salesOrder.id,
       transactionCode: salesOrder.orderNumber,
       action: "APPROVAL_REQUESTED",
+      actionNote,
       changeSummary: `Sales order ${salesOrder.orderNumber} requires Manager approval because the customer is ${paymentRisk}`,
       newValue: {
         orderNumber: salesOrder.orderNumber,
@@ -260,7 +312,7 @@ export async function createSalesOrder(formData: FormData) {
         total: totals.total,
         paymentTermType,
         creditTermMonths,
-        notes: notes || null,
+        notes: mergeActionNotes(notes, actionNote),
         approvalStatus: "NotRequired",
         createdByUserId: currentUser.id,
         items: {
@@ -280,6 +332,7 @@ export async function createSalesOrder(formData: FormData) {
       entityId: salesOrder.id,
       transactionCode: salesOrder.orderNumber,
       action: "CREATED",
+      actionNote,
       changeSummary: `Sales order ${salesOrder.orderNumber} created and is ready for Admin or Manager invoicing`,
       newValue: {
         orderNumber: salesOrder.orderNumber,
@@ -317,7 +370,7 @@ export async function createSalesOrder(formData: FormData) {
         total: totals.total,
         paymentTermType,
         creditTermMonths,
-        notes: notes || null,
+        notes: mergeActionNotes(notes, actionNote),
         approvalStatus: "NotRequired",
         createdByUserId: currentUser?.id ?? null,
         items: {
@@ -343,7 +396,8 @@ export async function createSalesOrder(formData: FormData) {
         remainingAmount: salesOrder.total,
         paymentTermType,
         creditTermMonths,
-        status: "Unpaid"
+        status: "Unpaid",
+        notes: actionNote || null
       }
     });
 
@@ -369,6 +423,7 @@ export async function createSalesOrder(formData: FormData) {
     entityId: result.salesOrder.id,
     transactionCode: result.salesOrder.orderNumber,
     action: "CREATED",
+    actionNote,
     changeSummary: `Sales order ${result.salesOrder.orderNumber} created and invoiced`,
     newValue: {
       orderNumber: result.salesOrder.orderNumber,
@@ -384,6 +439,7 @@ export async function createSalesOrder(formData: FormData) {
     entityId: result.invoice.id,
     transactionCode: result.invoice.invoiceNumber,
     action: "CREATED",
+    actionNote,
     changeSummary: `Invoice ${result.invoice.invoiceNumber} generated from sales order ${result.salesOrder.orderNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
@@ -393,6 +449,7 @@ export async function createSalesOrder(formData: FormData) {
     entityId: result.invoice.id,
     transactionCode: result.invoice.invoiceNumber,
     action: "CREATED",
+    actionNote,
     changeSummary: `Receivable created from invoice ${result.invoice.invoiceNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
@@ -403,6 +460,7 @@ export async function createSalesOrder(formData: FormData) {
       entityId: result.followUp.id,
       transactionCode: result.invoice.invoiceNumber,
       action: "CREATED",
+      actionNote,
       changeSummary: `Credit billing reminder created for invoice ${result.invoice.invoiceNumber}`,
       newValue: summarizeFollowUp(result.followUp)
     });
@@ -416,8 +474,106 @@ export async function createSalesOrder(formData: FormData) {
   );
 }
 
+export async function deleteSalesOrder(formData: FormData) {
+  const salesOrderId = getRequiredString(formData, "salesOrderId");
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
+  const currentUser = await getCurrentUser();
+
+  if (!canRole(currentUser?.role, "DELETE_SALES_ORDER")) {
+    redirectWithMessage(
+      `/sales-orders/${salesOrderId}`,
+      "error",
+      "Only Admin and Manager roles can delete ongoing Sales Orders"
+    );
+  }
+
+  if (!actionNote) {
+    redirectWithMessage(
+      `/sales-orders/${salesOrderId}`,
+      "error",
+      "A confirmation note is required to delete a Sales Order"
+    );
+  }
+
+  const salesOrder = await prisma.salesOrder.findUnique({
+    where: { id: salesOrderId },
+    include: {
+      invoice: {
+        include: {
+          payments: true,
+          followUps: true,
+          deliveryNotes: { select: { id: true, status: true } }
+        }
+      },
+      deliveryNotes: { select: { id: true, status: true } },
+      items: { select: { id: true } }
+    }
+  });
+
+  if (!salesOrder) {
+    redirectWithMessage("/sales-orders", "error", "Sales order was not found");
+  }
+
+  if (
+    !canDeleteOngoingSalesOrder({
+      salesOrderStatus: salesOrder.status,
+      invoiceStatus: salesOrder.invoice?.status,
+      deliveryNoteStatuses: [
+        ...salesOrder.deliveryNotes,
+        ...(salesOrder.invoice?.deliveryNotes ?? [])
+      ].map((note) => note.status)
+    })
+  ) {
+    redirectWithMessage(
+      `/sales-orders/${salesOrder.id}`,
+      "error",
+      "Completed, delivered, paid, or cancelled Sales Orders cannot be deleted"
+    );
+  }
+
+  const invoiceId = salesOrder.invoice?.id;
+  const deletedSummary = {
+    orderNumber: salesOrder.orderNumber,
+    status: salesOrder.status,
+    invoiceNumber: salesOrder.invoice?.invoiceNumber ?? null,
+    itemCount: salesOrder.items.length,
+    paymentCount: salesOrder.invoice?.payments.length ?? 0,
+    billingCount: salesOrder.invoice?.followUps.length ?? 0,
+    deliveryNoteCount: new Set([
+      ...salesOrder.deliveryNotes.map((note) => note.id),
+      ...(salesOrder.invoice?.deliveryNotes ?? []).map((note) => note.id)
+    ]).size
+  };
+
+  await prisma.$transaction(async (tx) => {
+    await deleteSalesOrderProcess(tx, {
+      salesOrderId: salesOrder.id,
+      invoiceId
+    });
+  });
+
+  await createAuditTrailLog({
+    moduleName: "Sales Orders",
+    entityType: "SALES_ORDER",
+    entityId: salesOrder.id,
+    transactionCode: salesOrder.orderNumber,
+    action: "DELETED",
+    actionNote,
+    changeSummary: `Ongoing sales order ${salesOrder.orderNumber} and its related process records were deleted`,
+    oldValue: deletedSummary
+  });
+
+  refreshApp();
+  redirectWithMessage(
+    "/sales-orders",
+    "success",
+    `Sales order ${salesOrder.orderNumber} and its related records were deleted`
+  );
+}
+
 export async function generateInvoice(formData: FormData) {
   const currentUser = await getCurrentUser();
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   if (!canRole(currentUser?.role, "CREATE_INVOICE")) {
     redirectWithMessage(
       "/sales-orders",
@@ -476,13 +632,17 @@ export async function generateInvoice(formData: FormData) {
         remainingAmount: salesOrder.total,
         paymentTermType: salesOrder.paymentTermType,
         creditTermMonths: salesOrder.creditTermMonths,
-        status: "Unpaid"
+        status: "Unpaid",
+        notes: actionNote || null
       }
     });
 
     const updatedSalesOrder = await tx.salesOrder.update({
       where: { id: salesOrder.id },
-      data: { status: "Invoiced" }
+      data: {
+        status: "Invoiced",
+        notes: mergeActionNotes(salesOrder.notes, actionNote)
+      }
     });
 
     const followUp =
@@ -507,6 +667,7 @@ export async function generateInvoice(formData: FormData) {
     entityId: result.invoice.id,
     transactionCode: result.invoice.invoiceNumber,
     action: "CREATED",
+    actionNote,
     changeSummary: `Invoice ${result.invoice.invoiceNumber} generated from sales order ${result.salesOrder.orderNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
@@ -516,6 +677,7 @@ export async function generateInvoice(formData: FormData) {
     entityId: result.salesOrder.id,
     transactionCode: result.salesOrder.orderNumber,
     action: "STATUS_CHANGED",
+    actionNote,
     changeSummary: `Sales order status changed to ${result.salesOrder.status}`,
     oldValue: { status: salesOrder.status },
     newValue: { status: result.salesOrder.status }
@@ -526,6 +688,7 @@ export async function generateInvoice(formData: FormData) {
     entityId: result.invoice.id,
     transactionCode: result.invoice.invoiceNumber,
     action: "CREATED",
+    actionNote,
     changeSummary: `Receivable created from invoice ${result.invoice.invoiceNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
@@ -536,6 +699,7 @@ export async function generateInvoice(formData: FormData) {
       entityId: result.followUp.id,
       transactionCode: result.invoice.invoiceNumber,
       action: "CREATED",
+      actionNote,
       changeSummary: `Credit billing reminder created for invoice ${result.invoice.invoiceNumber}`,
       newValue: summarizeFollowUp(result.followUp)
     });
@@ -547,6 +711,7 @@ export async function generateInvoice(formData: FormData) {
 
 export async function decideSalesOrderApproval(formData: FormData) {
   const currentUser = await getCurrentUser();
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   if (!currentUser || currentUser.role !== "MANAGER") {
     redirectWithMessage(
       "/sales-orders?tab=approval",
@@ -565,7 +730,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
     );
   }
   const decision: SalesOrderApprovalStatus = decisionValue;
-  const decisionNote = getString(formData, "decisionNote");
+  const decisionNote = mergeActionNotes(getString(formData, "decisionNote"), actionNote);
   const salesOrder = await prisma.salesOrder.findUnique({
     where: { id: salesOrderId },
     include: { invoice: true, customer: true }
@@ -597,7 +762,8 @@ export async function decideSalesOrderApproval(formData: FormData) {
         approvalStatus: "Rejected",
         approvalDecisionNote: decisionNote || null,
         approvalDecidedAt: new Date(),
-        approvalDecidedById: currentUser.id
+        approvalDecidedById: currentUser.id,
+        notes: mergeActionNotes(salesOrder.notes, actionNote)
       }
     });
 
@@ -607,6 +773,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
       entityId: rejectedOrder.id,
       transactionCode: rejectedOrder.orderNumber,
       action: "REJECTED",
+      actionNote,
       changeSummary: `Manager rejected sales order ${rejectedOrder.orderNumber}`,
       oldValue: { status: salesOrder.status, approvalStatus: salesOrder.approvalStatus },
       newValue: {
@@ -641,7 +808,8 @@ export async function decideSalesOrderApproval(formData: FormData) {
         remainingAmount: salesOrder.total,
         paymentTermType: salesOrder.paymentTermType,
         creditTermMonths: salesOrder.creditTermMonths,
-        status: "Unpaid"
+        status: "Unpaid",
+        notes: actionNote || null
       }
     });
     const approvedOrder = await tx.salesOrder.update({
@@ -651,7 +819,8 @@ export async function decideSalesOrderApproval(formData: FormData) {
         approvalStatus: "Approved",
         approvalDecisionNote: decisionNote || null,
         approvalDecidedAt: issueDate,
-        approvalDecidedById: currentUser.id
+        approvalDecidedById: currentUser.id,
+        notes: mergeActionNotes(salesOrder.notes, actionNote)
       }
     });
     const followUp =
@@ -675,6 +844,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
     entityId: result.salesOrder.id,
     transactionCode: result.salesOrder.orderNumber,
     action: "APPROVED",
+    actionNote,
     changeSummary: `Manager approved sales order ${result.salesOrder.orderNumber}`,
     oldValue: { status: salesOrder.status, approvalStatus: salesOrder.approvalStatus },
     newValue: {
@@ -689,6 +859,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
     entityId: result.invoice.id,
     transactionCode: result.invoice.invoiceNumber,
     action: "CREATED",
+    actionNote,
     changeSummary: `Invoice ${result.invoice.invoiceNumber} generated after Manager approval of ${result.salesOrder.orderNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
@@ -698,6 +869,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
     entityId: result.invoice.id,
     transactionCode: result.invoice.invoiceNumber,
     action: "CREATED",
+    actionNote,
     changeSummary: `Receivable created from invoice ${result.invoice.invoiceNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
@@ -708,6 +880,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
       entityId: result.followUp.id,
       transactionCode: result.invoice.invoiceNumber,
       action: "CREATED",
+      actionNote,
       changeSummary: `Credit billing reminder created for invoice ${result.invoice.invoiceNumber}`,
       newValue: summarizeFollowUp(result.followUp)
     });
@@ -723,6 +896,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
 
 export async function recordPayment(formData: FormData) {
   const currentUser = await getCurrentUser();
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   if (!canRole(currentUser?.role, "RECORD_PAYMENT")) {
     redirectWithMessage(
       "/payments",
@@ -772,7 +946,7 @@ export async function recordPayment(formData: FormData) {
         paymentDate,
         amount,
         paymentMethod,
-        notes: getString(formData, "notes") || null
+        notes: mergeActionNotes(getString(formData, "notes"), actionNote)
       }
     });
 
@@ -802,6 +976,7 @@ export async function recordPayment(formData: FormData) {
     entityId: result.payment.id,
     transactionCode: invoice.invoiceNumber,
     action: "PAYMENT_RECORDED",
+    actionNote,
     changeSummary: `Payment recorded for invoice ${invoice.invoiceNumber}`,
     oldValue: {
       invoiceNumber: invoice.invoiceNumber,
@@ -813,6 +988,7 @@ export async function recordPayment(formData: FormData) {
       paymentId: result.payment.id,
       amount: result.payment.amount,
       paymentMethod: result.payment.paymentMethod,
+      notes: result.payment.notes,
       paidAmount: result.invoice.paidAmount,
       remainingAmount: result.invoice.remainingAmount,
       status: result.invoice.status
@@ -825,6 +1001,7 @@ export async function recordPayment(formData: FormData) {
       entityId: result.invoice.id,
       transactionCode: invoice.invoiceNumber,
       action: "STATUS_CHANGED",
+      actionNote,
       changeSummary: `Invoice status changed from ${invoice.status} to ${result.invoice.status}`,
       oldValue: summarizeInvoice(invoice),
       newValue: summarizeInvoice(result.invoice)
@@ -836,6 +1013,7 @@ export async function recordPayment(formData: FormData) {
     entityId: result.invoice.id,
     transactionCode: invoice.invoiceNumber,
     action: result.invoice.remainingAmount <= 0 ? "RECEIVABLE_CLOSED" : "STATUS_CHANGED",
+    actionNote,
     changeSummary:
       result.invoice.remainingAmount <= 0
         ? `Receivable closed for invoice ${invoice.invoiceNumber}`
@@ -850,6 +1028,7 @@ export async function recordPayment(formData: FormData) {
 
 export async function updateInvoiceNotes(formData: FormData) {
   const id = getRequiredString(formData, "id");
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   if (!id) {
     redirectWithMessage("/invoices", "error", "Invoice ID is required");
@@ -864,7 +1043,7 @@ export async function updateInvoiceNotes(formData: FormData) {
   const invoice = await prisma.invoice.update({
     where: { id },
     data: {
-      notes: getString(formData, "notes") || null
+      notes: mergeActionNotes(getString(formData, "notes"), actionNote)
     }
   });
 
@@ -874,6 +1053,7 @@ export async function updateInvoiceNotes(formData: FormData) {
     entityId: invoice.id,
     transactionCode: invoice.invoiceNumber,
     action: "NOTE_UPDATED",
+    actionNote,
     changeSummary: `Invoice notes updated for ${invoice.invoiceNumber}`,
     oldValue: { notes: oldInvoice.notes },
     newValue: { notes: invoice.notes }
@@ -888,6 +1068,7 @@ export async function createFollowUp(formData: FormData) {
   const invoiceId = getString(formData, "invoiceId");
   const followUpDate = new Date(getRequiredString(formData, "followUpDate"));
   const notes = getRequiredString(formData, "notes");
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   if (!customerId || !notes) {
     redirectWithMessage("/billing", "error", "Customer and notes are required");
@@ -904,7 +1085,7 @@ export async function createFollowUp(formData: FormData) {
         ["Planned", "Done", "Cancelled"],
         "Planned"
       ),
-      notes
+      notes: mergeActionNotes(notes, actionNote) ?? notes
     },
     include: { customer: true, invoice: true }
   });
@@ -915,6 +1096,7 @@ export async function createFollowUp(formData: FormData) {
     entityId: followUp.id,
     transactionCode: followUp.invoice?.invoiceNumber ?? followUp.customer.companyName ?? followUp.id,
     action: "CREATED",
+    actionNote,
     changeSummary: `Billing record created for ${followUp.invoice?.invoiceNumber ?? followUp.customer.companyName}`,
     newValue: summarizeFollowUp(followUp)
   });
@@ -927,6 +1109,7 @@ export async function recordCustomerProductFollowUp(formData: FormData) {
   const customerId = getRequiredString(formData, "customerId");
   const contactDateValue = getRequiredString(formData, "contactDate");
   const contactDate = new Date(`${contactDateValue}T00:00:00`);
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   if (!customerId || !contactDateValue || Number.isNaN(contactDate.getTime())) {
     redirectWithMessage(
@@ -949,7 +1132,7 @@ export async function recordCustomerProductFollowUp(formData: FormData) {
     data: {
       customerId,
       contactDate,
-      notes: getString(formData, "notes") || null
+      notes: mergeActionNotes(getString(formData, "notes"), actionNote)
     }
   });
 
@@ -959,6 +1142,7 @@ export async function recordCustomerProductFollowUp(formData: FormData) {
     entityId: productFollowUp.id,
     transactionCode: customer.companyName || customer.name,
     action: "CONTACT_RECORDED",
+    actionNote,
     changeSummary: `Product follow-up contact recorded for ${customer.companyName || customer.name}`,
     newValue: {
       customerId,
@@ -973,6 +1157,7 @@ export async function recordCustomerProductFollowUp(formData: FormData) {
 
 export async function createDeliveryNote(formData: FormData) {
   const currentUser = await getCurrentUser();
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   if (!canRole(currentUser?.role, "CREATE_SURAT_JALAN")) {
     redirectWithMessage(
       "/surat-jalan",
@@ -1034,7 +1219,7 @@ export async function createDeliveryNote(formData: FormData) {
       recipientAddress,
       deliveryDate,
       status: "Issued",
-      notes: getString(formData, "notes") || null,
+      notes: mergeActionNotes(getString(formData, "notes"), actionNote),
       receiverName: getString(formData, "receiverName") || null,
       senderName: senderName || null,
       authorizedBy: authorizedBy || null,
@@ -1060,6 +1245,7 @@ export async function createDeliveryNote(formData: FormData) {
     entityId: deliveryNote.id,
     transactionCode: deliveryNote.deliveryNoteNumber,
     action: "CREATED",
+    actionNote,
     changeSummary: `Surat Jalan ${deliveryNote.deliveryNoteNumber} created`,
     newValue: {
       deliveryNoteNumber: deliveryNote.deliveryNoteNumber,
@@ -1078,6 +1264,7 @@ export async function createDeliveryNote(formData: FormData) {
 
 export async function updateDeliveryNoteStatus(formData: FormData) {
   const id = getRequiredString(formData, "id");
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   const status = getStatus<DeliveryNoteStatus>(
     formData,
     "status",
@@ -1091,7 +1278,7 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
 
   const oldDeliveryNote = await prisma.deliveryNote.findUnique({
     where: { id },
-    select: { id: true, deliveryNoteNumber: true, status: true }
+    select: { id: true, deliveryNoteNumber: true, status: true, notes: true }
   });
 
   if (!oldDeliveryNote) {
@@ -1100,7 +1287,7 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
 
   const deliveryNote = await prisma.deliveryNote.update({
     where: { id },
-    data: { status }
+    data: { status, notes: mergeActionNotes(oldDeliveryNote.notes, actionNote) }
   });
 
   await createAuditTrailLog({
@@ -1109,6 +1296,7 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
     entityId: deliveryNote.id,
     transactionCode: deliveryNote.deliveryNoteNumber,
     action: deliveryNote.status === "Delivered" ? "DELIVERED" : "STATUS_CHANGED",
+    actionNote,
     changeSummary: `Surat Jalan status changed from ${oldDeliveryNote.status} to ${deliveryNote.status}`,
     oldValue: { status: oldDeliveryNote.status },
     newValue: { status: deliveryNote.status }

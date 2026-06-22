@@ -4,12 +4,15 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import {
   compareTableValues,
+  getTablePageRange,
   parseTableDate,
-  shouldOfferCheckboxFilter
+  shouldOfferCheckboxFilter,
+  shouldOfferTableTextExpansion
 } from "@/lib/table-utils";
 
 const dateHeaderPattern = /date|due|created|updated|contact|deadline|sent|issued/i;
 const skippedHeaderPattern = /^actions?$/i;
+const rowsPerPage = 10;
 
 type FilterController = {
   reset: () => void;
@@ -53,11 +56,13 @@ function enhanceTable(table: HTMLTableElement) {
 
   table.dataset.tableEnhanced = "true";
   const rows = Array.from(body.rows);
-  const originalOrder = new Map(rows.map((row, index) => [row, index]));
   const headerNames = headers.map((header) => header.textContent?.trim() ?? "");
+  enhanceExpandableCells(rows, headerNames);
+  const originalOrder = new Map(rows.map((row, index) => [row, index]));
   const columnFilters = new Map<number, (row: HTMLTableRowElement) => boolean>();
   const filterControllers: FilterController[] = [];
   let searchValue = "";
+  let currentPage = 1;
 
   const toolbar = document.createElement("div");
   toolbar.className = "table-enhancer-toolbar no-print";
@@ -72,6 +77,7 @@ function enhanceTable(table: HTMLTableElement) {
   searchInput.setAttribute("aria-label", "Search rows containing this text");
   searchInput.addEventListener("input", () => {
     searchValue = searchInput.value.trim().toLowerCase();
+    currentPage = 1;
     applyFilters();
   });
   searchLabel.append(searchInput);
@@ -88,6 +94,7 @@ function enhanceTable(table: HTMLTableElement) {
   resetButton.addEventListener("click", () => {
     searchInput.value = "";
     searchValue = "";
+    currentPage = 1;
     columnFilters.clear();
     filterControllers.forEach((controller) => controller.reset());
     rows.sort((left, right) => (originalOrder.get(left) ?? 0) - (originalOrder.get(right) ?? 0));
@@ -101,6 +108,24 @@ function enhanceTable(table: HTMLTableElement) {
   });
   toolbar.append(resetButton);
   table.parentElement?.insertBefore(toolbar, table);
+
+  const pagination = document.createElement("nav");
+  pagination.className = "table-enhancer-pagination no-print";
+  pagination.setAttribute("aria-label", "Table pagination");
+  const previousButton = createPaginationButton("Previous");
+  const pageStatus = document.createElement("span");
+  pageStatus.className = "table-enhancer-page-status";
+  const nextButton = createPaginationButton("Next");
+  previousButton.addEventListener("click", () => {
+    currentPage -= 1;
+    applyFilters();
+  });
+  nextButton.addEventListener("click", () => {
+    currentPage += 1;
+    applyFilters();
+  });
+  pagination.append(previousButton, pageStatus, nextButton);
+  table.insertAdjacentElement("afterend", pagination);
 
   headers.forEach((header, columnIndex) => {
     const headerName = headerNames[columnIndex];
@@ -136,6 +161,8 @@ function enhanceTable(table: HTMLTableElement) {
         return direction === "asc" ? comparison : -comparison;
       });
       rows.forEach((row) => body.append(row));
+      currentPage = 1;
+      applyFilters();
     });
     controls.append(sortButton);
 
@@ -180,21 +207,78 @@ function enhanceTable(table: HTMLTableElement) {
   ) {
     if (filter) columnFilters.set(columnIndex, filter);
     else columnFilters.delete(columnIndex);
+    currentPage = 1;
     applyFilters();
   }
 
   function applyFilters() {
-    let visibleCount = 0;
-    rows.forEach((row) => {
+    const matchingRows = rows.filter((row) => {
       const matchesSearch =
-        !searchValue || Boolean(row.textContent?.toLowerCase().includes(searchValue));
+        !searchValue || getRowSearchText(row).includes(searchValue);
       const matchesColumns = [...columnFilters.values()].every((filter) => filter(row));
-      const visible = matchesSearch && matchesColumns;
-      row.hidden = !visible;
-      if (visible) visibleCount += 1;
+      return matchesSearch && matchesColumns;
     });
-    resultCount.textContent = `Showing ${visibleCount} of ${rows.length}`;
+    const range = getTablePageRange(matchingRows.length, currentPage, rowsPerPage);
+    currentPage = range.page;
+    const pageRows = new Set(matchingRows.slice(range.start, range.end));
+    rows.forEach((row) => {
+      row.hidden = !pageRows.has(row);
+    });
+
+    const firstShown = matchingRows.length === 0 ? 0 : range.start + 1;
+    resultCount.textContent =
+      matchingRows.length === rows.length
+        ? `Showing ${firstShown}-${range.end} of ${rows.length}`
+        : `Showing ${firstShown}-${range.end} of ${matchingRows.length} matching (${rows.length} total)`;
+    pageStatus.textContent = `Page ${range.page} of ${range.totalPages}`;
+    previousButton.disabled = range.page <= 1;
+    nextButton.disabled = range.page >= range.totalPages;
+    pagination.hidden = range.totalPages <= 1;
   }
+}
+
+function createPaginationButton(text: string) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "table-enhancer-page-button";
+  button.textContent = text;
+  return button;
+}
+
+function enhanceExpandableCells(rows: HTMLTableRowElement[], headerNames: string[]) {
+  rows.forEach((row) => {
+    Array.from(row.cells).forEach((cell, columnIndex) => {
+      if (cell.dataset.expandableCell === "true") return;
+      if (cell.children.length > 0) return;
+
+      const value = cell.textContent?.replace(/\s+/g, " ").trim() ?? "";
+      if (!value || value === "-") return;
+
+      cell.dataset.expandableCell = "true";
+      cell.dataset.tableCellValue = value;
+      cell.classList.add("table-cell-limited");
+
+      const content = document.createElement("div");
+      content.className = "table-cell-content";
+      content.textContent = value;
+      cell.replaceChildren(content);
+
+      const isNotesColumn = /notes?|comments?/i.test(headerNames[columnIndex] ?? "");
+      if (!shouldOfferTableTextExpansion(value, isNotesColumn ? 24 : 40)) return;
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "table-cell-toggle no-print";
+      toggle.textContent = "Show more";
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.addEventListener("click", () => {
+        const expanded = content.classList.toggle("table-cell-content-expanded");
+        toggle.textContent = expanded ? "Show less" : "Show more";
+        toggle.setAttribute("aria-expanded", String(expanded));
+      });
+      cell.append(toggle);
+    });
+  });
 }
 
 function createCheckboxFilter({
@@ -432,5 +516,16 @@ function createFunnelIcon() {
 }
 
 function getCellText(row: HTMLTableRowElement, columnIndex: number) {
-  return row.cells[columnIndex]?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+  const cell = row.cells[columnIndex];
+  if (!cell) return "";
+  return (
+    cell.dataset.tableCellValue ?? cell.textContent?.replace(/\s+/g, " ").trim() ?? ""
+  );
+}
+
+function getRowSearchText(row: HTMLTableRowElement) {
+  return Array.from(row.cells)
+    .map((_, columnIndex) => getCellText(row, columnIndex))
+    .join(" ")
+    .toLowerCase();
 }
