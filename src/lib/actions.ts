@@ -28,6 +28,7 @@ import {
   deleteSalesOrderProcess
 } from "@/lib/sales-order-deletion";
 import { mergeActionNotes, normalizeActionNote } from "@/lib/action-notes";
+import { nextNumberFromExisting } from "@/lib/document-numbering";
 import {
   calculateOrderTotals,
   getDueDateForPaymentTerm,
@@ -1400,8 +1401,23 @@ function getAllowedUnit(value: string) {
 
 async function nextDeliveryNoteNumber() {
   const year = new Date().getFullYear();
-  const count = await prisma.deliveryNote.count();
-  return `SJ-${year}-${String(count + 1).padStart(3, "0")}`;
+  const sequencePrefix = `SJ-${year}-`;
+  const deliveryNotes = await prisma.deliveryNote.findMany({
+    where: {
+      deliveryNoteNumber: {
+        startsWith: sequencePrefix
+      }
+    },
+    select: {
+      deliveryNoteNumber: true
+    }
+  });
+
+  return nextNumberFromExisting({
+    existingNumbers: deliveryNotes.map((deliveryNote) => deliveryNote.deliveryNoteNumber),
+    prefix: "SJ",
+    year
+  });
 }
 
 function getString(formData: FormData, name: string) {

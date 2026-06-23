@@ -1,31 +1,45 @@
 # CV Tajuk Revenue Cycle MVP - Complete User Flows
 
-Updated: 20 June 2026
+Updated: 22 June 2026
 
 This revision reflects the current responsive layout, role-specific dashboards,
-Manager Sales Order approval, notification reminders, simple table search,
-selective filters, and the latest role restrictions.
+Manager Sales Order approval, transaction confirmation dialogs, confirmation
+notes, cascading ongoing-order deletion, customer activation controls, table
+pagination/search/filter/sort behavior, expandable comments, and the latest role restrictions.
 
 ## 1. Main System Flow
 
-```text
-Login
-  -> Role Dashboard
-  -> Customer
-  -> Sales Order
-      -> Created by Manager: Invoice generated immediately
-      -> Clean customer created by Sales:
-           Confirmed Sales Order -> Admin/Manager generates Invoice
-      -> Late/Historically Late customer created by Sales:
-           Manager Approval -> Approve -> Invoice generated
-                            -> Reject  -> Order cancelled
-      -> Admin: view only; Sales Order creation is disabled
-  -> Payment and/or Surat Jalan
-  -> Receivable monitoring
-  -> Billing when collection is needed
-  -> Product Follow Up when a customer becomes inactive
-  -> Dashboard and Audit Trail monitoring
+```mermaid
+flowchart TD
+    A["Login"] --> B["Role Dashboard"]
+    B --> C["Customer Management"]
+    C --> C1["Activate or deactivate customer"]
+    C --> D["Create Sales Order"]
+    D --> E{"Creator and customer risk"}
+    E -->|"Manager"| F["Sales Order and Invoice created"]
+    E -->|"Sales and customer clear"| G["Sales Order confirmed"]
+    G --> H["Admin or Manager generates Invoice"]
+    E -->|"Sales and customer risky"| I["Manager approval required"]
+    I -->|"Approve"| H
+    I -->|"Reject"| J["Sales Order cancelled"]
+    F --> K["Payment and/or Surat Jalan"]
+    H --> K
+    K --> L["Receivable monitoring"]
+    L --> M["Billing Follow Up when collection is needed"]
+    C --> N["Product Follow Up"]
+    J --> O["Dashboard and Audit Trail"]
+    M --> O
+    N --> O
+    D -.-> P["Confirmation dialog with optional note, maximum 150 characters"]
+    H -.-> P
+    K -.-> P
+    D --> Q{"Delete eligible ongoing Sales Order?"}
+    Q -->|"Cancel"| D
+    Q -->|"Submit with mandatory note"| R["Delete related process records and retain Audit Trail"]
+    R --> O
 ```
+
+Admin users can view Sales Orders but cannot create them. Every operational create, update, approval, invoice, payment, delivery, and status action first opens a confirmation dialog. The user can Cancel or Submit. A confirmation note is optional for normal actions and mandatory for deletion.
 
 ## 2. Roles
 
@@ -47,6 +61,7 @@ use the action.
 | View dashboards and operational modules | Yes | Yes | Yes |
 | Manage customer records | Yes | Yes | Yes |
 | Create Sales Order | Yes | No | Yes |
+| Delete eligible ongoing Sales Order | Yes | Yes | No |
 | Approve or reject risky Sales Order | Yes | No | No |
 | Generate Invoice | Yes | Yes | No |
 | Record Payment | Yes | Yes | No |
@@ -189,7 +204,9 @@ The system calculates payment risk from invoice due dates and payment history:
 2. Review the Customer Category card.
 3. Review the Customer Payment Risk card.
 4. Review all linked transactions: Order Number, Order Date, Payment Term, Sales Order Status, Invoice, Surat Jalan, and Total.
-5. Select the transaction action to open the full Sales Order detail.
+5. Select **Make Inactive** or **Make Active** to change whether the customer is available for new Sales Orders and Follow-ups.
+6. Review the confirmation dialog, add an optional note of up to 150 characters, and Submit or Cancel.
+7. Select the transaction action to open the full Sales Order detail.
 
 ## 7. Sales Order Flows
 
@@ -204,7 +221,8 @@ The system calculates payment risk from invoice due dates and payment history:
 7. Add optional notes.
 8. Review the calculated total.
 9. Select **Create Sales Order**.
-10. The system checks the creator's role and the customer's payment risk.
+10. Review the confirmation dialog. Add an optional confirmation note of up to 150 characters, then Submit or Cancel.
+11. The system checks the creator's role and the customer's payment risk.
 
 ### Sales-Created Clean Customer Branch
 
@@ -268,6 +286,18 @@ If rejected:
 5. Review customer, items, Invoice, Payments, Surat Jalan, Receivable, and Billing progress.
 6. A pending or rejected approval cannot bypass the Invoice restriction.
 
+### Delete an Ongoing Sales Order
+
+1. Open the full detail of an ongoing Sales Order.
+2. The Delete button is available only to Admin and Manager when the transaction is not paid, delivered, or cancelled.
+3. Select **Delete Sales Order**.
+4. The confirmation dialog lists the affected transaction and related records.
+5. Enter a mandatory deletion note of up to 150 characters.
+6. Select Submit to delete, or Cancel to keep the complete transaction.
+7. The system removes related Delivery Notes and items, Billing Follow-ups, Payments, Invoice, Sales Order Items, and Sales Order in one transaction.
+8. The Customer remains active in master data.
+9. Audit Trail retains the deletion action, actor, record summary, and mandatory confirmation note.
+
 ### Download Sales Order Excel Data
 
 1. Open **Sales Orders**.
@@ -290,9 +320,11 @@ If rejected:
 
 1. Open an eligible Sales Order without an Invoice.
 2. Select **Generate Invoice**.
-3. The system checks that approval is Not Required or Approved.
-4. The Invoice and Receivable are created.
-5. For Credit, the Billing reminder is created.
+3. Review the confirmation dialog and optionally enter a note of up to 150 characters.
+4. Submit or Cancel the action.
+5. The system checks that approval is Not Required or Approved.
+6. The Invoice and Receivable are created.
+7. For Credit, the Billing reminder is created.
 
 ### Print Invoice
 
@@ -307,12 +339,13 @@ If rejected:
 2. Review the Payment Queue of Unpaid, Partial, and Overdue invoices.
 3. Select **Record Payment** on an Invoice.
 4. Enter payment date, amount, method, and optional note/reference.
-5. Save the payment.
-6. The system prevents payment above the remaining balance.
-7. Paid Amount and Remaining Amount update automatically.
-8. Invoice status becomes Partial or Paid as appropriate.
-9. A fully paid Receivable moves to Done Process.
-10. Review the payment in Recorded Payments and the Sales Order detail.
+5. Select Record Payment, review the confirmation dialog, and optionally add a note of up to 150 characters.
+6. Submit or Cancel the payment.
+7. The system prevents payment above the remaining balance.
+8. Paid Amount and Remaining Amount update automatically.
+9. Invoice status becomes Partial or Paid as appropriate.
+10. A fully paid Receivable moves to Done Process.
+11. Review the payment and confirmation note in Recorded Payments and the Sales Order detail.
 
 ## 10. Surat Jalan Flows
 
@@ -322,7 +355,8 @@ If rejected:
 2. Select the Invoice, Sales Order, or Customer.
 3. When linked data exists, review the copied recipient and item information.
 4. Enter delivery date, recipient, phone, address, sender, authorized person, items, and optional notes.
-5. Save the Surat Jalan.
+5. Select Save, review the confirmation dialog, and optionally add a note of up to 150 characters.
+6. Submit or Cancel the Surat Jalan.
 
 Eligibility rules:
 
@@ -344,9 +378,10 @@ Eligibility rules:
 3. Use Ongoing Process for balances still owed.
 4. Filter Ongoing records by Unpaid, Partial, or Overdue.
 5. Use Done Process for Paid or Cancelled records.
-6. Select **View Sales Order** to inspect the full source transaction.
-7. Select **Create Billing** when collection work is needed.
-8. Customer payment risk updates automatically from overdue and payment history.
+6. The list shows Remaining Amount but keeps Total and Paid Amount in the full Sales Order detail.
+7. Select **View Sales Order** to inspect the full source transaction and its Total/Paid values.
+8. Select **Create Billing** when collection work is needed.
+9. Customer payment risk updates automatically from overdue and payment history.
 
 Receivables are calculated from Invoices and Payments; users do not manually create a Receivable record.
 
@@ -355,11 +390,12 @@ Receivables are calculated from Invoices and Payments; users do not manually cre
 1. Open **Billing**, or select Create Billing from a Receivable.
 2. If opened from a Receivable, confirm the preselected Customer and Invoice.
 3. Enter the follow-up date/deadline, status, and collection note.
-4. Save the Billing task.
-5. Use Ongoing Process for Planned tasks.
-6. Use Done Process for Done or Cancelled tasks.
-7. Admin sees near or overdue Billing work on the dashboard and in notifications.
-8. Open the task from the notification and use its customer, Invoice, deadline, and notes to perform the collection activity.
+4. Select Save, review the confirmation dialog, and optionally add a note of up to 150 characters.
+5. Submit or Cancel the Billing task.
+6. Use Ongoing Process for Planned tasks.
+7. Use Done Process for Done or Cancelled tasks.
+8. Admin sees near or overdue Billing work on the dashboard and in notifications.
+9. Open the task from the notification and use its customer, Invoice, deadline, and notes to perform the collection activity.
 
 ## 13. Product Follow Up Flow
 
@@ -370,8 +406,9 @@ Receivables are calculated from Invoices and Payments; users do not manually cre
 5. Open the reminder to preselect the customer.
 6. Selecting Record Contact from any customer row also scrolls to the form and automatically selects that customer.
 7. Enter the contact date and an optional note about new products or the conversation.
-8. Save the Follow Up.
-9. The latest-contact information and Audit Trail update.
+8. Select Save, review the confirmation dialog, and optionally add a note of up to 150 characters.
+9. Submit or Cancel the Follow Up.
+10. The latest-contact information and Audit Trail update.
 
 ## 14. Table Search, Sort, and Filter Flow
 
@@ -383,9 +420,12 @@ Receivables are calculated from Invoices and Payments; users do not manually cre
 6. Search the values inside the popup, select one or more checkboxes, and choose **Apply Filter**.
 7. For a date column, open its funnel, enter Start Date, End Date, or both, then select **Start Filter**.
 8. Use **Clear** inside a popup to remove that column's filter.
-9. Review the **Showing X of Y** result count.
-10. Select **Reset** beside the simple search bar to clear every filter and restore the original row order.
-11. On a narrow screen, the search fills the available width while the result count and Reset action move below it.
+9. Search and filters evaluate the complete result set, not only the current page.
+10. Tables show 10 matching rows per page. Use the centered Previous and Next controls to move between pages.
+11. Review the **Showing X-Y of Z** result count and current page number.
+12. Select **Reset** beside the simple search bar to clear every filter, return to page 1, and restore the original row order.
+13. Long plain-text and Notes cells are limited to two lines. Select the subtle **Show more** link to expand a row, then **Show less** to collapse it.
+14. On a narrow screen, the search fills the available width while the result count and Reset action move below it.
 
 Sorting and filtering are excluded from printable Invoice and Surat Jalan document views.
 
@@ -394,18 +434,20 @@ Product Follow Up is for sales relationship activity. Billing is a separate coll
 ## 15. Audit Trail Flow
 
 1. Open **Audit Trail**.
-2. Review who performed an action, their role, the module, transaction code, action, summary, and time.
+2. Review who performed an action, their role, the module, transaction code, action, confirmation note, summary, and time.
 3. Filter by date, module, action, transaction, or user.
 4. Use the trail to verify Customer, Sales Order, approval, Invoice, Payment, Surat Jalan, Billing, and Follow Up activity.
 5. Compare old and new values when change detail is available.
+6. Deletion evidence remains in Audit Trail even after the operational Sales Order chain is removed.
 
 ## 16. Account Settings Flow
 
 1. Open **Settings**.
 2. Enter Username, Display Name, Password, Role, and Active/Inactive status.
-3. Select **Save Account**.
-4. Review the new account in Existing Accounts.
-5. An Active account can log in and receives the dashboard, notifications, and approval capability associated with its role.
+3. Select **Save Account** and review the confirmation dialog.
+4. Add an optional note of up to 150 characters, then Submit or Cancel.
+5. Review the new account in Existing Accounts.
+6. An Active account can log in and receives the dashboard, notifications, and approval capability associated with its role.
 
 This MVP supports creating and listing local demo accounts. It does not currently provide account editing, password reset, or advanced permission administration.
 
@@ -419,6 +461,13 @@ Sales can inspect Settings and existing accounts, but all account-creation field
 2. Select **Help**.
 3. Read guidance relevant to that module.
 4. Close Help and continue the task.
+
+### Card Information Tooltips
+
+1. Every primary card has a visible title.
+2. Hover or focus the **i** icon beside the title.
+3. Read the tooltip explaining what the card is used for.
+4. Move away or remove focus to close the tooltip.
 
 ### Printable Documents
 
