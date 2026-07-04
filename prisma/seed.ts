@@ -12,6 +12,7 @@ async function main() {
   await prisma.invoice.deleteMany();
   await prisma.salesOrderItem.deleteMany();
   await prisma.salesOrder.deleteMany();
+  await prisma.product.deleteMany();
   await prisma.customer.deleteMany();
   await prisma.user.deleteMany();
 
@@ -43,6 +44,22 @@ async function main() {
       role: "MANAGER",
       status: "Active"
     }
+  });
+
+  await prisma.product.createMany({
+    data: [
+      { productName: "Product Package A", basePrice: 1200000, status: "Active" },
+      { productName: "Wholesale Package", basePrice: 800000, status: "Active" },
+      { productName: "Retail Stock Package", basePrice: 550000, status: "Active" },
+      { productName: "Corporate Supply Package", basePrice: 3200000, status: "Active" },
+      { productName: "Seasonal Stock", basePrice: 1850000, status: "Active" },
+      { productName: "Premium Material Set", basePrice: 1500000, status: "Active" },
+      { productName: "Standard Material Set", basePrice: 900000, status: "Active" },
+      { productName: "Custom Order Package", basePrice: 2500000, status: "Active" },
+      { productName: "Installation Service", basePrice: 750000, status: "Active" },
+      { productName: "Delivery Service", basePrice: 1800000, status: "Active" },
+      { productName: "Handling Fee", basePrice: 150000, status: "Active" }
+    ]
   });
 
   const customers = await Promise.all([
@@ -123,8 +140,8 @@ async function main() {
       creditTermMonths: null,
       items: {
         create: [
-          { itemName: "Product Package A", quantity: 3, unitPrice: 1200000, subtotal: 3600000 },
-          { itemName: "Delivery Service", quantity: 1, unitPrice: 1800000, subtotal: 1800000 }
+          { itemName: "Product Package A", quantity: 3, basePrice: 1200000, unitPrice: 1200000, subtotal: 3600000 },
+          { itemName: "Delivery Service", quantity: 1, basePrice: 1800000, unitPrice: 1800000, subtotal: 1800000 }
         ]
       }
     }
@@ -141,7 +158,7 @@ async function main() {
       paymentTermType: "CREDIT",
       creditTermMonths: 1,
       items: {
-        create: [{ itemName: "Wholesale Package", quantity: 4, unitPrice: 800000, subtotal: 3200000 }]
+        create: [{ itemName: "Wholesale Package", quantity: 4, basePrice: 800000, unitPrice: 800000, subtotal: 3200000 }]
       }
     }
   });
@@ -157,7 +174,7 @@ async function main() {
       paymentTermType: "CREDIT",
       creditTermMonths: 3,
       items: {
-        create: [{ itemName: "Retail Stock Package", quantity: 5, unitPrice: 550000, subtotal: 2750000 }]
+        create: [{ itemName: "Retail Stock Package", quantity: 5, basePrice: 550000, unitPrice: 550000, subtotal: 2750000 }]
       }
     }
   });
@@ -174,8 +191,8 @@ async function main() {
       creditTermMonths: 1,
       items: {
         create: [
-          { itemName: "Corporate Supply Package", quantity: 2, unitPrice: 3200000, subtotal: 6400000 },
-          { itemName: "Handling Fee", quantity: 1, unitPrice: 1500000, subtotal: 1500000 }
+          { itemName: "Corporate Supply Package", quantity: 2, basePrice: 3200000, unitPrice: 3200000, subtotal: 6400000 },
+          { itemName: "Handling Fee", quantity: 1, basePrice: 1500000, unitPrice: 1500000, subtotal: 1500000 }
         ]
       }
     }
@@ -192,7 +209,7 @@ async function main() {
       paymentTermType: "DEBIT",
       creditTermMonths: null,
       items: {
-        create: [{ itemName: "Seasonal Stock", quantity: 1, unitPrice: 1850000, subtotal: 1850000 }]
+        create: [{ itemName: "Seasonal Stock", quantity: 1, basePrice: 1850000, unitPrice: 1850000, subtotal: 1850000 }]
       }
     }
   });
@@ -535,6 +552,7 @@ async function createGeneratedDemoData({
             {
               itemName: products[index % products.length],
               quantity,
+              basePrice: unitPrice,
               unitPrice,
               subtotal: quantity * unitPrice
             },
@@ -542,6 +560,7 @@ async function createGeneratedDemoData({
               ? [{
                   itemName: "Handling Fee",
                   quantity: secondQuantity,
+                  basePrice: secondUnitPrice,
                   unitPrice: secondUnitPrice,
                   subtotal: secondQuantity * secondUnitPrice
                 }]

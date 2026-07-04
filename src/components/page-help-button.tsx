@@ -47,6 +47,18 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
     }
   },
   {
+    match: (pathname) => pathname === "/products",
+    content: {
+      title: "Products Help",
+      purpose: "Use Products to manage product names, base prices, notes, and availability status.",
+      steps: [
+        "Use Add Product to create a product master record.",
+        "Search products by name or notes, then use view to review the full detail.",
+        "Use edit to update product data, or mark a product active or inactive from its detail."
+      ]
+    }
+  },
+  {
     match: (pathname) => pathname.startsWith("/sales-orders/"),
     content: {
       title: "Sales Order Detail Help",
@@ -68,6 +80,18 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
         "Click Create Sales Order to select a customer, add items, and choose payment term.",
         "The system generates a connected invoice after confirmation.",
         "Use Need Approval to review risky Sales-created orders, Ongoing Process for active orders, and Done Process for completed or closed orders."
+      ]
+    }
+  },
+  {
+    match: (pathname) => pathname.startsWith("/pre-orders"),
+    content: {
+      title: "Pre Orders Help",
+      purpose: "Use Pre Orders to manage customer PO transactions and monitor product required dates.",
+      steps: [
+        "Create a Pre Order using the manual customer PO ID, required date, and uploaded PO document.",
+        "Review the PO detail and process it before the required date reminder becomes overdue.",
+        "Continue with invoice, payment, receivable, billing, and Surat Jalan using the same process as Sales Orders."
       ]
     }
   },

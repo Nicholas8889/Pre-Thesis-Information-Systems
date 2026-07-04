@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isBillingDeadlineNotification,
+  isPreOrderProcessingNotification,
   needsSalesCustomerFollowUp
 } from "../../src/lib/notification-rules";
 import { getUnreadNotificationIds } from "../../src/lib/notification-state";
@@ -45,5 +46,38 @@ describe("notification rules", () => {
     const notifications = [{ id: "one" }, { id: "two" }];
     expect(getUnreadNotificationIds(notifications, ["one"])).toEqual(["two"]);
     expect(getUnreadNotificationIds(notifications, ["one", "two"])).toEqual([]);
+  });
+
+  it("reminds users to process active Pre Orders within seven days", () => {
+    expect(
+      isPreOrderProcessingNotification(
+        {
+          requiredDate: new Date("2026-06-25"),
+          status: "Confirmed",
+          hasDeliveredDocument: false
+        },
+        now
+      )
+    ).toBe(true);
+    expect(
+      isPreOrderProcessingNotification(
+        {
+          requiredDate: new Date("2026-07-10"),
+          status: "Confirmed",
+          hasDeliveredDocument: false
+        },
+        now
+      )
+    ).toBe(false);
+    expect(
+      isPreOrderProcessingNotification(
+        {
+          requiredDate: new Date("2026-06-20"),
+          status: "Invoiced",
+          hasDeliveredDocument: true
+        },
+        now
+      )
+    ).toBe(false);
   });
 });

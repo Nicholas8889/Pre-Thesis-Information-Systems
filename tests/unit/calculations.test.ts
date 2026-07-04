@@ -3,6 +3,7 @@ import {
   canRecordPayment,
   buildDeliveryNoteItemsFromSalesOrder,
   buildInvoiceDraftFromSalesOrder,
+  calculateAdjustedUnitPrice,
   calculateDueDateForPaymentTerm,
   calculateInvoiceStatus,
   calculateRemainingAmount,
@@ -20,6 +21,12 @@ import { amountToWords, formatInvoiceCurrency } from "../../src/lib/format";
 import { hashPassword, verifyPassword } from "../../src/lib/auth";
 
 describe("revenue cycle calculations", () => {
+  it("applies optional markup and discount to a product base price", () => {
+    expect(calculateAdjustedUnitPrice(100000, 10, 0)).toBe(110000);
+    expect(calculateAdjustedUnitPrice(100000, 0, 15)).toBe(85000);
+    expect(calculateAdjustedUnitPrice(100000, 10, 5)).toBe(105000);
+  });
+
   it("calculates sales order total from item quantity and unit price", () => {
     const total = calculateSalesOrderTotal([
       { quantity: 2, unitPrice: 100000 },

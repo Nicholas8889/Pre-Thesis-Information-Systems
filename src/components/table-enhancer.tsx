@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import {
   compareTableValues,
   getTablePageRange,
+  haveSameOrderedReferences,
   parseTableDate,
   shouldOfferCheckboxFilter,
   shouldOfferTableTextExpansion
@@ -17,7 +18,19 @@ const rowsPerPage = 10;
 type FilterController = {
   reset: () => void;
   close: () => void;
+  destroy: () => void;
 };
+
+type TableEnhancementState = {
+  body: HTMLTableSectionElement;
+  headers: HTMLTableCellElement[];
+  rows: HTMLTableRowElement[];
+  toolbar: HTMLDivElement;
+  pagination: HTMLElement;
+  destroy: () => void;
+};
+
+const tableStates = new Map<HTMLTableElement, TableEnhancementState>();
 
 export function TableEnhancer() {
   const pathname = usePathname();
@@ -26,13 +39,24 @@ export function TableEnhancer() {
     if (pathname === "/login" || pathname.endsWith("/print")) return;
 
     const enhanceTables = () => {
+      [...tableStates.entries()].forEach(([table, state]) => {
+        if (!table.isConnected) state.destroy();
+      });
       document
         .querySelectorAll<HTMLTableElement>("main table:not([data-no-table-tools])")
         .forEach(enhanceTable);
     };
 
     enhanceTables();
-    const observer = new MutationObserver(enhanceTables);
+    let enhancementScheduled = false;
+    const observer = new MutationObserver(() => {
+      if (enhancementScheduled) return;
+      enhancementScheduled = true;
+      queueMicrotask(() => {
+        enhancementScheduled = false;
+        enhanceTables();
+      });
+    });
     observer.observe(document.querySelector("main") ?? document.body, {
       childList: true,
       subtree: true
@@ -40,7 +64,7 @@ export function TableEnhancer() {
 
     return () => {
       observer.disconnect();
-      document.querySelectorAll("[data-table-filter-popup]").forEach((popup) => popup.remove());
+      [...tableStates.values()].forEach((state) => state.destroy());
     };
   }, [pathname]);
 
@@ -48,14 +72,25 @@ export function TableEnhancer() {
 }
 
 function enhanceTable(table: HTMLTableElement) {
-  if (table.dataset.tableEnhanced === "true") return;
-
   const headers = Array.from(table.querySelectorAll<HTMLTableCellElement>("thead th"));
   const body = table.tBodies[0];
   if (!body || headers.length === 0) return;
 
-  table.dataset.tableEnhanced = "true";
   const rows = Array.from(body.rows);
+  const existingState = tableStates.get(table);
+  if (
+    existingState &&
+    existingState.body === body &&
+    haveSameOrderedReferences(existingState.headers, headers) &&
+    haveSameOrderedReferences(existingState.rows, rows) &&
+    existingState.toolbar.isConnected &&
+    existingState.pagination.isConnected
+  ) {
+    return;
+  }
+  existingState?.destroy();
+
+  table.dataset.tableEnhanced = "true";
   const headerNames = headers.map((header) => header.textContent?.trim() ?? "");
   enhanceExpandableCells(rows, headerNames);
   const originalOrder = new Map(rows.map((row, index) => [row, index]));
@@ -134,6 +169,7 @@ function enhanceTable(table: HTMLTableElement) {
     header.classList.add("table-enhanced-header");
     const controls = document.createElement("span");
     controls.className = "table-header-controls no-print";
+    controls.dataset.tableHeaderControls = "true";
 
     const sortButton = document.createElement("button");
     sortButton.type = "button";
@@ -200,6 +236,32 @@ function enhanceTable(table: HTMLTableElement) {
   });
 
   applyFilters();
+
+  const state: TableEnhancementState = {
+    body,
+    headers,
+    rows,
+    toolbar,
+    pagination,
+    destroy: () => {
+      filterControllers.forEach((controller) => controller.destroy());
+      toolbar.remove();
+      pagination.remove();
+      headers.forEach((header) => {
+        header
+          .querySelectorAll("[data-table-header-controls]")
+          .forEach((control) => control.remove());
+        header.classList.remove("table-enhanced-header");
+        delete header.dataset.sortDirection;
+      });
+      rows.forEach((row) => {
+        row.hidden = false;
+      });
+      delete table.dataset.tableEnhanced;
+      if (tableStates.get(table) === state) tableStates.delete(table);
+    }
+  };
+  tableStates.set(table, state);
 
   function updateColumnFilter(
     columnIndex: number,
@@ -360,6 +422,10 @@ function createCheckboxFilter({
   const close = connectPopup(button, popup);
   return {
     close,
+    destroy: () => {
+      close();
+      popup.remove();
+    },
     reset: () => {
       checkboxes.forEach((item) => {
         item.checkbox.checked = false;
@@ -391,7 +457,7 @@ function createDateFilter({
   const actions = document.createElement("div");
   actions.className = "table-filter-actions";
   const clear = createPopupButton("Clear", "secondary");
-  const apply = createPopupButton("Start Filter", "primary");
+  const apply = createPopupButton("Apply Filter", "primary");
   actions.append(clear, apply);
   popup.append(actions);
 
@@ -424,6 +490,10 @@ function createDateFilter({
   const close = connectPopup(button, popup);
   return {
     close,
+    destroy: () => {
+      close();
+      popup.remove();
+    },
     reset: () => {
       start.input.value = "";
       end.input.value = "";

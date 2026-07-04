@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { CalendarDays, Download, X } from "lucide-react";
 
-export function SalesOrderExportDialog() {
+export function SalesOrderExportDialog({
+  transactionType = "SALES_ORDER"
+}: {
+  transactionType?: "SALES_ORDER" | "PRE_ORDER";
+}) {
+  const isPreOrder = transactionType === "PRE_ORDER";
+  const label = isPreOrder ? "Pre Order" : "Sales Order";
   const today = toDateInputValue(new Date());
   const firstDay = toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [isOpen, setIsOpen] = useState(false);
@@ -28,7 +34,7 @@ export function SalesOrderExportDialog() {
 
     try {
       const response = await fetch(
-        `/api/sales-orders/export?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+        `/api/sales-orders/export?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&transactionType=${transactionType}`
       );
 
       if (!response.ok) {
@@ -38,7 +44,7 @@ export function SalesOrderExportDialog() {
 
       const blob = await response.blob();
       const contentDisposition = response.headers.get("content-disposition") ?? "";
-      const fileName = contentDisposition.match(/filename="([^"]+)"/)?.[1] ?? `sales-orders-${startDate}-${endDate}.xlsx`;
+      const fileName = contentDisposition.match(/filename="([^"]+)"/)?.[1] ?? `${isPreOrder ? "pre-orders" : "sales-orders"}-${startDate}-${endDate}.xlsx`;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -63,7 +69,7 @@ export function SalesOrderExportDialog() {
         className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-brand"
       >
         <Download aria-hidden="true" className="h-4 w-4" />
-        Download Sales Order Data
+        Download {label} Data
       </button>
 
       {isOpen && (
@@ -80,10 +86,10 @@ export function SalesOrderExportDialog() {
             <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
               <div>
                 <h2 id="sales-order-export-title" className="text-lg font-semibold text-ink">
-                  Download Sales Order Data
+                  Download {label} Data
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Choose the Sales Order date range to include in the Excel file.
+                  Choose the {label} date range to include in the Excel file.
                 </p>
               </div>
               <button

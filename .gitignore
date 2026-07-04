@@ -11,3 +11,5 @@ coverage
 .next-dev.err.log
 prisma/dev.db
 prisma/dev.db-journal
+storage/pre-orders/*
+!storage/pre-orders/.gitkeep

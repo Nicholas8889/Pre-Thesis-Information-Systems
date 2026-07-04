@@ -12,6 +12,16 @@ enum CustomerStatus {
   Inactive
 }
 
+enum ProductStatus {
+  Active
+  Inactive
+}
+
+enum TransactionType {
+  SALES_ORDER
+  PRE_ORDER
+}
+
 enum SalesOrderStatus {
   Draft
   Confirmed
@@ -124,9 +134,29 @@ model Customer {
   deliveryNotes    DeliveryNote[]
 }
 
+model Product {
+  id          String        @id @default(cuid()) @map("idProduct")
+  productName String
+  notes       String?
+  basePrice   Int
+  status      ProductStatus @default(Active)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  salesOrderItems SalesOrderItem[]
+
+  @@index([productName])
+  @@index([status])
+}
+
 model SalesOrder {
   id                   String                   @id @default(cuid()) @map("idSalesOrder")
   orderNumber          String                   @unique
+  transactionType      TransactionType          @default(SALES_ORDER)
+  requiredDate         DateTime?
+  poDocumentName       String?
+  poDocumentStoredName String?
+  poDocumentMimeType   String?
   customerId           String
   orderDate            DateTime
   status               SalesOrderStatus         @default(Draft)
@@ -150,17 +180,26 @@ model SalesOrder {
   deliveryNotes DeliveryNote[]
 
   @@index([approvalStatus])
+  @@index([transactionType])
+  @@index([requiredDate])
 }
 
 model SalesOrderItem {
-  id           String @id @default(cuid()) @map("idSalesOrderItem")
-  salesOrderId String
-  itemName     String
-  quantity     Int
-  unitPrice    Int
-  subtotal     Int
+  id              String  @id @default(cuid()) @map("idSalesOrderItem")
+  salesOrderId    String
+  productId       String?
+  itemName        String
+  quantity        Int
+  basePrice       Int     @default(0)
+  markupPercent   Int     @default(0)
+  discountPercent Int     @default(0)
+  unitPrice       Int
+  subtotal        Int
 
   salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product    Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
 }
 
 model Invoice {

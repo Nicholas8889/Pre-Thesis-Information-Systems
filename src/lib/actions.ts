@@ -1,5 +1,8 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { extname, join } from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type {
@@ -7,7 +10,9 @@ import type {
   DeliveryNoteStatus,
   FollowUpStatus,
   PaymentMethod,
-  SalesOrderApprovalStatus
+  ProductStatus,
+  SalesOrderApprovalStatus,
+  TransactionType
 } from "@prisma/client";
 import {
   canCreateDeliveryNoteForInvoice,
@@ -43,6 +48,8 @@ import {
 const pathsToRefresh = [
   "/",
   "/customers",
+  "/products",
+  "/pre-orders",
   "/sales-orders",
   "/invoices",
   "/payments",
@@ -186,12 +193,151 @@ export async function updateCustomerStatus(formData: FormData) {
   );
 }
 
+export async function createProduct(formData: FormData) {
+  const productName = getRequiredString(formData, "productName");
+  const basePrice = parseProductBasePrice(formData.get("basePrice"));
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
+
+  if (!productName) {
+    redirectWithMessage("/products", "error", "Product name is required");
+  }
+
+  if (basePrice === null) {
+    redirectWithMessage("/products", "error", "Base price must be a valid non-negative amount");
+  }
+
+  const status = getStatus<ProductStatus>(formData, "status", ["Active", "Inactive"], "Active");
+  const product = await prisma.product.create({
+    data: {
+      productName,
+      notes: mergeActionNotes(getString(formData, "notes"), actionNote),
+      basePrice,
+      status
+    }
+  });
+
+  await createAuditTrailLog({
+    moduleName: "Products",
+    entityType: "PRODUCT",
+    entityId: product.id,
+    transactionCode: product.productName,
+    action: "CREATED",
+    actionNote,
+    changeSummary: `Product ${product.productName} created`,
+    newValue: summarizeProduct(product)
+  });
+
+  refreshApp();
+  redirectWithMessage("/products", "success", "Product added");
+}
+
+export async function updateProduct(formData: FormData) {
+  const id = getRequiredString(formData, "id");
+  const productName = getRequiredString(formData, "productName");
+  const basePrice = parseProductBasePrice(formData.get("basePrice"));
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
+
+  if (!id || !productName) {
+    redirectWithMessage("/products", "error", "Product ID and product name are required");
+  }
+
+  if (basePrice === null) {
+    redirectWithMessage("/products", "error", "Base price must be a valid non-negative amount");
+  }
+
+  const oldProduct = await prisma.product.findUnique({ where: { id } });
+
+  if (!oldProduct) {
+    redirectWithMessage("/products", "error", "Product was not found");
+  }
+
+  const status = getStatus<ProductStatus>(formData, "status", ["Active", "Inactive"], "Active");
+  const product = await prisma.product.update({
+    where: { id },
+    data: {
+      productName,
+      notes: mergeActionNotes(getString(formData, "notes"), actionNote),
+      basePrice,
+      status
+    }
+  });
+
+  await createAuditTrailLog({
+    moduleName: "Products",
+    entityType: "PRODUCT",
+    entityId: product.id,
+    transactionCode: product.productName,
+    action: oldProduct.status !== product.status ? "STATUS_CHANGED" : "UPDATED",
+    actionNote,
+    changeSummary:
+      oldProduct.status !== product.status
+        ? `Product status changed from ${oldProduct.status} to ${product.status}`
+        : `Product ${product.productName} updated`,
+    oldValue: summarizeProduct(oldProduct),
+    newValue: summarizeProduct(product)
+  });
+
+  refreshApp();
+  redirect(`/products?view=${id}&success=${encodeURIComponent("Product updated")}`);
+}
+
+export async function updateProductStatus(formData: FormData) {
+  const id = getRequiredString(formData, "id");
+  const requestedStatus = getString(formData, "status");
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
+
+  if (!id || !["Active", "Inactive"].includes(requestedStatus)) {
+    redirectWithMessage("/products", "error", "Product and a valid status are required");
+  }
+
+  const oldProduct = await prisma.product.findUnique({ where: { id } });
+
+  if (!oldProduct) {
+    redirectWithMessage("/products", "error", "Product was not found");
+  }
+
+  const status = requestedStatus as ProductStatus;
+  const product = await prisma.product.update({
+    where: { id },
+    data: { status, notes: mergeActionNotes(oldProduct.notes, actionNote) }
+  });
+
+  await createAuditTrailLog({
+    moduleName: "Products",
+    entityType: "PRODUCT",
+    entityId: product.id,
+    transactionCode: product.productName,
+    action: "STATUS_CHANGED",
+    actionNote,
+    changeSummary: `Product status changed from ${oldProduct.status} to ${product.status}`,
+    oldValue: { status: oldProduct.status },
+    newValue: { status: product.status }
+  });
+
+  refreshApp();
+  redirect(
+    `/products?view=${id}&success=${encodeURIComponent(
+      `Product marked as ${product.status.toLowerCase()}`
+    )}`
+  );
+}
+
 export async function createSalesOrder(formData: FormData) {
+  const transactionType = getStatus<TransactionType>(
+    formData,
+    "transactionType",
+    ["SALES_ORDER", "PRE_ORDER"],
+    "SALES_ORDER"
+  );
+  const isPreOrder = transactionType === "PRE_ORDER";
+  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
+  const moduleName = isPreOrder ? "Pre Orders" : "Sales Orders";
+  const transactionLabel = isPreOrder ? "Pre order" : "Sales order";
   const customerId = getRequiredString(formData, "customerId");
   const rawItems = getString(formData, "items");
   const notes = getString(formData, "notes");
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
-  const items = normalizeOrderItems(safeJsonParse(rawItems));
+  const submittedItems = normalizeOrderItems(safeJsonParse(rawItems));
   const rawPaymentTermType = getString(formData, "paymentTermType");
   const rawCreditTermMonths = formData.get("creditTermMonths");
   const { paymentTermType, creditTermMonths } = normalizePaymentTerm({
@@ -199,9 +345,9 @@ export async function createSalesOrder(formData: FormData) {
     creditTermMonths: rawCreditTermMonths
   });
 
-  if (!customerId || items.length === 0) {
+  if (!customerId || submittedItems.length === 0) {
     redirectWithMessage(
-      "/sales-orders",
+      basePath,
       "error",
       "Select a customer and add at least one item"
     );
@@ -214,7 +360,7 @@ export async function createSalesOrder(formData: FormData) {
     })
   ) {
     redirectWithMessage(
-      "/sales-orders?mode=create",
+      `${basePath}?mode=create`,
       "error",
       "Select Debit or choose a Credit term from 1 to 12 months"
     );
@@ -223,7 +369,7 @@ export async function createSalesOrder(formData: FormData) {
   const currentUser = await getCurrentUser();
   if (!canRole(currentUser?.role, "CREATE_SALES_ORDER")) {
     redirectWithMessage(
-      "/sales-orders",
+      basePath,
       "error",
       "Only Sales and Manager roles can create Sales Orders"
     );
@@ -243,11 +389,85 @@ export async function createSalesOrder(formData: FormData) {
   });
 
   if (!customer) {
-    redirectWithMessage("/sales-orders?mode=create", "error", "Customer was not found");
+    redirectWithMessage(`${basePath}?mode=create`, "error", "Customer was not found");
   }
 
+  const productIds = [...new Set(submittedItems.map((item) => item.productId))];
+  const activeProducts = await prisma.product.findMany({
+    where: { id: { in: productIds }, status: "Active" },
+    select: { id: true, productName: true }
+  });
+
+  if (activeProducts.length !== productIds.length) {
+    redirectWithMessage(
+      `${basePath}?mode=create`,
+      "error",
+      "Every item must use an active Product from the Product menu"
+    );
+  }
+
+  const productNames = new Map(
+    activeProducts.map((product) => [product.id, product.productName])
+  );
+  const items = submittedItems.map((item) => ({
+    ...item,
+    itemName: productNames.get(item.productId) ?? item.itemName
+  }));
   const totals = calculateOrderTotals(items);
-  const orderNumber = await nextDocumentNumber("SO");
+  const manualOrderNumber = getRequiredString(formData, "orderNumber");
+  const requiredDate = isPreOrder
+    ? parseDateInput(getString(formData, "requiredDate"))
+    : null;
+  const poDocument = isPreOrder ? getPreOrderDocument(formData) : null;
+
+  if (isPreOrder && !manualOrderNumber) {
+    redirectWithMessage(
+      `${basePath}?mode=create`,
+      "error",
+      "Pre Order ID must be entered manually"
+    );
+  }
+
+  if (isPreOrder && !requiredDate) {
+    redirectWithMessage(
+      `${basePath}?mode=create`,
+      "error",
+      "A valid product required date is required"
+    );
+  }
+
+  if (isPreOrder && !poDocument) {
+    redirectWithMessage(
+      `${basePath}?mode=create`,
+      "error",
+      "Upload the customer PO document as PDF, JPG, PNG, DOC, or DOCX"
+    );
+  }
+
+  const orderNumber = isPreOrder ? manualOrderNumber : await nextDocumentNumber("SO");
+
+  if (isPreOrder) {
+    const existingOrder = await prisma.salesOrder.findUnique({
+      where: { orderNumber },
+      select: { id: true }
+    });
+    if (existingOrder) {
+      redirectWithMessage(
+        `${basePath}?mode=create`,
+        "error",
+        "This Pre Order ID is already in use"
+      );
+    }
+  }
+
+  const storedDocument = poDocument ? await storePreOrderDocument(poDocument) : null;
+  const transactionData = {
+    transactionType,
+    requiredDate,
+    poDocumentName: storedDocument?.originalName ?? null,
+    poDocumentStoredName: storedDocument?.storedName ?? null,
+    poDocumentMimeType: storedDocument?.mimeType ?? null
+  };
   const paymentRisk = getCustomerPaymentRisk(customer);
   const needsApproval = requiresManagerApproval(currentUser?.role ?? "", paymentRisk);
 
@@ -255,6 +475,7 @@ export async function createSalesOrder(formData: FormData) {
     const salesOrder = await prisma.salesOrder.create({
       data: {
         orderNumber,
+        ...transactionData,
         customerId,
         orderDate: new Date(),
         status: "Draft",
@@ -268,8 +489,12 @@ export async function createSalesOrder(formData: FormData) {
         createdByUserId: currentUser?.id ?? null,
         items: {
           create: items.map((item) => ({
+            productId: item.productId,
             itemName: item.itemName,
             quantity: item.quantity,
+            basePrice: item.basePrice,
+            markupPercent: item.markupPercent,
+            discountPercent: item.discountPercent,
             unitPrice: item.unitPrice,
             subtotal: item.quantity * item.unitPrice
           }))
@@ -278,27 +503,28 @@ export async function createSalesOrder(formData: FormData) {
     });
 
     await createAuditTrailLog({
-      moduleName: "Sales Orders",
+      moduleName,
       entityType: "SALES_ORDER",
       entityId: salesOrder.id,
       transactionCode: salesOrder.orderNumber,
       action: "APPROVAL_REQUESTED",
       actionNote,
-      changeSummary: `Sales order ${salesOrder.orderNumber} requires Manager approval because the customer is ${paymentRisk}`,
+      changeSummary: `${transactionLabel} ${salesOrder.orderNumber} requires Manager approval because the customer is ${paymentRisk}`,
       newValue: {
         orderNumber: salesOrder.orderNumber,
         status: salesOrder.status,
         approvalStatus: salesOrder.approvalStatus,
         approvalRisk: paymentRisk,
-        total: salesOrder.total
+        total: salesOrder.total,
+        items: summarizeOrderPricing(items)
       }
     });
 
     refreshApp();
     redirectWithMessage(
-      "/sales-orders?tab=approval",
+      `${basePath}?tab=approval`,
       "success",
-      "Sales order submitted for Manager approval"
+      `${transactionLabel} submitted for Manager approval`
     );
   }
 
@@ -306,6 +532,7 @@ export async function createSalesOrder(formData: FormData) {
     const salesOrder = await prisma.salesOrder.create({
       data: {
         orderNumber,
+        ...transactionData,
         customerId,
         orderDate: new Date(),
         status: "Confirmed",
@@ -318,8 +545,12 @@ export async function createSalesOrder(formData: FormData) {
         createdByUserId: currentUser.id,
         items: {
           create: items.map((item) => ({
+            productId: item.productId,
             itemName: item.itemName,
             quantity: item.quantity,
+            basePrice: item.basePrice,
+            markupPercent: item.markupPercent,
+            discountPercent: item.discountPercent,
             unitPrice: item.unitPrice,
             subtotal: item.quantity * item.unitPrice
           }))
@@ -328,27 +559,28 @@ export async function createSalesOrder(formData: FormData) {
     });
 
     await createAuditTrailLog({
-      moduleName: "Sales Orders",
+      moduleName,
       entityType: "SALES_ORDER",
       entityId: salesOrder.id,
       transactionCode: salesOrder.orderNumber,
       action: "CREATED",
       actionNote,
-      changeSummary: `Sales order ${salesOrder.orderNumber} created and is ready for Admin or Manager invoicing`,
+      changeSummary: `${transactionLabel} ${salesOrder.orderNumber} created and is ready for Admin or Manager invoicing`,
       newValue: {
         orderNumber: salesOrder.orderNumber,
         status: salesOrder.status,
         approvalStatus: salesOrder.approvalStatus,
         total: salesOrder.total,
-        paymentTermType: salesOrder.paymentTermType
+        paymentTermType: salesOrder.paymentTermType,
+        items: summarizeOrderPricing(items)
       }
     });
 
     refreshApp();
     redirectWithMessage(
-      `/sales-orders?view=${salesOrder.id}`,
+      `${basePath}?view=${salesOrder.id}`,
       "success",
-      "Sales order created. Admin or Manager can generate the invoice"
+      `${transactionLabel} created. Admin or Manager can generate the invoice`
     );
   }
 
@@ -364,6 +596,7 @@ export async function createSalesOrder(formData: FormData) {
     const salesOrder = await tx.salesOrder.create({
       data: {
         orderNumber,
+        ...transactionData,
         customerId,
         orderDate: issueDate,
         status: "Invoiced",
@@ -376,8 +609,12 @@ export async function createSalesOrder(formData: FormData) {
         createdByUserId: currentUser?.id ?? null,
         items: {
           create: items.map((item) => ({
+            productId: item.productId,
             itemName: item.itemName,
             quantity: item.quantity,
+            basePrice: item.basePrice,
+            markupPercent: item.markupPercent,
+            discountPercent: item.discountPercent,
             unitPrice: item.unitPrice,
             subtotal: item.quantity * item.unitPrice
           }))
@@ -419,19 +656,20 @@ export async function createSalesOrder(formData: FormData) {
   });
 
   await createAuditTrailLog({
-    moduleName: "Sales Orders",
+    moduleName,
     entityType: "SALES_ORDER",
     entityId: result.salesOrder.id,
     transactionCode: result.salesOrder.orderNumber,
     action: "CREATED",
     actionNote,
-    changeSummary: `Sales order ${result.salesOrder.orderNumber} created and invoiced`,
+    changeSummary: `${transactionLabel} ${result.salesOrder.orderNumber} created and invoiced`,
     newValue: {
       orderNumber: result.salesOrder.orderNumber,
       status: result.salesOrder.status,
       total: result.salesOrder.total,
       paymentTermType: result.salesOrder.paymentTermType,
-      creditTermMonths: result.salesOrder.creditTermMonths
+      creditTermMonths: result.salesOrder.creditTermMonths,
+      items: summarizeOrderPricing(items)
     }
   });
   await createAuditTrailLog({
@@ -470,19 +708,22 @@ export async function createSalesOrder(formData: FormData) {
   refreshApp();
   redirect(
     `/invoices?view=${result.invoice.id}&success=${encodeURIComponent(
-      "Sales order confirmed and invoice generated"
+      `${transactionLabel} confirmed and invoice generated`
     )}`
   );
 }
 
 export async function deleteSalesOrder(formData: FormData) {
   const salesOrderId = getRequiredString(formData, "salesOrderId");
+  const requestedBasePath = getString(formData, "returnPath") === "/pre-orders"
+    ? "/pre-orders"
+    : "/sales-orders";
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   const currentUser = await getCurrentUser();
 
   if (!canRole(currentUser?.role, "DELETE_SALES_ORDER")) {
     redirectWithMessage(
-      `/sales-orders/${salesOrderId}`,
+      `${requestedBasePath}/${salesOrderId}`,
       "error",
       "Only Admin and Manager roles can delete ongoing Sales Orders"
     );
@@ -490,7 +731,7 @@ export async function deleteSalesOrder(formData: FormData) {
 
   if (!actionNote) {
     redirectWithMessage(
-      `/sales-orders/${salesOrderId}`,
+      `${requestedBasePath}/${salesOrderId}`,
       "error",
       "A confirmation note is required to delete a Sales Order"
     );
@@ -512,8 +753,12 @@ export async function deleteSalesOrder(formData: FormData) {
   });
 
   if (!salesOrder) {
-    redirectWithMessage("/sales-orders", "error", "Sales order was not found");
+    redirectWithMessage(requestedBasePath, "error", "Transaction was not found");
   }
+
+  const isPreOrder = salesOrder.transactionType === "PRE_ORDER";
+  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
+  const transactionLabel = isPreOrder ? "Pre order" : "Sales order";
 
   if (
     !canDeleteOngoingSalesOrder({
@@ -526,7 +771,7 @@ export async function deleteSalesOrder(formData: FormData) {
     })
   ) {
     redirectWithMessage(
-      `/sales-orders/${salesOrder.id}`,
+      `${basePath}/${salesOrder.id}`,
       "error",
       "Completed, delivered, paid, or cancelled Sales Orders cannot be deleted"
     );
@@ -553,22 +798,28 @@ export async function deleteSalesOrder(formData: FormData) {
     });
   });
 
+  if (salesOrder.poDocumentStoredName) {
+    await unlink(
+      join(process.cwd(), "storage", "pre-orders", salesOrder.poDocumentStoredName)
+    ).catch(() => undefined);
+  }
+
   await createAuditTrailLog({
-    moduleName: "Sales Orders",
+    moduleName: isPreOrder ? "Pre Orders" : "Sales Orders",
     entityType: "SALES_ORDER",
     entityId: salesOrder.id,
     transactionCode: salesOrder.orderNumber,
     action: "DELETED",
     actionNote,
-    changeSummary: `Ongoing sales order ${salesOrder.orderNumber} and its related process records were deleted`,
+    changeSummary: `Ongoing ${transactionLabel.toLowerCase()} ${salesOrder.orderNumber} and its related process records were deleted`,
     oldValue: deletedSummary
   });
 
   refreshApp();
   redirectWithMessage(
-    "/sales-orders",
+    basePath,
     "success",
-    `Sales order ${salesOrder.orderNumber} and its related records were deleted`
+    `${transactionLabel} ${salesOrder.orderNumber} and its related records were deleted`
   );
 }
 
@@ -594,9 +845,13 @@ export async function generateInvoice(formData: FormData) {
     redirectWithMessage("/sales-orders", "error", "Sales order was not found");
   }
 
+  const isPreOrder = salesOrder.transactionType === "PRE_ORDER";
+  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
+  const transactionLabel = isPreOrder ? "Pre order" : "Sales order";
+
   if (salesOrder.invoice) {
     redirectWithMessage(
-      "/sales-orders",
+      basePath,
       "error",
       "This sales order already has an invoice"
     );
@@ -604,7 +859,7 @@ export async function generateInvoice(formData: FormData) {
 
   if (!canGenerateInvoiceForApproval(salesOrder.approvalStatus)) {
     redirectWithMessage(
-      "/sales-orders?tab=approval",
+      `${basePath}?tab=approval`,
       "error",
       salesOrder.approvalStatus === "Pending"
         ? "Manager approval is required before an invoice can be generated"
@@ -669,17 +924,17 @@ export async function generateInvoice(formData: FormData) {
     transactionCode: result.invoice.invoiceNumber,
     action: "CREATED",
     actionNote,
-    changeSummary: `Invoice ${result.invoice.invoiceNumber} generated from sales order ${result.salesOrder.orderNumber}`,
+    changeSummary: `Invoice ${result.invoice.invoiceNumber} generated from ${transactionLabel.toLowerCase()} ${result.salesOrder.orderNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
   await createAuditTrailLog({
-    moduleName: "Sales Orders",
+    moduleName: isPreOrder ? "Pre Orders" : "Sales Orders",
     entityType: "SALES_ORDER",
     entityId: result.salesOrder.id,
     transactionCode: result.salesOrder.orderNumber,
     action: "STATUS_CHANGED",
     actionNote,
-    changeSummary: `Sales order status changed to ${result.salesOrder.status}`,
+    changeSummary: `${transactionLabel} status changed to ${result.salesOrder.status}`,
     oldValue: { status: salesOrder.status },
     newValue: { status: result.salesOrder.status }
   });
@@ -713,9 +968,12 @@ export async function generateInvoice(formData: FormData) {
 export async function decideSalesOrderApproval(formData: FormData) {
   const currentUser = await getCurrentUser();
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
+  const requestedBasePath = getString(formData, "returnPath") === "/pre-orders"
+    ? "/pre-orders"
+    : "/sales-orders";
   if (!currentUser || currentUser.role !== "MANAGER") {
     redirectWithMessage(
-      "/sales-orders?tab=approval",
+      `${requestedBasePath}?tab=approval`,
       "error",
       "Only a Manager can approve or reject sales orders"
     );
@@ -725,7 +983,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
   const decisionValue = getString(formData, "decision");
   if (decisionValue !== "Approved" && decisionValue !== "Rejected") {
     redirectWithMessage(
-      "/sales-orders?tab=approval",
+      `${requestedBasePath}?tab=approval`,
       "error",
       "Choose Approve or Reject for this sales order"
     );
@@ -738,18 +996,21 @@ export async function decideSalesOrderApproval(formData: FormData) {
   });
 
   if (!salesOrder) {
-    redirectWithMessage("/sales-orders?tab=approval", "error", "Sales order was not found");
+    redirectWithMessage(`${requestedBasePath}?tab=approval`, "error", "Transaction was not found");
   }
+  const isPreOrder = salesOrder.transactionType === "PRE_ORDER";
+  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
+  const transactionLabel = isPreOrder ? "Pre order" : "Sales order";
   if (salesOrder.approvalStatus !== "Pending") {
     redirectWithMessage(
-      "/sales-orders?tab=approval",
+      `${basePath}?tab=approval`,
       "error",
       "This sales order is no longer waiting for approval"
     );
   }
   if (salesOrder.invoice) {
     redirectWithMessage(
-      "/sales-orders?tab=approval",
+      `${basePath}?tab=approval`,
       "error",
       "This sales order already has an invoice"
     );
@@ -769,13 +1030,13 @@ export async function decideSalesOrderApproval(formData: FormData) {
     });
 
     await createAuditTrailLog({
-      moduleName: "Sales Orders",
+      moduleName: isPreOrder ? "Pre Orders" : "Sales Orders",
       entityType: "SALES_ORDER",
       entityId: rejectedOrder.id,
       transactionCode: rejectedOrder.orderNumber,
       action: "REJECTED",
       actionNote,
-      changeSummary: `Manager rejected sales order ${rejectedOrder.orderNumber}`,
+      changeSummary: `Manager rejected ${transactionLabel.toLowerCase()} ${rejectedOrder.orderNumber}`,
       oldValue: { status: salesOrder.status, approvalStatus: salesOrder.approvalStatus },
       newValue: {
         status: rejectedOrder.status,
@@ -785,7 +1046,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
     });
 
     refreshApp();
-    redirectWithMessage("/sales-orders?tab=approval", "success", "Sales order rejected");
+    redirectWithMessage(`${basePath}?tab=approval`, "success", `${transactionLabel} rejected`);
   }
 
   const issueDate = new Date();
@@ -840,13 +1101,13 @@ export async function decideSalesOrderApproval(formData: FormData) {
   });
 
   await createAuditTrailLog({
-    moduleName: "Sales Orders",
+    moduleName: isPreOrder ? "Pre Orders" : "Sales Orders",
     entityType: "SALES_ORDER",
     entityId: result.salesOrder.id,
     transactionCode: result.salesOrder.orderNumber,
     action: "APPROVED",
     actionNote,
-    changeSummary: `Manager approved sales order ${result.salesOrder.orderNumber}`,
+    changeSummary: `Manager approved ${transactionLabel.toLowerCase()} ${result.salesOrder.orderNumber}`,
     oldValue: { status: salesOrder.status, approvalStatus: salesOrder.approvalStatus },
     newValue: {
       status: result.salesOrder.status,
@@ -889,9 +1150,9 @@ export async function decideSalesOrderApproval(formData: FormData) {
 
   refreshApp();
   redirectWithMessage(
-    "/sales-orders?tab=approval",
+    `${basePath}?tab=approval`,
     "success",
-    "Sales order approved and invoice generated"
+    `${transactionLabel} approved and invoice generated`
   );
 }
 
@@ -1329,6 +1590,43 @@ function summarizeCustomer(customer: {
   };
 }
 
+function summarizeProduct(product: {
+  productName: string;
+  notes?: string | null;
+  basePrice: number;
+  status: string;
+}) {
+  return {
+    productName: product.productName,
+    notes: product.notes,
+    basePrice: product.basePrice,
+    status: product.status
+  };
+}
+
+function summarizeOrderPricing(
+  items: Array<{
+    productId: string;
+    itemName: string;
+    quantity: number;
+    basePrice: number;
+    markupPercent: number;
+    discountPercent: number;
+    unitPrice: number;
+  }>
+) {
+  return items.map((item) => ({
+    productId: item.productId,
+    productName: item.itemName,
+    quantity: item.quantity,
+    basePrice: item.basePrice,
+    markupPercent: item.markupPercent,
+    discountPercent: item.discountPercent,
+    adjustedUnitPrice: item.unitPrice,
+    subtotal: item.quantity * item.unitPrice
+  }));
+}
+
 function summarizeInvoice(invoice: {
   invoiceNumber: string;
   totalAmount: number;
@@ -1426,6 +1724,60 @@ function getString(formData: FormData, name: string) {
 
 function getRequiredString(formData: FormData, name: string) {
   return getString(formData, name);
+}
+
+function parseDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? date
+    : null;
+}
+
+const preOrderDocumentTypes: Record<string, readonly string[]> = {
+  ".pdf": ["application/pdf"],
+  ".jpg": ["image/jpeg"],
+  ".jpeg": ["image/jpeg"],
+  ".png": ["image/png"],
+  ".doc": ["application/msword"],
+  ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+};
+
+function getPreOrderDocument(formData: FormData) {
+  const entry = formData.get("poDocument");
+  if (!(entry instanceof File) || entry.size === 0 || entry.size > 8 * 1024 * 1024) {
+    return null;
+  }
+  const extension = extname(entry.name).toLowerCase();
+  const allowedMimeTypes = preOrderDocumentTypes[extension];
+  return allowedMimeTypes?.includes(entry.type) ? entry : null;
+}
+
+async function storePreOrderDocument(file: File) {
+  const extension = extname(file.name).toLowerCase();
+  const storedName = `${randomUUID()}${extension}`;
+  const storageDirectory = join(process.cwd(), "storage", "pre-orders");
+  await mkdir(storageDirectory, { recursive: true });
+  await writeFile(join(storageDirectory, storedName), Buffer.from(await file.arrayBuffer()));
+  return {
+    originalName: file.name.slice(0, 255),
+    storedName,
+    mimeType: file.type
+  };
+}
+
+function parseProductBasePrice(value: FormDataEntryValue | null) {
+  const rawValue = String(value ?? "").trim();
+  const parsed = Number(rawValue);
+
+  if (!rawValue || !Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+    return null;
+  }
+
+  return parsed;
 }
 
 function getStatus<T extends string>(

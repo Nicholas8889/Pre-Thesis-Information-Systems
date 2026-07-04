@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareTableValues,
   getTablePageRange,
+  haveSameOrderedReferences,
   parseTableDate,
   parseTableNumber,
   shouldOfferCheckboxFilter,
@@ -52,5 +53,13 @@ describe("table sorting and filtering utilities", () => {
       )
     ).toBe(true);
     expect(shouldOfferTableTextExpansion("A moderately sized sales note", 24)).toBe(true);
+  });
+
+  it("detects when Next.js replaces table rows with new DOM references", () => {
+    const firstRow = {};
+    const secondRow = {};
+    expect(haveSameOrderedReferences([firstRow, secondRow], [firstRow, secondRow])).toBe(true);
+    expect(haveSameOrderedReferences([firstRow, secondRow], [{}, {}])).toBe(false);
+    expect(haveSameOrderedReferences([firstRow, secondRow], [secondRow, firstRow])).toBe(false);
   });
 });

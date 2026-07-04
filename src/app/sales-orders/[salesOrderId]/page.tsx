@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Banknote, FilePlus2, Printer, Truck } from "lucide-react";
+import { ArrowLeft, Banknote, FilePlus2, FileText, Printer, Truck } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -80,6 +80,10 @@ export default async function SalesOrderDetailPage({
     notFound();
   }
 
+  const isPreOrder = salesOrder.transactionType === "PRE_ORDER";
+  const transactionLabel = isPreOrder ? "Pre Order" : "Sales Order";
+  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
+
   const invoice = salesOrder.invoice;
   const payments = invoice?.payments ?? [];
   const deliveryNotes = Array.from(
@@ -119,15 +123,15 @@ export default async function SalesOrderDetailPage({
   return (
     <>
       <PageHeader
-        title="Sales Order Detail"
-        description="Full transaction progress from Sales Order to Invoice, Payment, Surat Jalan, Receivable, and Billing."
+        title={`${transactionLabel} Detail`}
+        description={`Full transaction progress from ${transactionLabel} to Invoice, Payment, Surat Jalan, Receivable, and Billing.`}
         action={
           <Link
-            href={salesOrder.approvalStatus === "Pending" ? "/sales-orders?tab=approval" : "/sales-orders"}
+            href={salesOrder.approvalStatus === "Pending" ? `${basePath}?tab=approval` : basePath}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-brand"
           >
             <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-            Back to Sales Orders
+            Back to {isPreOrder ? "Pre Orders" : "Sales Orders"}
           </Link>
         }
       />
@@ -135,7 +139,7 @@ export default async function SalesOrderDetailPage({
       <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
         <div className="flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase text-slate-400">Sales Order</p>
+            <p className="text-sm font-semibold uppercase text-slate-400">{transactionLabel}</p>
             <h1 className="mt-1 text-2xl font-semibold">{salesOrder.orderNumber}</h1>
             <p className="mt-1 text-sm text-slate-600">
               {salesOrder.customer.companyName} - {formatDate(salesOrder.orderDate)}
@@ -154,6 +158,13 @@ export default async function SalesOrderDetailPage({
         </div>
 
         <div className="mt-5 grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
+          <Summary label="Transaction Type" value={transactionLabel} />
+          {isPreOrder && salesOrder.requiredDate && (
+            <Summary label="Product Required Date" value={formatDate(salesOrder.requiredDate)} />
+          )}
+          {isPreOrder && (
+            <Summary label="PO Document" value={salesOrder.poDocumentName ?? "Not uploaded"} />
+          )}
           <Summary label="Payment Term" value={getPaymentTermLabel(salesOrder)} />
           <Summary
             label="Manager Approval"
@@ -174,6 +185,16 @@ export default async function SalesOrderDetailPage({
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
+          {isPreOrder && salesOrder.poDocumentStoredName && (
+            <Link
+              href={`/api/pre-orders/${salesOrder.id}/document`}
+              target="_blank"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-4 text-sm font-semibold text-brand"
+            >
+              <FileText aria-hidden="true" className="h-4 w-4" />
+              Open PO Document
+            </Link>
+          )}
           {invoice ? (
             <>
               <Link
@@ -219,7 +240,7 @@ export default async function SalesOrderDetailPage({
             </RestrictedAction>
           ) : salesOrder.approvalStatus === "Pending" ? (
             <Link
-              href={`/sales-orders?tab=approval&view=${salesOrder.id}`}
+              href={`${basePath}?tab=approval&view=${salesOrder.id}`}
               className="inline-flex h-10 items-center justify-center rounded-md border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-800"
             >
               Waiting for Manager Approval
@@ -235,6 +256,7 @@ export default async function SalesOrderDetailPage({
                 salesOrderId={salesOrder.id}
                 orderNumber={salesOrder.orderNumber}
                 relatedRecordCount={relatedRecordCount}
+                transactionLabel={transactionLabel}
               />
             ) : (
               <RestrictedAction message={getRestrictionMessage("DELETE_SALES_ORDER")}>
@@ -262,14 +284,17 @@ export default async function SalesOrderDetailPage({
         </div>
 
         <div className="rounded-md border border-line bg-white p-5 shadow-soft">
-          <h2 className="text-lg font-semibold">Sales Order Item Details</h2>
+          <h2 className="text-lg font-semibold">{transactionLabel} Item Details</h2>
           <div className="mt-4 overflow-x-auto">
             <table>
               <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="py-3 pr-4">Item</th>
+                  <th className="py-3 pr-4">Product Name</th>
                   <th className="py-3 pr-4 text-right">Qty</th>
                   <th className="py-3 pr-4">Unit</th>
+                  <th className="py-3 pr-4 text-right">Base Price</th>
+                  <th className="py-3 pr-4 text-right">Markup</th>
+                  <th className="py-3 pr-4 text-right">Discount</th>
                   <th className="py-3 pr-4 text-right">Unit Price</th>
                   <th className="py-3 pr-4 text-right">Line Total</th>
                   <th className="py-3">Notes</th>
@@ -281,6 +306,15 @@ export default async function SalesOrderDetailPage({
                     <td className="py-3 pr-4 font-medium">{item.itemName}</td>
                     <td className="py-3 pr-4 text-right text-slate-600">{item.quantity}</td>
                     <td className="py-3 pr-4 text-slate-600">PCS</td>
+                    <td className="py-3 pr-4 text-right text-slate-600">
+                      {formatCurrency(item.basePrice)}
+                    </td>
+                    <td className="py-3 pr-4 text-right text-slate-600">
+                      {item.markupPercent ? `${item.markupPercent}%` : "-"}
+                    </td>
+                    <td className="py-3 pr-4 text-right text-slate-600">
+                      {item.discountPercent ? `${item.discountPercent}%` : "-"}
+                    </td>
                     <td className="py-3 pr-4 text-right text-slate-600">
                       {formatCurrency(item.unitPrice)}
                     </td>

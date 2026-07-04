@@ -16,6 +16,23 @@ export function needsSalesCustomerFollowUp(latestOrderDate: Date | null, now = n
   return latestOrderDate < threeMonthsAgo;
 }
 
+export function isPreOrderProcessingNotification(
+  input: {
+    requiredDate: Date | null;
+    status: string;
+    hasDeliveredDocument: boolean;
+  },
+  now = new Date(),
+  daysAhead = 7
+) {
+  if (!input.requiredDate || input.status === "Cancelled" || input.hasDeliveredDocument) {
+    return false;
+  }
+  const deadlineLimit = startOfDay(now);
+  deadlineLimit.setDate(deadlineLimit.getDate() + daysAhead);
+  return input.requiredDate <= deadlineLimit;
+}
+
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }

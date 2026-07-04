@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, Eye, FilePlus2, Plus, X } from "lucide-react";
+import { Check, ClipboardList, Eye, FilePlus2, FileText, Plus, ShoppingCart, X } from "lucide-react";
 import {
   decideSalesOrderApproval,
   generateInvoice,
@@ -20,6 +20,7 @@ import { isDoneSalesOrder, isOngoingSalesOrder } from "@/lib/process-status";
 import { getSearchMessage } from "@/lib/workflow";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
+import { getCustomerCategory } from "@/lib/customer-intelligence";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -28,7 +29,21 @@ export default async function SalesOrdersPage({
 }: {
   searchParams?: Promise<SearchParams>;
 }) {
+  return OrderTransactionsPage({ searchParams, transactionType: "SALES_ORDER" });
+}
+
+export async function OrderTransactionsPage({
+  searchParams,
+  transactionType
+}: {
+  searchParams?: Promise<SearchParams>;
+  transactionType: "SALES_ORDER" | "PRE_ORDER";
+}) {
   const params = (await searchParams) ?? {};
+  const isPreOrder = transactionType === "PRE_ORDER";
+  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
+  const singularLabel = isPreOrder ? "Pre Order" : "Sales Order";
+  const pluralLabel = isPreOrder ? "Pre Orders" : "Sales Orders";
   const mode = getFirst(params.mode);
   const viewId = getFirst(params.view);
   const currentUser = await getCurrentUser();
@@ -44,13 +59,25 @@ export default async function SalesOrdersPage({
       : normalizeProcessTab(params.tab);
   const { success, error } = getSearchMessage(params);
 
-  const [customers, salesOrders] = await Promise.all([
+  const [customerRecords, products, salesOrders] = await Promise.all([
     prisma.customer.findMany({
       where: { status: "Active" },
       orderBy: { companyName: "asc" },
-      select: { id: true, companyName: true, name: true }
+      select: {
+        id: true,
+        companyName: true,
+        name: true,
+        createdAt: true,
+        salesOrders: { select: { orderDate: true } }
+      }
+    }),
+    prisma.product.findMany({
+      where: { status: "Active" },
+      orderBy: { productName: "asc" },
+      select: { id: true, productName: true, basePrice: true }
     }),
     prisma.salesOrder.findMany({
+      where: { transactionType },
       orderBy: { createdAt: "desc" },
       include: {
         customer: true,
@@ -60,6 +87,12 @@ export default async function SalesOrdersPage({
       }
     })
   ]);
+  const customers = customerRecords.map((customer) => ({
+    id: customer.id,
+    companyName: customer.companyName,
+    name: customer.name,
+    category: getCustomerCategory(customer).category
+  }));
 
   const ongoingSalesOrders = salesOrders.filter((order) =>
     order.approvalStatus !== "Pending" &&
@@ -86,8 +119,8 @@ export default async function SalesOrdersPage({
 
   const selectedOrder =
     (activeTab === "ongoing" || activeTab === "approval") && viewId
-      ? await prisma.salesOrder.findUnique({
-          where: { id: viewId },
+      ? await prisma.salesOrder.findFirst({
+          where: { id: viewId, transactionType },
           include: { customer: true, invoice: true, items: true, deliveryNotes: true }
         })
       : null;
@@ -95,25 +128,29 @@ export default async function SalesOrdersPage({
   return (
     <>
       <PageHeader
-        title="Sales Orders"
-        description="Start and monitor customer sales orders before invoice, payment, and delivery."
+        title={pluralLabel}
+        description={
+          isPreOrder
+            ? "Monitor customer Pre Orders and their required dates before invoice, payment, and delivery."
+            : "Start and monitor customer sales orders before invoice, payment, and delivery."
+        }
         action={
           <div className="flex flex-wrap justify-end gap-2">
-            <SalesOrderExportDialog />
+            <SalesOrderExportDialog transactionType={transactionType} />
             {activeTab === "ongoing" && (
               canCreateSalesOrder ? (
                 <Link
-                  href="/sales-orders?mode=create"
+                  href={isPreOrder ? "/pre-orders?mode=create" : "/sales-orders?mode=choose"}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white"
                 >
                   <Plus aria-hidden="true" className="h-4 w-4" />
-                  Create Sales Order
+                  Create {singularLabel}
                 </Link>
               ) : (
                 <RestrictedAction message={salesOrderRestriction}>
                   <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-200 px-4 text-sm font-semibold text-slate-500">
                     <Plus aria-hidden="true" className="h-4 w-4" />
-                    Create Sales Order
+                    Create {singularLabel}
                   </button>
                 </RestrictedAction>
               )
@@ -125,27 +162,35 @@ export default async function SalesOrdersPage({
       <FlashMessage success={success} error={error} />
 
       <ProcessTabs
-        basePath="/sales-orders"
+        basePath={basePath}
         activeTab={activeTab}
         ongoingCount={ongoingSalesOrders.length}
         doneCount={doneSalesOrders.length}
         approvalCount={canViewApprovals ? approvalSalesOrders.length : undefined}
       />
 
+      {!isPreOrder && mode === "choose" && (
+        <TransactionTypeDialog />
+      )}
+
       {activeTab === "ongoing" && mode === "create" && (
         <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
-          <h2 className="mb-2 text-lg font-semibold">Create Sales Order</h2>
+          <h2 className="mb-2 text-lg font-semibold">Create {singularLabel}</h2>
           <p className="mb-4 text-sm leading-6 text-slate-600">
-            Start from Sales Order, then the system generates invoice and connects
-            payment, delivery note, receivable, and billing. Orders created by Sales
-            for customers with late-payment risk are submitted to a Manager first.
+            {isPreOrder
+              ? "Record the customer PO reference, document, and product required date. Invoice, payment, delivery note, receivable, and billing continue through the same process as a normal Sales Order."
+              : "Start from Sales Order, then the system generates invoice and connects payment, delivery note, receivable, and billing. Orders created by Sales for customers with late-payment risk are submitted to a Manager first."}
           </p>
           {customers.length === 0 ? (
-            <EmptyState message="Add an active customer before creating a sales order." />
+            <EmptyState message={`Add an active customer before creating a ${singularLabel}.`} />
+          ) : products.length === 0 ? (
+            <EmptyState message={`Add an active product before creating a ${singularLabel}.`} />
           ) : (
             <SalesOrderForm
               customers={customers}
+              products={products}
               action={createSalesOrder}
+              transactionType={transactionType}
               disabled={!canCreateSalesOrder}
               restrictionMessage={salesOrderRestriction}
             />
@@ -166,6 +211,13 @@ export default async function SalesOrdersPage({
           </div>
 
           <div className="mb-4 grid gap-4 text-sm md:grid-cols-3">
+            <Detail label="Transaction Type" value={singularLabel} />
+            {isPreOrder && selectedOrder.requiredDate && (
+              <Detail label="Product Required Date" value={formatDate(selectedOrder.requiredDate)} />
+            )}
+            {isPreOrder && (
+              <Detail label="PO Document" value={selectedOrder.poDocumentName ?? "Not uploaded"} />
+            )}
             {activeTab === "approval" && (
               <Detail label="Approval Risk" value={selectedOrder.approvalRisk ?? "Payment risk"} />
             )}
@@ -195,8 +247,11 @@ export default async function SalesOrdersPage({
             <table>
               <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="py-3 pr-4">Item</th>
+                  <th className="py-3 pr-4">Product Name</th>
                   <th className="py-3 pr-4 text-right">Qty</th>
+                  <th className="py-3 pr-4 text-right">Base Price</th>
+                  <th className="py-3 pr-4 text-right">Markup</th>
+                  <th className="py-3 pr-4 text-right">Discount</th>
                   <th className="py-3 pr-4 text-right">Unit Price</th>
                   <th className="py-3 text-right">Subtotal</th>
                 </tr>
@@ -206,6 +261,15 @@ export default async function SalesOrdersPage({
                   <tr key={item.id} className="transition hover:bg-slate-50">
                     <td className="py-3 pr-4 font-medium">{item.itemName}</td>
                     <td className="py-3 pr-4 text-right text-slate-600">{item.quantity}</td>
+                    <td className="py-3 pr-4 text-right text-slate-600">
+                      {formatCurrency(item.basePrice)}
+                    </td>
+                    <td className="py-3 pr-4 text-right text-slate-600">
+                      {item.markupPercent ? `${item.markupPercent}%` : "-"}
+                    </td>
+                    <td className="py-3 pr-4 text-right text-slate-600">
+                      {item.discountPercent ? `${item.discountPercent}%` : "-"}
+                    </td>
                     <td className="py-3 pr-4 text-right text-slate-600">
                       {formatCurrency(item.unitPrice)}
                     </td>
@@ -220,12 +284,13 @@ export default async function SalesOrdersPage({
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-base font-semibold">
-              Sales Order Total: {formatCurrency(selectedOrder.total)}
+              {singularLabel} Total: {formatCurrency(selectedOrder.total)}
             </p>
             {activeTab === "approval" ? (
               currentUser?.role === "MANAGER" ? (
                 <form action={decideSalesOrderApproval} className="flex flex-1 flex-wrap items-center justify-end gap-2">
                   <input type="hidden" name="salesOrderId" value={selectedOrder.id} />
+                  <input type="hidden" name="returnPath" value={basePath} />
                   <input
                     name="decisionNote"
                     placeholder="Decision note (optional)"
@@ -277,7 +342,7 @@ export default async function SalesOrdersPage({
               </RestrictedAction>
             )}
             <Link
-              href={`/sales-orders/${selectedOrder.id}`}
+              href={`${basePath}/${selectedOrder.id}`}
               className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white"
             >
               View Full Detail
@@ -291,10 +356,10 @@ export default async function SalesOrdersPage({
           <EmptyState
             message={
               activeTab === "done"
-                ? "No completed sales orders."
+                ? `No completed ${pluralLabel.toLowerCase()}.`
                 : activeTab === "approval"
-                  ? "No sales orders need Manager approval."
-                : "No ongoing sales orders."
+                  ? `No ${pluralLabel.toLowerCase()} need Manager approval.`
+                : `No ongoing ${pluralLabel.toLowerCase()}.`
             }
           />
         ) : (
@@ -305,6 +370,8 @@ export default async function SalesOrdersPage({
                   <th className="py-3 pr-4">Order Number</th>
                   <th className="py-3 pr-4">Customer</th>
                   <th className="py-3 pr-4">Order Date</th>
+                  {isPreOrder && <th className="py-3 pr-4">Required Date</th>}
+                  {isPreOrder && <th className="py-3 pr-4">PO Document</th>}
                   <th className="py-3 pr-4">Payment Term</th>
                   <th className="py-3 pr-4">Status</th>
                   {activeTab === "approval" && <th className="py-3 pr-4">Payment Risk</th>}
@@ -321,6 +388,26 @@ export default async function SalesOrdersPage({
                     <td className="py-3 pr-4 font-medium">{order.orderNumber}</td>
                     <td className="py-3 pr-4 text-slate-600">{order.customer.companyName}</td>
                     <td className="py-3 pr-4 text-slate-600">{formatDate(order.orderDate)}</td>
+                    {isPreOrder && (
+                      <td className="py-3 pr-4 font-medium text-slate-700">
+                        {order.requiredDate ? formatDate(order.requiredDate) : "-"}
+                      </td>
+                    )}
+                    {isPreOrder && (
+                      <td className="py-3 pr-4 text-slate-600">
+                        {order.poDocumentStoredName ? (
+                          <Link
+                            href={`/api/pre-orders/${order.id}/document`}
+                            target="_blank"
+                            title="Open PO document"
+                            className="inline-flex items-center gap-2 font-semibold text-brand"
+                          >
+                            <FileText aria-hidden="true" className="h-4 w-4" />
+                            {order.poDocumentName ?? "Open document"}
+                          </Link>
+                        ) : "-"}
+                      </td>
+                    )}
                     <td className="py-3 pr-4 text-slate-600">
                       {getPaymentTermLabel({
                         paymentTermType: order.paymentTermType,
@@ -352,10 +439,10 @@ export default async function SalesOrdersPage({
                         <Link
                           href={
                             activeTab === "approval"
-                              ? `/sales-orders?tab=approval&view=${order.id}`
-                              : `/sales-orders/${order.id}`
+                              ? `${basePath}?tab=approval&view=${order.id}`
+                              : `${basePath}/${order.id}`
                           }
-                          title="View full sales order detail"
+                          title={`View full ${singularLabel.toLowerCase()} detail`}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
                         >
                           <Eye aria-hidden="true" className="h-4 w-4" />
@@ -389,6 +476,60 @@ export default async function SalesOrdersPage({
         )}
       </section>
     </>
+  );
+}
+
+function TransactionTypeDialog() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="transaction-type-title"
+        className="w-full max-w-2xl rounded-lg border border-line bg-white p-5 shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 id="transaction-type-title" className="text-xl font-semibold text-ink">
+              Choose Transaction Type
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Is this a normal Sales Order or a customer Pre Order (PO)?
+            </p>
+          </div>
+          <Link
+            href="/sales-orders"
+            title="Close"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line text-slate-500"
+          >
+            <X aria-hidden="true" className="h-4 w-4" />
+          </Link>
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <Link
+            href="/sales-orders?mode=create"
+            className="rounded-md border border-line p-5 transition hover:border-brand hover:bg-blue-50"
+          >
+            <ShoppingCart aria-hidden="true" className="h-7 w-7 text-brand" />
+            <h3 className="mt-3 font-semibold text-ink">Normal Sales Order</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Uses an automatically generated Sales Order number.
+            </p>
+          </Link>
+          <Link
+            href="/pre-orders?mode=create"
+            className="rounded-md border border-line p-5 transition hover:border-brand hover:bg-blue-50"
+          >
+            <ClipboardList aria-hidden="true" className="h-7 w-7 text-brand" />
+            <h3 className="mt-3 font-semibold text-ink">Pre Order (PO)</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Requires a manual PO ID, product required date, and customer document upload.
+            </p>
+          </Link>
+        </div>
+      </section>
+    </div>
   );
 }
 

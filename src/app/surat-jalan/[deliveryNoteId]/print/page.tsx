@@ -28,6 +28,8 @@ export default async function SuratJalanPrintPage({
   if (!deliveryNote) {
     notFound();
   }
+  const isPreOrder = deliveryNote.salesOrder?.transactionType === "PRE_ORDER";
+  const transactionLabel = isPreOrder ? "Pre Order" : "Sales Order";
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -85,9 +87,22 @@ export default async function SuratJalanPrintPage({
               value={deliveryNote.invoice?.invoiceNumber ?? "-"}
             />
             <InfoRow
-              label="Sales Order"
+              label={isPreOrder ? "Pre Order ID" : "Sales Order"}
               value={deliveryNote.salesOrder?.orderNumber ?? "-"}
             />
+            <InfoRow label="Transaction Type" value={transactionLabel} />
+            {isPreOrder && deliveryNote.salesOrder?.requiredDate && (
+              <InfoRow
+                label="Required Date"
+                value={formatDate(deliveryNote.salesOrder.requiredDate)}
+              />
+            )}
+            {isPreOrder && (
+              <InfoRow
+                label="PO Document"
+                value={deliveryNote.salesOrder?.poDocumentName ?? "-"}
+              />
+            )}
           </div>
         </section>
 

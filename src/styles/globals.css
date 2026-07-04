@@ -390,6 +390,11 @@ tbody tr:hover {
   line-height: 1.25rem;
 }
 
+.table-filter-options label[hidden],
+tbody tr[hidden] {
+  display: none !important;
+}
+
 .table-filter-options label:hover {
   background: #f1f5f9;
 }

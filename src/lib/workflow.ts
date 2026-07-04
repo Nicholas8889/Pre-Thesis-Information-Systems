@@ -1,17 +1,22 @@
 import type { InvoiceStatus } from "@prisma/client";
 import {
+  calculateAdjustedUnitPrice,
   calculateDueDateForPaymentTerm,
   calculateInvoiceStatus,
   calculateRemainingAmount,
   calculateSalesOrderTotal,
   getValidCreditTermMonths,
   type PaymentTermType
-} from "@/lib/calculations";
-import { prisma } from "@/lib/prisma";
+} from "./calculations";
+import { prisma } from "./prisma";
 
 export type OrderItemInput = {
+  productId: string;
   itemName: string;
   quantity: number;
+  basePrice: number;
+  markupPercent: number;
+  discountPercent: number;
   unitPrice: number;
 };
 
@@ -23,19 +28,34 @@ export function normalizeOrderItems(rawItems: unknown): OrderItemInput[] {
   return rawItems
     .map((item) => {
       const record = item as Record<string, unknown>;
+      const basePrice = Number(record.basePrice);
+      const markupPercent = Number(record.markupPercent ?? 0);
+      const discountPercent = Number(record.discountPercent ?? 0);
       return {
+        productId: String(record.productId ?? "").trim(),
         itemName: String(record.itemName ?? "").trim(),
         quantity: Number(record.quantity),
-        unitPrice: Number(record.unitPrice)
+        basePrice,
+        markupPercent,
+        discountPercent,
+        unitPrice: calculateAdjustedUnitPrice(basePrice, markupPercent, discountPercent)
       };
     })
     .filter(
       (item) =>
-        item.itemName.length > 0 &&
+        item.productId.length > 0 &&
         Number.isFinite(item.quantity) &&
-        Number.isFinite(item.unitPrice) &&
+        Number.isInteger(item.quantity) &&
+        Number.isFinite(item.basePrice) &&
+        Number.isInteger(item.basePrice) &&
+        Number.isInteger(item.markupPercent) &&
+        Number.isInteger(item.discountPercent) &&
         item.quantity > 0 &&
-        item.unitPrice >= 0
+        item.basePrice >= 0 &&
+        item.markupPercent >= 0 &&
+        item.markupPercent <= 100 &&
+        item.discountPercent >= 0 &&
+        item.discountPercent <= 100
     );
 }
 

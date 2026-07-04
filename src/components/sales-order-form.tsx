@@ -1,19 +1,30 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { CircleHelp, FileUp, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { calculateAdjustedUnitPrice } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/format";
 
 type CustomerOption = {
   id: string;
   companyName: string;
   name: string;
+  category: string;
+};
+
+type ProductOption = {
+  id: string;
+  productName: string;
+  basePrice: number;
 };
 
 type DraftItem = {
+  productId: string;
   itemName: string;
   quantity: number;
-  unitPrice: number;
+  basePrice: number;
+  markupPercent: number | "";
+  discountPercent: number | "";
 };
 
 const inputClass =
@@ -21,22 +32,33 @@ const inputClass =
 
 export function SalesOrderForm({
   customers,
+  products,
   action,
+  transactionType = "SALES_ORDER",
   disabled = false,
   restrictionMessage = ""
 }: {
   customers: CustomerOption[];
+  products: ProductOption[];
   action: (formData: FormData) => void | Promise<void>;
+  transactionType?: "SALES_ORDER" | "PRE_ORDER";
   disabled?: boolean;
   restrictionMessage?: string;
 }) {
+  const isPreOrder = transactionType === "PRE_ORDER";
   const [paymentTermType, setPaymentTermType] = useState("DEBIT");
-  const [items, setItems] = useState<DraftItem[]>([
-    { itemName: "", quantity: 1, unitPrice: 0 }
-  ]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [items, setItems] = useState<DraftItem[]>([createEmptyItem()]);
+  const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
+  const serializedItems = items.map((item) => ({
+    ...item,
+    markupPercent: Number(item.markupPercent || 0),
+    discountPercent: Number(item.discountPercent || 0),
+    unitPrice: getUnitPrice(item)
+  }));
 
   const total = useMemo(
-    () => items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+    () => items.reduce((sum, item) => sum + item.quantity * getUnitPrice(item), 0),
     [items]
   );
 
@@ -49,7 +71,16 @@ export function SalesOrderForm({
   }
 
   function addItem() {
-    setItems((current) => [...current, { itemName: "", quantity: 1, unitPrice: 0 }]);
+    setItems((current) => [...current, createEmptyItem()]);
+  }
+
+  function selectProduct(index: number, productId: string) {
+    const product = products.find((option) => option.id === productId);
+    updateItem(index, {
+      productId,
+      itemName: product?.productName ?? "",
+      basePrice: product?.basePrice ?? 0
+    });
   }
 
   function removeItem(index: number) {
@@ -63,12 +94,66 @@ export function SalesOrderForm({
       {disabled && <RestrictionTooltip message={restrictionMessage} />}
       <form action={action}>
         <fieldset disabled={disabled} className="space-y-4 disabled:cursor-not-allowed disabled:opacity-60">
-      <input type="hidden" name="items" value={JSON.stringify(items)} />
+      <input type="hidden" name="items" value={JSON.stringify(serializedItems)} />
+      <input type="hidden" name="transactionType" value={transactionType} />
+
+      {isPreOrder && (
+        <div className="grid gap-4 rounded-md border border-blue-200 bg-blue-50 p-4 md:grid-cols-2">
+          <label className="text-sm font-medium text-slate-700">
+            Pre Order ID / Customer Sales Order ID
+            <input
+              name="orderNumber"
+              required
+              className={`${inputClass} mt-1 bg-white`}
+              placeholder="Enter the customer document number"
+            />
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              Enter this manually exactly as shown on the customer PO document.
+            </span>
+          </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Product Required Date
+            <input
+              name="requiredDate"
+              type="date"
+              required
+              className={`${inputClass} mt-1 bg-white`}
+            />
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              The system will remind users as this processing date approaches.
+            </span>
+          </label>
+
+          <label className="text-sm font-medium text-slate-700 md:col-span-2">
+            PO Document
+            <span className="mt-1 flex min-h-12 items-center gap-3 rounded-md border border-dashed border-blue-300 bg-white px-3 py-2">
+              <FileUp aria-hidden="true" className="h-5 w-5 shrink-0 text-brand" />
+              <input
+                name="poDocument"
+                type="file"
+                required
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                className="w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+              />
+            </span>
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              PDF, JPG, PNG, DOC, or DOCX. Maximum file size 8 MB.
+            </span>
+          </label>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="text-sm font-medium text-slate-700">
           Customer
-          <select name="customerId" required className={`${inputClass} mt-1`}>
+          <select
+            name="customerId"
+            required
+            value={selectedCustomerId}
+            onChange={(event) => setSelectedCustomerId(event.target.value)}
+            className={`${inputClass} mt-1`}
+          >
             <option value="">Select customer</option>
             {customers.map((customer) => (
               <option key={customer.id} value={customer.id}>
@@ -113,16 +198,22 @@ export function SalesOrderForm({
 
       <div className="space-y-3">
         {items.map((item, index) => (
-          <div key={index} className="grid gap-3 rounded-md border border-line p-3 md:grid-cols-[1fr_110px_150px_150px_44px]">
+          <div key={index} className="grid gap-3 rounded-md border border-line p-3 md:grid-cols-2 xl:grid-cols-[minmax(180px,1.4fr)_90px_140px_110px_110px_150px_150px_44px]">
             <label className="text-sm font-medium text-slate-700">
-              Item Name
-              <input
+              Product Name
+              <select
                 required
-                value={item.itemName}
-                onChange={(event) => updateItem(index, { itemName: event.target.value })}
+                value={item.productId}
+                onChange={(event) => selectProduct(index, event.target.value)}
                 className={`${inputClass} mt-1`}
-                placeholder="Product or service"
-              />
+              >
+                <option value="">Select product</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.productName}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label className="text-sm font-medium text-slate-700">
@@ -140,23 +231,79 @@ export function SalesOrderForm({
             </label>
 
             <label className="text-sm font-medium text-slate-700">
-              Unit Price
+              Base Price
               <input
                 required
                 min={0}
+                step={1}
                 type="number"
-                value={item.unitPrice}
+                value={item.basePrice}
                 onChange={(event) =>
-                  updateItem(index, { unitPrice: Number(event.target.value) })
+                  updateItem(index, { basePrice: Number(event.target.value) })
+                }
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+
+            <label className="text-sm font-medium text-slate-700">
+              Markup (%)
+              <input
+                min={0}
+                max={100}
+                step={1}
+                type="number"
+                value={item.markupPercent}
+                placeholder="Optional"
+                onChange={(event) =>
+                  updateItem(index, {
+                    markupPercent: event.target.value === "" ? "" : Number(event.target.value)
+                  })
+                }
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+
+            <label className="text-sm font-medium text-slate-700">
+              Discount (%)
+              <input
+                min={0}
+                max={100}
+                step={1}
+                type="number"
+                value={item.discountPercent}
+                placeholder="Optional"
+                onChange={(event) =>
+                  updateItem(index, {
+                    discountPercent: event.target.value === "" ? "" : Number(event.target.value)
+                  })
                 }
                 className={`${inputClass} mt-1`}
               />
             </label>
 
             <div className="text-sm font-medium text-slate-700">
+              <span className="flex items-center gap-1.5">
+                Unit Price
+                <span
+                  className="group/price-help relative inline-flex"
+                  tabIndex={0}
+                  aria-label={`Customer category: ${selectedCustomer?.category ?? "Select a customer first"}`}
+                >
+                  <CircleHelp aria-hidden="true" className="h-4 w-4 text-slate-400" />
+                  <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-slate-900 px-3 py-2 text-center text-xs font-medium text-white shadow-lg group-hover/price-help:block group-focus/price-help:block">
+                    Customer category: {selectedCustomer?.category ?? "Select a customer first"}
+                  </span>
+                </span>
+              </span>
+              <div className="mt-1 flex h-10 items-center rounded-md border border-line bg-slate-50 px-3">
+                {formatCurrency(getUnitPrice(item))}
+              </div>
+            </div>
+
+            <div className="text-sm font-medium text-slate-700">
               Subtotal
               <div className="mt-1 flex h-10 items-center rounded-md border border-line bg-slate-50 px-3">
-                {formatCurrency(item.quantity * item.unitPrice)}
+                {formatCurrency(item.quantity * getUnitPrice(item))}
               </div>
             </div>
 
@@ -185,13 +332,32 @@ export function SalesOrderForm({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <p className="text-base font-semibold">Total: {formatCurrency(total)}</p>
           <button className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
-            Create Sales Order
+            {isPreOrder ? "Create Pre Order" : "Create Sales Order"}
           </button>
         </div>
       </div>
         </fieldset>
       </form>
     </div>
+  );
+}
+
+function createEmptyItem(): DraftItem {
+  return {
+    productId: "",
+    itemName: "",
+    quantity: 1,
+    basePrice: 0,
+    markupPercent: "",
+    discountPercent: ""
+  };
+}
+
+function getUnitPrice(item: DraftItem) {
+  return calculateAdjustedUnitPrice(
+    item.basePrice,
+    Number(item.markupPercent || 0),
+    Number(item.discountPercent || 0)
   );
 }
 

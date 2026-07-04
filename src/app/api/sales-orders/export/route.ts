@@ -31,6 +31,10 @@ export async function GET(request: NextRequest) {
 
   const startDateValue = request.nextUrl.searchParams.get("startDate");
   const endDateValue = request.nextUrl.searchParams.get("endDate");
+  const transactionType =
+    request.nextUrl.searchParams.get("transactionType") === "PRE_ORDER"
+      ? "PRE_ORDER"
+      : "SALES_ORDER";
   const startDate = parseLocalDate(startDateValue, false);
   const endDate = parseLocalDate(endDateValue, true);
 
@@ -50,6 +54,7 @@ export async function GET(request: NextRequest) {
 
   const salesOrders = await prisma.salesOrder.findMany({
     where: {
+      transactionType,
       orderDate: {
         gte: startDate,
         lte: endDate
@@ -73,10 +78,11 @@ export async function GET(request: NextRequest) {
     salesOrders,
     startDate,
     endDate,
-    exportedBy: currentUser.displayName
+    exportedBy: currentUser.displayName,
+    transactionType
   });
   const buffer = await workbook.xlsx.writeBuffer();
-  const fileName = `sales-orders-${startDateValue}-${endDateValue}.xlsx`;
+  const fileName = `${transactionType === "PRE_ORDER" ? "pre-orders" : "sales-orders"}-${startDateValue}-${endDateValue}.xlsx`;
 
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,
@@ -92,13 +98,16 @@ function createSalesOrderWorkbook({
   salesOrders,
   startDate,
   endDate,
-  exportedBy
+  exportedBy,
+  transactionType
 }: {
   salesOrders: SalesOrderExportRow[];
   startDate: Date;
   endDate: Date;
   exportedBy: string;
+  transactionType: "SALES_ORDER" | "PRE_ORDER";
 }) {
+  const transactionLabel = transactionType === "PRE_ORDER" ? "PRE ORDER" : "SALES ORDER";
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "CV Tajuk Revenue Cycle MVP";
   workbook.created = new Date();
@@ -123,7 +132,7 @@ function createSalesOrderWorkbook({
   ];
 
   summary.mergeCells("A1:L1");
-  summary.getCell("A1").value = "CV TAJUK - SALES ORDER DATA";
+  summary.getCell("A1").value = `CV TAJUK - ${transactionLabel} DATA`;
   summary.mergeCells("A2:L2");
   summary.getCell("A2").value = `Date range: ${formatDateForWorkbook(startDate)} to ${formatDateForWorkbook(endDate)}`;
   summary.mergeCells("A3:L3");
@@ -172,22 +181,28 @@ function createSalesOrderWorkbook({
     { header: "Customer", key: "customer", width: 28 },
     { header: "Item Name", key: "itemName", width: 32 },
     { header: "Quantity", key: "quantity", width: 12 },
+    { header: "Base Price", key: "basePrice", width: 16 },
+    { header: "Markup (%)", key: "markupPercent", width: 14 },
+    { header: "Discount (%)", key: "discountPercent", width: 14 },
     { header: "Unit Price", key: "unitPrice", width: 16 },
     { header: "Item Subtotal", key: "itemSubtotal", width: 18 },
     { header: "Order Total", key: "orderTotal", width: 16 }
   ];
-  items.mergeCells("A1:H1");
-  items.getCell("A1").value = "CV TAJUK - SALES ORDER ITEM DETAILS";
-  items.mergeCells("A2:H2");
+  items.mergeCells("A1:K1");
+  items.getCell("A1").value = `CV TAJUK - ${transactionLabel} ITEM DETAILS`;
+  items.mergeCells("A2:K2");
   items.getCell("A2").value = `Date range: ${formatDateForWorkbook(startDate)} to ${formatDateForWorkbook(endDate)}`;
-  items.mergeCells("A3:H3");
-  items.getCell("A3").value = `${salesOrders.length} Sales Order(s)`;
+  items.mergeCells("A3:K3");
+  items.getCell("A3").value = `${salesOrders.length} ${transactionType === "PRE_ORDER" ? "Pre Order" : "Sales Order"}(s)`;
   items.getRow(5).values = [
     "Order Number",
     "Order Date",
     "Customer",
     "Item Name",
     "Quantity",
+    "Base Price",
+    "Markup (%)",
+    "Discount (%)",
     "Unit Price",
     "Item Subtotal",
     "Order Total"
@@ -201,6 +216,9 @@ function createSalesOrderWorkbook({
         customer: order.customer.companyName,
         itemName: item.itemName,
         quantity: item.quantity,
+        basePrice: item.basePrice,
+        markupPercent: item.markupPercent,
+        discountPercent: item.discountPercent,
         unitPrice: item.unitPrice,
         itemSubtotal: item.subtotal,
         orderTotal: order.total
@@ -209,8 +227,10 @@ function createSalesOrderWorkbook({
   }
 
   const itemRowCount = salesOrders.reduce((sum, order) => sum + order.items.length, 0);
-  styleWorksheet(items, itemRowCount + 5, ["F", "G", "H"]);
-  items.autoFilter = `A5:H${Math.max(5, itemRowCount + 5)}`;
+  styleWorksheet(items, itemRowCount + 5, ["F", "I", "J", "K"]);
+  items.getColumn("G").numFmt = '0"%"';
+  items.getColumn("H").numFmt = '0"%"';
+  items.autoFilter = `A5:K${Math.max(5, itemRowCount + 5)}`;
 
   return workbook;
 }

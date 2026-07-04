@@ -80,3 +80,7 @@ export function getTablePageRange(totalRows: number, requestedPage: number, page
 export function shouldOfferTableTextExpansion(value: string, minimumLength = 40) {
   return value.trim().length > minimumLength;
 }
+
+export function haveSameOrderedReferences<T>(left: T[], right: T[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}

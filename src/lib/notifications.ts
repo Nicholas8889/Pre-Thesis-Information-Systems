@@ -4,6 +4,7 @@ import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   isBillingDeadlineNotification,
+  isPreOrderProcessingNotification,
   needsSalesCustomerFollowUp
 } from "@/lib/notification-rules";
 
@@ -16,10 +17,59 @@ export type AppNotification = {
 };
 
 export async function getRoleNotifications(user: { role: UserRole }) {
-  if (user.role === "ADMIN") return getAdminBillingNotifications();
-  if (user.role === "SALES") return getSalesFollowUpNotifications();
-  if (user.role === "MANAGER") return getManagerApprovalNotifications();
-  return [];
+  const roleNotifications =
+    user.role === "ADMIN"
+      ? await getAdminBillingNotifications()
+      : user.role === "SALES"
+        ? await getSalesFollowUpNotifications()
+        : user.role === "MANAGER"
+          ? await getManagerApprovalNotifications()
+          : [];
+  const preOrderNotifications = await getPreOrderNotifications();
+  return [...preOrderNotifications, ...roleNotifications].slice(0, 12);
+}
+
+async function getPreOrderNotifications(): Promise<AppNotification[]> {
+  const today = startOfDay(new Date());
+  const preOrders = await prisma.salesOrder.findMany({
+    where: {
+      transactionType: "PRE_ORDER",
+      requiredDate: { not: null },
+      status: { not: "Cancelled" }
+    },
+    orderBy: { requiredDate: "asc" },
+    take: 50,
+    include: {
+      customer: true,
+      deliveryNotes: { select: { status: true } }
+    }
+  });
+
+  return preOrders
+    .filter((order) =>
+      isPreOrderProcessingNotification(
+        {
+          requiredDate: order.requiredDate,
+          status: order.status,
+          hasDeliveredDocument: order.deliveryNotes.some(
+            (deliveryNote) => deliveryNote.status === "Delivered"
+          )
+        },
+        today
+      )
+    )
+    .slice(0, 12)
+    .map((order) => {
+      const requiredDate = order.requiredDate as Date;
+      const isOverdue = requiredDate < today;
+      return {
+        id: `pre-order-${order.id}-${requiredDate.toISOString().slice(0, 10)}`,
+        title: isOverdue ? "Pre Order processing overdue" : "Pre Order date is approaching",
+        description: `${order.orderNumber} · ${order.customer.companyName} · Required ${formatShortDate(requiredDate)}`,
+        sentAt: new Date().toISOString(),
+        href: `/pre-orders/${order.id}`
+      };
+    });
 }
 
 async function getManagerApprovalNotifications(): Promise<AppNotification[]> {
@@ -32,10 +82,15 @@ async function getManagerApprovalNotifications(): Promise<AppNotification[]> {
 
   return pendingOrders.map((order) => ({
     id: `sales-order-approval-${order.id}`,
-    title: "Sales order approval needed",
+    title:
+      order.transactionType === "PRE_ORDER"
+        ? "Pre Order approval needed"
+        : "Sales order approval needed",
     description: `${order.orderNumber} · ${order.customer.companyName} · ${order.approvalRisk ?? "Payment risk"}`,
     sentAt: order.createdAt.toISOString(),
-    href: `/sales-orders?tab=approval&view=${order.id}`
+    href: `${
+      order.transactionType === "PRE_ORDER" ? "/pre-orders" : "/sales-orders"
+    }?tab=approval&view=${order.id}`
   }));
 }
 

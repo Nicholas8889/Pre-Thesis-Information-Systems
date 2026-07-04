@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import {
   Banknote,
   BarChart3,
+  ClipboardList,
   FileText,
   Handshake,
   History,
   LayoutDashboard,
   LogOut,
+  Package,
   ReceiptText,
   PhoneCall,
   Settings,
@@ -29,7 +31,9 @@ import { CardHelpEnhancer } from "@/components/card-help-enhancer";
 const navigation = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/customers", label: "Customers", icon: Users },
+  { href: "/products", label: "Products", icon: Package },
   { href: "/sales-orders", label: "Sales Orders", icon: ShoppingCart },
+  { href: "/pre-orders", label: "Pre Orders", icon: ClipboardList },
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/payments", label: "Payments", icon: Banknote },
   { href: "/surat-jalan", label: "Surat Jalan", icon: Truck },

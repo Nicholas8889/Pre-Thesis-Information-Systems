@@ -40,6 +40,8 @@ export default async function InvoicePrintPage({
     paymentTermType: invoice.paymentTermType,
     creditTermMonths: invoice.creditTermMonths
   });
+  const isPreOrder = invoice.salesOrder.transactionType === "PRE_ORDER";
+  const transactionLabel = isPreOrder ? "Pre Order" : "Sales Order";
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -92,7 +94,14 @@ export default async function InvoicePrintPage({
             <InfoRow label="Invoice Date" value={formatDate(invoice.issueDate)} />
             <InfoRow label="Due Date" value={formatDate(invoice.dueDate)} />
             <InfoRow label="Payment Term" value={paymentTerm} />
-            <InfoRow label="Sales Order" value={invoice.salesOrder.orderNumber} />
+            <InfoRow label="Transaction Type" value={transactionLabel} />
+            <InfoRow label={isPreOrder ? "Pre Order ID" : "Sales Order"} value={invoice.salesOrder.orderNumber} />
+            {isPreOrder && invoice.salesOrder.requiredDate && (
+              <InfoRow label="Required Date" value={formatDate(invoice.salesOrder.requiredDate)} />
+            )}
+            {isPreOrder && (
+              <InfoRow label="PO Document" value={invoice.salesOrder.poDocumentName ?? "-"} />
+            )}
           </div>
         </section>
 

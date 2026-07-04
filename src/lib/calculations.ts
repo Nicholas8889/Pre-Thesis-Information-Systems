@@ -6,6 +6,15 @@ export function calculateLineSubtotal(quantity: number, unitPrice: number) {
   return quantity * unitPrice;
 }
 
+export function calculateAdjustedUnitPrice(
+  basePrice: number,
+  markupPercent = 0,
+  discountPercent = 0
+) {
+  const adjustedPrice = basePrice * (100 + markupPercent - discountPercent) / 100;
+  return Math.max(0, Math.round(adjustedPrice));
+}
+
 export function calculateSalesOrderTotal(
   items: Array<{ quantity: number; unitPrice: number }>
 ) {
