@@ -62,6 +62,15 @@ enum FollowUpStatus {
   Cancelled
 }
 
+enum CustomerInquiryStatus {
+  Open
+  Closed
+  Cancelled
+  ConvertedToPO
+  ConvertedToSO
+  Done
+}
+
 enum DeliveryNoteStatus {
   Draft
   Issued
@@ -132,6 +141,7 @@ model Customer {
   followUps        FollowUp[]
   productFollowUps CustomerProductFollowUp[]
   deliveryNotes    DeliveryNote[]
+  inquiries        CustomerInquiry[]
 }
 
 model Product {
@@ -144,6 +154,7 @@ model Product {
   updatedAt   DateTime      @updatedAt
 
   salesOrderItems SalesOrderItem[]
+  inquiryItems    CustomerInquiryItem[]
 
   @@index([productName])
   @@index([status])
@@ -152,6 +163,7 @@ model Product {
 model SalesOrder {
   id                   String                   @id @default(cuid()) @map("idSalesOrder")
   orderNumber          String                   @unique
+  poNumber             String?                  @unique
   transactionType      TransactionType          @default(SALES_ORDER)
   requiredDate         DateTime?
   poDocumentName       String?
@@ -178,10 +190,49 @@ model SalesOrder {
   items         SalesOrderItem[]
   invoice       Invoice?
   deliveryNotes DeliveryNote[]
+  customerInquiry CustomerInquiry?
 
   @@index([approvalStatus])
   @@index([transactionType])
   @@index([requiredDate])
+}
+
+model CustomerInquiry {
+  id             String                @id @default(cuid()) @map("idCustomerInquiry")
+  inquiryNumber  String                @unique
+  customerId     String
+  inquiryDate    DateTime              @default(now())
+  neededBy       DateTime?
+  status         CustomerInquiryStatus @default(Open)
+  notes          String?
+  statusNote     String?
+  salesOrderId   String?               @unique
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  customer   Customer              @relation(fields: [customerId], references: [id])
+  salesOrder SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  items      CustomerInquiryItem[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([inquiryDate])
+}
+
+model CustomerInquiryItem {
+  id                String          @id @default(cuid()) @map("idCustomerInquiryItem")
+  customerInquiryId String
+  productId         String?
+  itemName          String
+  quantity          Int
+  requestedPrice    Int?
+  agreedPrice       Int?
+  notes             String?
+
+  customerInquiry CustomerInquiry @relation(fields: [customerInquiryId], references: [id], onDelete: Cascade)
+  product         Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
 }
 
 model SalesOrderItem {

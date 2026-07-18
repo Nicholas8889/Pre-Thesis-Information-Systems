@@ -1,6 +1,6 @@
 # ERD - CV Tajuk Revenue Cycle Information System
 
-Updated: 22 June 2026
+Updated: 18 July 2026
 
 This ERD reflects the active Prisma schema and the camelCase physical database naming currently applied by the migrations. Every physical primary key begins with `id` followed by its entity name, such as `idCustomer`, `idSalesOrder`, and `idInvoice`. Prisma maps these physical names to its stable application-facing `id` fields.
 
@@ -51,9 +51,25 @@ erDiagram
     DateTime updatedAt
   }
 
+  PRODUCT {
+    String idProduct PK
+    String productName
+    String notes
+    Int basePrice
+    ProductStatus status
+    DateTime createdAt
+    DateTime updatedAt
+  }
+
   SALES_ORDER {
     String idSalesOrder PK
     String orderNumber UK
+    String poNumber UK
+    TransactionType transactionType
+    DateTime requiredDate
+    String poDocumentName
+    String poDocumentStoredName
+    String poDocumentMimeType
     String customerId FK
     DateTime orderDate
     SalesOrderStatus status
@@ -75,10 +91,36 @@ erDiagram
   SALES_ORDER_ITEM {
     String idSalesOrderItem PK
     String salesOrderId FK
+    String productId FK
     String itemName
     Int quantity
     Int unitPrice
     Int subtotal
+  }
+
+  CUSTOMER_INQUIRY {
+    String idCustomerInquiry PK
+    String inquiryNumber UK
+    String customerId FK
+    DateTime inquiryDate
+    DateTime neededBy
+    CustomerInquiryStatus status
+    String notes
+    String statusNote
+    String salesOrderId FK UK
+    DateTime createdAt
+    DateTime updatedAt
+  }
+
+  CUSTOMER_INQUIRY_ITEM {
+    String idCustomerInquiryItem PK
+    String customerInquiryId FK
+    String productId FK
+    String itemName
+    Int quantity
+    Int requestedPrice
+    Int agreedPrice
+    String notes
   }
 
   INVOICE {
@@ -160,6 +202,11 @@ erDiagram
   }
 
   CUSTOMER ||--o{ SALES_ORDER : places
+  CUSTOMER ||--o{ CUSTOMER_INQUIRY : makes
+  PRODUCT ||--o{ SALES_ORDER_ITEM : may_match
+  CUSTOMER_INQUIRY ||--|{ CUSTOMER_INQUIRY_ITEM : contains
+  PRODUCT o|--o{ CUSTOMER_INQUIRY_ITEM : may_match
+  CUSTOMER_INQUIRY o|--o| SALES_ORDER : converts_to
   SALES_ORDER ||--|{ SALES_ORDER_ITEM : contains
   SALES_ORDER ||--o| INVOICE : generates
   CUSTOMER ||--o{ INVOICE : receives
@@ -180,6 +227,8 @@ erDiagram
 | User | `idUser` | Local account, role, login status, and authorization identity. |
 | AuditTrail | `idAuditTrail` | Immutable activity evidence including actor, action, confirmation note, and old/new values. |
 | Customer | `idCustomer` | Customer master data, active/inactive state, and notes. |
+| CustomerInquiry | `idCustomerInquiry` | Customer request with lifecycle status before it becomes an order or is closed/cancelled. |
+| CustomerInquiryItem | `idCustomerInquiryItem` | Requested product line, quantity, requested/agreed prices, and optional product match. |
 | SalesOrder | `idSalesOrder` | Revenue-cycle starting document, payment terms, totals, approval state, and notes. |
 | SalesOrderItem | `idSalesOrderItem` | Product or service lines belonging to a Sales Order. |
 | Invoice | `idInvoice` | Billing document generated from one Sales Order. |
@@ -192,18 +241,22 @@ erDiagram
 ## Relationship and Deletion Rules
 
 - One Customer can have many Sales Orders, Invoices, Billing Follow-ups, Product Follow-ups, and Delivery Notes.
+- One Customer can have many Customer Inquiries. One Customer Inquiry has one or more Customer Inquiry Items and can link to at most one Sales Order/Pre Order.
+- A Customer Inquiry Item can optionally match a Product. The product match and agreed price are required before conversion.
 - One Sales Order contains many Sales Order Items and can generate at most one Invoice.
 - One Invoice can have many Payments, Billing Follow-ups, and Delivery Notes.
 - One Delivery Note contains many Delivery Note Items.
 - Sales Order Items, Payments, Customer Product Follow-ups, and Delivery Note Items use cascade behavior where configured in Prisma.
 - Deleting an eligible ongoing Sales Order is an application transaction that explicitly removes its Delivery Notes, Billing Follow-ups, Payments, Invoice, Sales Order Items, and Sales Order. The Customer and Audit Trail remain.
 - Paid, delivered, or cancelled transaction chains are protected from Sales Order deletion.
+- When a linked Delivery Note is marked Delivered, a Converted to SO/PO Customer Inquiry becomes Done.
 
 ## Logical Concepts
 
 - Receivable is derived from `Invoice.remainingAmount`, `Invoice.status`, and `Invoice.dueDate`; there is no separate Receivable table.
 - Dashboard values and charts are calculated from operational entities and do not require a Dashboard table.
 - `actorUserId`, `createdByUserId`, and `approvalDecidedById` are stored as trace values but are not declared as Prisma foreign-key relations in the current MVP.
+- A Pre Order uses the SalesOrder table with transaction type `PRE_ORDER`; it adds an independent PO ID, required date, and PO document metadata.
 - Audit Trail records retain deletion evidence and the required deletion confirmation note after the operational record has been removed.
 
 ## Naming Notes

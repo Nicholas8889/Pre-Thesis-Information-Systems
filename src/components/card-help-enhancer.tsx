@@ -16,16 +16,47 @@ export function CardHelpEnhancer() {
         .forEach((card) => enhanceCard(card, pathname));
     };
 
+    const container = document.querySelector("main") ?? document.body;
     enhanceCards();
-    const observer = new MutationObserver(enhanceCards);
-    observer.observe(document.querySelector("main") ?? document.body, {
+    let enhancementScheduled = false;
+    const observer = new MutationObserver((mutations) => {
+      if (!mutationsContainCard(mutations) || enhancementScheduled) return;
+      enhancementScheduled = true;
+      requestAnimationFrame(() => {
+        enhancementScheduled = false;
+        enhanceCards();
+      });
+    });
+    observer.observe(container, {
       childList: true,
       subtree: true
     });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      resetCardEnhancements(container);
+    };
   }, [pathname]);
 
   return null;
+}
+
+function mutationsContainCard(mutations: MutationRecord[]) {
+  return mutations.some((mutation) =>
+    Array.from(mutation.addedNodes).some((node) => {
+      if (!(node instanceof Element)) return false;
+      return node.matches(".shadow-soft") || Boolean(node.querySelector(".shadow-soft"));
+    })
+  );
+}
+
+function resetCardEnhancements(container: Element) {
+  container
+    .querySelectorAll<HTMLElement>("[data-card-help-enhanced='true']")
+    .forEach((card) => {
+      card.querySelectorAll(":scope .card-info-help").forEach((help) => help.remove());
+      card.querySelector(":scope > .card-generated-header")?.remove();
+      delete card.dataset.cardHelpEnhanced;
+    });
 }
 
 function enhanceCard(card: HTMLElement, pathname: string) {

@@ -42,9 +42,25 @@ erDiagram
     DateTime updatedAt
   }
 
+  PRODUCT {
+    String idProduct PK
+    String productName
+    String notes
+    Int basePrice
+    ProductStatus status
+    DateTime createdAt
+    DateTime updatedAt
+  }
+
   SALES_ORDER {
     String idSalesOrder PK
     String orderNumber UK
+    String poNumber UK
+    TransactionType transactionType
+    DateTime requiredDate
+    String poDocumentName
+    String poDocumentStoredName
+    String poDocumentMimeType
     String customerId FK
     DateTime orderDate
     SalesOrderStatus status
@@ -66,10 +82,36 @@ erDiagram
   SALES_ORDER_ITEM {
     String idSalesOrderItem PK
     String salesOrderId FK
+    String productId FK
     String itemName
     Int quantity
     Int unitPrice
     Int subtotal
+  }
+
+  CUSTOMER_INQUIRY {
+    String idCustomerInquiry PK
+    String inquiryNumber UK
+    String customerId FK
+    DateTime inquiryDate
+    DateTime neededBy
+    CustomerInquiryStatus status
+    String notes
+    String statusNote
+    String salesOrderId FK UK
+    DateTime createdAt
+    DateTime updatedAt
+  }
+
+  CUSTOMER_INQUIRY_ITEM {
+    String idCustomerInquiryItem PK
+    String customerInquiryId FK
+    String productId FK
+    String itemName
+    Int quantity
+    Int requestedPrice
+    Int agreedPrice
+    String notes
   }
 
   INVOICE {
@@ -151,6 +193,11 @@ erDiagram
   }
 
   CUSTOMER ||--o{ SALES_ORDER : places
+  CUSTOMER ||--o{ CUSTOMER_INQUIRY : makes
+  CUSTOMER_INQUIRY ||--|{ CUSTOMER_INQUIRY_ITEM : contains
+  CUSTOMER_INQUIRY o|--o| SALES_ORDER : converts_to
+  PRODUCT ||--o{ SALES_ORDER_ITEM : may_match
+  PRODUCT o|--o{ CUSTOMER_INQUIRY_ITEM : may_match
   SALES_ORDER ||--|{ SALES_ORDER_ITEM : contains
   SALES_ORDER ||--o| INVOICE : generates
   CUSTOMER ||--o{ INVOICE : receives

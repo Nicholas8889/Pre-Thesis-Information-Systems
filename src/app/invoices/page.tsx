@@ -90,6 +90,10 @@ export default async function InvoicesPage({
               <h2 className="mt-1 text-2xl font-semibold">{selectedInvoice.invoiceNumber}</h2>
               <p className="mt-1 text-sm text-slate-600">
                 Sales Order {selectedInvoice.salesOrder.orderNumber}
+                {selectedInvoice.salesOrder.transactionType === "PRE_ORDER" &&
+                selectedInvoice.salesOrder.poNumber
+                  ? ` - PO ${selectedInvoice.salesOrder.poNumber}`
+                  : ""}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -137,6 +141,9 @@ export default async function InvoicesPage({
 
           <div className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
             <Detail label="Customer" value={selectedInvoice.customer.companyName} />
+            {selectedInvoice.salesOrder.transactionType === "PRE_ORDER" && (
+              <Detail label="PO ID" value={selectedInvoice.salesOrder.poNumber ?? "-"} />
+            )}
             <Detail label="Contact" value={selectedInvoice.customer.name} />
             <Detail label="Issue Date" value={formatDate(selectedInvoice.issueDate)} />
             <Detail label="Due Date" value={formatDate(selectedInvoice.dueDate)} />

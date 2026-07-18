@@ -87,9 +87,15 @@ export default async function SuratJalanPrintPage({
               value={deliveryNote.invoice?.invoiceNumber ?? "-"}
             />
             <InfoRow
-              label={isPreOrder ? "Pre Order ID" : "Sales Order"}
+              label="Sales Order"
               value={deliveryNote.salesOrder?.orderNumber ?? "-"}
             />
+            {isPreOrder && (
+              <InfoRow
+                label="PO ID"
+                value={deliveryNote.salesOrder?.poNumber ?? "-"}
+              />
+            )}
             <InfoRow label="Transaction Type" value={transactionLabel} />
             {isPreOrder && deliveryNote.salesOrder?.requiredDate && (
               <InfoRow

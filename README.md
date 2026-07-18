@@ -1,6 +1,6 @@
 # CV Tajuk Revenue Cycle Information System MVP
 
-This is a local thesis MVP for demonstrating the revenue cycle flow at CV Tajuk. It covers customer data, sales orders, invoices, payments, Surat Jalan, receivables, billing reminders, dashboard insight, and testing evidence.
+This is a local thesis MVP for demonstrating the revenue cycle flow at CV Tajuk. It covers customer inquiries, customer and product data, Sales Orders, Pre Orders (PO), invoices, payments, Surat Jalan, receivables, billing reminders, dashboard insight, and testing evidence.
 
 The second iteration reduces duplicate manual input by making Sales Order the transaction starting point. A confirmed sales order generates a connected invoice, then payment, Surat Jalan, receivable, billing, and dashboard views reuse the same Sales Order and Invoice data.
 
@@ -54,7 +54,16 @@ The seed data includes five customers, five sales orders, five invoices, paid in
 npm run dev
 ```
 
-Open the local URL shown in the terminal.
+Open the local URL shown in the terminal, normally `http://localhost:3000`.
+
+For a non-developer Windows user, open PowerShell in the project folder, then run:
+
+```powershell
+cd "D:\Pre Thesis MVP Iterative Development"
+npm.cmd run dev
+```
+
+If port 3000 is already in use, open `http://localhost:3000` first because the app may already be running. Otherwise, run `npm.cmd run dev -- --port 3001` and open `http://localhost:3001`.
 
 ## Run Tests
 
@@ -106,7 +115,7 @@ It also restores the default Admin login account.
 3. Fill username, display name, password, role, and status.
 4. Select Save Account.
 
-Roles are shown as account information only. They do not control access in this MVP.
+Roles control operational actions in this MVP. Sales can create Sales Orders and Customer Inquiries; Admin manages invoices, payments, and delivery; Manager can use all operational actions and approve risky Sales Orders.
 
 ### Recommended Demo Flow
 
@@ -156,7 +165,10 @@ This is a local thesis MVP. It does not include production-grade authentication,
 
 - Dashboard
 - Customers
+- Products
+- Customer Inquiries
 - Sales Orders
+- Pre Orders
 - Invoices
 - Payments
 - Surat Jalan
@@ -190,6 +202,12 @@ The intended demonstration flow is:
 
 Sales Order -> Invoice -> Payment -> Surat Jalan -> Receivables -> Billing -> Dashboard
 
+Customer inquiry flow:
+
+Customer Inquiry (Open) -> Close or Cancel, or -> Convert to Sales Order / Pre Order -> Surat Jalan Delivered -> Done
+
+Conversion is available only when every inquiry item has a matched product and agreed price. A Pre Order has its own PO ID and requires a supporting PO document.
+
 Debit flow:
 
 Sales Order -> Invoice -> Payment -> Surat Jalan
@@ -201,6 +219,7 @@ Sales Order -> Invoice -> Surat Jalan -> Receivables -> Billing -> Payment
 Important rules:
 
 - One sales order can only have one invoice.
+- Every Pre Order is stored as a Sales Order with transaction type `PRE_ORDER`, a separate PO ID, required date, and PO document metadata.
 - Invoice data comes from the sales order and customer.
 - Debit invoices use immediate due date.
 - Credit invoices use the selected credit term, from 1 to 12 months.
@@ -210,6 +229,7 @@ Important rules:
 - Receivables are not manually entered; they come from invoices with remaining balance.
 - Billing activities can be started from a receivable row so customer and invoice data are preselected.
 - Surat Jalan can be started from an invoice so recipient and item data are copied.
+- Invoice and Surat Jalan documents show the PO ID when the linked transaction is a Pre Order.
 
 ## Current Base Structure
 

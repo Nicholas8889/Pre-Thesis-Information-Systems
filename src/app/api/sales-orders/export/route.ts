@@ -118,6 +118,7 @@ function createSalesOrderWorkbook({
   });
   summary.columns = [
     { header: "Order Number", key: "orderNumber", width: 20 },
+    { header: "PO ID", key: "poNumber", width: 20 },
     { header: "Order Date", key: "orderDate", width: 14 },
     { header: "Customer", key: "customer", width: 28 },
     { header: "Contact Name", key: "contactName", width: 22 },
@@ -131,14 +132,15 @@ function createSalesOrderWorkbook({
     { header: "Notes", key: "notes", width: 36 }
   ];
 
-  summary.mergeCells("A1:L1");
+  summary.mergeCells("A1:M1");
   summary.getCell("A1").value = `CV TAJUK - ${transactionLabel} DATA`;
-  summary.mergeCells("A2:L2");
+  summary.mergeCells("A2:M2");
   summary.getCell("A2").value = `Date range: ${formatDateForWorkbook(startDate)} to ${formatDateForWorkbook(endDate)}`;
-  summary.mergeCells("A3:L3");
+  summary.mergeCells("A3:M3");
   summary.getCell("A3").value = `Exported by ${exportedBy} on ${formatDateForWorkbook(new Date())}`;
   summary.getRow(5).values = [
     "Order Number",
+    "PO ID",
     "Order Date",
     "Customer",
     "Contact Name",
@@ -155,6 +157,7 @@ function createSalesOrderWorkbook({
   for (const order of salesOrders) {
     summary.addRow({
       orderNumber: order.orderNumber,
+      poNumber: order.poNumber ?? "-",
       orderDate: order.orderDate,
       customer: order.customer.companyName,
       contactName: order.customer.name,
@@ -169,14 +172,15 @@ function createSalesOrderWorkbook({
     });
   }
 
-  styleWorksheet(summary, salesOrders.length + 5, ["G", "H"]);
-  summary.autoFilter = `A5:L${Math.max(5, salesOrders.length + 5)}`;
+  styleWorksheet(summary, salesOrders.length + 5, ["H", "I"], "C");
+  summary.autoFilter = `A5:M${Math.max(5, salesOrders.length + 5)}`;
 
   const items = workbook.addWorksheet("Sales Order Items", {
     views: [{ state: "frozen", ySplit: 5 }]
   });
   items.columns = [
     { header: "Order Number", key: "orderNumber", width: 20 },
+    { header: "PO ID", key: "poNumber", width: 20 },
     { header: "Order Date", key: "orderDate", width: 14 },
     { header: "Customer", key: "customer", width: 28 },
     { header: "Item Name", key: "itemName", width: 32 },
@@ -188,14 +192,15 @@ function createSalesOrderWorkbook({
     { header: "Item Subtotal", key: "itemSubtotal", width: 18 },
     { header: "Order Total", key: "orderTotal", width: 16 }
   ];
-  items.mergeCells("A1:K1");
+  items.mergeCells("A1:L1");
   items.getCell("A1").value = `CV TAJUK - ${transactionLabel} ITEM DETAILS`;
-  items.mergeCells("A2:K2");
+  items.mergeCells("A2:L2");
   items.getCell("A2").value = `Date range: ${formatDateForWorkbook(startDate)} to ${formatDateForWorkbook(endDate)}`;
-  items.mergeCells("A3:K3");
+  items.mergeCells("A3:L3");
   items.getCell("A3").value = `${salesOrders.length} ${transactionType === "PRE_ORDER" ? "Pre Order" : "Sales Order"}(s)`;
   items.getRow(5).values = [
     "Order Number",
+    "PO ID",
     "Order Date",
     "Customer",
     "Item Name",
@@ -212,6 +217,7 @@ function createSalesOrderWorkbook({
     for (const item of order.items) {
       items.addRow({
         orderNumber: order.orderNumber,
+        poNumber: order.poNumber ?? "-",
         orderDate: order.orderDate,
         customer: order.customer.companyName,
         itemName: item.itemName,
@@ -227,15 +233,20 @@ function createSalesOrderWorkbook({
   }
 
   const itemRowCount = salesOrders.reduce((sum, order) => sum + order.items.length, 0);
-  styleWorksheet(items, itemRowCount + 5, ["F", "I", "J", "K"]);
-  items.getColumn("G").numFmt = '0"%"';
+  styleWorksheet(items, itemRowCount + 5, ["G", "J", "K", "L"], "C");
   items.getColumn("H").numFmt = '0"%"';
-  items.autoFilter = `A5:K${Math.max(5, itemRowCount + 5)}`;
+  items.getColumn("I").numFmt = '0"%"';
+  items.autoFilter = `A5:L${Math.max(5, itemRowCount + 5)}`;
 
   return workbook;
 }
 
-function styleWorksheet(worksheet: ExcelJS.Worksheet, lastRow: number, currencyColumns: string[]) {
+function styleWorksheet(
+  worksheet: ExcelJS.Worksheet,
+  lastRow: number,
+  currencyColumns: string[],
+  dateColumn = "B"
+) {
   worksheet.getCell("A1").font = { bold: true, color: { argb: "FFFFFFFF" }, size: 16 };
   worksheet.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1D4ED8" } };
   worksheet.getCell("A1").alignment = { vertical: "middle" };
@@ -257,7 +268,7 @@ function styleWorksheet(worksheet: ExcelJS.Worksheet, lastRow: number, currencyC
     }
   }
 
-  worksheet.getColumn("B").numFmt = "dd mmm yyyy";
+  worksheet.getColumn(dateColumn).numFmt = "dd mmm yyyy";
   for (const column of currencyColumns) {
     worksheet.getColumn(column).numFmt = '[$Rp-421] #,##0';
   }

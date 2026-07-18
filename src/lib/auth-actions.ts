@@ -1,14 +1,13 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { UserRole, UserStatus } from "@prisma/client";
-import { AUTH_COOKIE_NAME, hashPassword, verifyPassword } from "@/lib/auth";
+import { hashPassword, needsPasswordRehash, verifyPassword } from "@/lib/auth";
 import { createAuditTrailLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { canRole } from "@/lib/role-access";
-import { getCurrentUser } from "@/lib/session";
+import { createSession, deleteSession, requireCurrentUser } from "@/lib/session";
 import { normalizeActionNote } from "@/lib/action-notes";
 
 const protectedPaths = [
@@ -37,25 +36,25 @@ export async function login(formData: FormData) {
     redirect("/login?error=Invalid username or password");
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set(AUTH_COOKIE_NAME, user.id, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 8
-  });
+  if (needsPasswordRehash(user.passwordHash)) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: hashPassword(password) }
+    });
+  }
 
-  redirect("/");
+  await createSession(user);
+
+  redirect("/dashboard");
 }
 
 export async function logout() {
-  const cookieStore = await cookies();
-  cookieStore.delete(AUTH_COOKIE_NAME);
+  await deleteSession();
   redirect("/login");
 }
 
 export async function createAccount(formData: FormData) {
-  const currentUser = await getCurrentUser();
+  const currentUser = await requireCurrentUser();
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   if (!canRole(currentUser?.role, "CREATE_ACCOUNT")) {
     redirect("/settings?error=Only Admin and Manager roles can create accounts");

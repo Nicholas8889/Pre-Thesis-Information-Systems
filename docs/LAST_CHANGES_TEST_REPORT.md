@@ -157,3 +157,31 @@
 
 - [x] The MVP is safe to continue demo/testing.
 - [x] Recent Dashboard, clickable Sales Order rows, Sales Order detail, paid history, audit trails, printable documents, and ERD documentation are stable based on automated and runtime smoke testing.
+
+## 17. Customer Inquiry and PO Update Test - 18 July 2026
+
+### Scope
+
+- Customer Inquiry with multiple item lines.
+- Inquiry conversion to Sales Order and Pre Order.
+- PO ID, required date, and supporting PO document fields.
+- Inquiry lifecycle from Open to Converted to SO/PO and Done after delivery.
+
+### Automated Result
+
+- [x] Unit tests validate optional inquiry price handling, conversion eligibility, and status labels.
+- [x] Integration test creates a multi-item inquiry and tests both Sales Order and Pre Order conversion paths.
+- [x] Integration test creates and marks the linked Surat Jalan as Delivered, then verifies the inquiry becomes Done.
+- [x] Test data is rolled back at the end of the integration test.
+- [x] `npm.cmd test` passed: 72 tests across 19 test files.
+- [x] `npm.cmd run lint` passed with zero warnings.
+- [x] `npm.cmd run build` passed.
+
+### Manual Form-Prefill Check
+
+- [x] Sales Order conversion form receives the inquiry ID, customer, product, quantity, and agreed price automatically.
+- [x] Pre Order conversion route exposes the inquiry field, customer field, item data, and mandatory PO document field.
+
+### Verdict
+
+- [x] Customer Inquiry, Sales Order conversion, Pre Order conversion, and delivery-completion lifecycle are ready for UAT and thesis demonstration.

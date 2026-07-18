@@ -47,17 +47,19 @@ export function TableEnhancer() {
         .forEach(enhanceTable);
     };
 
+    const container = document.querySelector("main") ?? document.body;
     enhanceTables();
     let enhancementScheduled = false;
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((mutations) => {
+      if (!mutationsContainTable(mutations)) return;
       if (enhancementScheduled) return;
       enhancementScheduled = true;
-      queueMicrotask(() => {
+      requestAnimationFrame(() => {
         enhancementScheduled = false;
         enhanceTables();
       });
     });
-    observer.observe(document.querySelector("main") ?? document.body, {
+    observer.observe(container, {
       childList: true,
       subtree: true
     });
@@ -69,6 +71,15 @@ export function TableEnhancer() {
   }, [pathname]);
 
   return null;
+}
+
+function mutationsContainTable(mutations: MutationRecord[]) {
+  return mutations.some((mutation) =>
+    Array.from(mutation.addedNodes).some((node) => {
+      if (!(node instanceof Element)) return false;
+      return node.matches("table") || Boolean(node.querySelector("table"));
+    })
+  );
 }
 
 function enhanceTable(table: HTMLTableElement) {
@@ -96,27 +107,32 @@ function enhanceTable(table: HTMLTableElement) {
   const originalOrder = new Map(rows.map((row, index) => [row, index]));
   const columnFilters = new Map<number, (row: HTMLTableRowElement) => boolean>();
   const filterControllers: FilterController[] = [];
-  let searchValue = "";
+  const pageSearchInput = findPageSearchInput(table);
+  const searchInput = pageSearchInput ?? document.createElement("input");
+  let searchValue = searchInput.value.trim().toLowerCase();
   let currentPage = 1;
 
   const toolbar = document.createElement("div");
   toolbar.className = "table-enhancer-toolbar no-print";
   toolbar.dataset.tableToolbar = "true";
 
-  const searchLabel = document.createElement("label");
-  searchLabel.className = "table-enhancer-search";
-  searchLabel.textContent = "Search";
-  const searchInput = document.createElement("input");
-  searchInput.type = "search";
-  searchInput.placeholder = "Search rows...";
-  searchInput.setAttribute("aria-label", "Search rows containing this text");
-  searchInput.addEventListener("input", () => {
+  if (!pageSearchInput) {
+    const searchLabel = document.createElement("label");
+    searchLabel.className = "table-enhancer-search";
+    searchLabel.textContent = "Search";
+    searchInput.type = "search";
+    searchInput.placeholder = "Search rows...";
+    searchInput.setAttribute("aria-label", "Search rows containing this text");
+    searchLabel.append(searchInput);
+    toolbar.append(searchLabel);
+  }
+
+  const onSearchInput = () => {
     searchValue = searchInput.value.trim().toLowerCase();
     currentPage = 1;
     applyFilters();
-  });
-  searchLabel.append(searchInput);
-  toolbar.append(searchLabel);
+  };
+  searchInput.addEventListener("input", onSearchInput);
 
   const resultCount = document.createElement("span");
   resultCount.className = "table-enhancer-count";
@@ -245,6 +261,7 @@ function enhanceTable(table: HTMLTableElement) {
     pagination,
     destroy: () => {
       filterControllers.forEach((controller) => controller.destroy());
+      searchInput.removeEventListener("input", onSearchInput);
       toolbar.remove();
       pagination.remove();
       headers.forEach((header) => {
@@ -297,6 +314,12 @@ function enhanceTable(table: HTMLTableElement) {
     nextButton.disabled = range.page >= range.totalPages;
     pagination.hidden = range.totalPages <= 1;
   }
+}
+
+function findPageSearchInput(table: HTMLTableElement) {
+  const card = table.closest<HTMLElement>(".shadow-soft");
+  const searchInput = card?.querySelector<HTMLInputElement>('form input[name="q"]');
+  return searchInput ?? null;
 }
 
 function createPaginationButton(text: string) {

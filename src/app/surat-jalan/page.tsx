@@ -178,6 +178,8 @@ export default async function SuratJalanPage({
               salesOrders={salesOrders.map((order) => ({
                 id: order.id,
                 orderNumber: order.orderNumber,
+                poNumber: order.poNumber,
+                transactionType: order.transactionType,
                 customerId: order.customerId,
                 customerName: order.customer.companyName,
                 recipientName: order.customer.name,
@@ -211,6 +213,10 @@ export default async function SuratJalanPage({
                 {selectedDeliveryNote.invoice?.invoiceNumber ??
                   selectedDeliveryNote.salesOrder?.orderNumber ??
                   "Manual delivery note"}
+                {selectedDeliveryNote.salesOrder?.transactionType === "PRE_ORDER" &&
+                selectedDeliveryNote.salesOrder.poNumber
+                  ? ` - PO ${selectedDeliveryNote.salesOrder.poNumber}`
+                  : ""}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -291,6 +297,9 @@ export default async function SuratJalanPage({
               label="Sales Order"
               value={selectedDeliveryNote.salesOrder?.orderNumber ?? "-"}
             />
+            {selectedDeliveryNote.salesOrder?.transactionType === "PRE_ORDER" && (
+              <Detail label="PO ID" value={selectedDeliveryNote.salesOrder.poNumber ?? "-"} />
+            )}
             <Detail label="Sender" value={selectedDeliveryNote.senderName ?? "-"} />
             <Detail label="Authorized By" value={selectedDeliveryNote.authorizedBy ?? "-"} />
           </div>

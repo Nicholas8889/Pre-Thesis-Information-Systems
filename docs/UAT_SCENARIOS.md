@@ -195,3 +195,63 @@ Steps:
 5. Save the follow-up.
 
 Expected result: The follow-up appears in the follow-up list and planned reminders appear on the dashboard.
+
+## UAT-CI-001: Sales Creates a Multi-Item Customer Inquiry
+
+Role: Sales
+
+Steps:
+1. Open Customer Inquiries.
+2. Select Add Customer Inquiry.
+3. Select an active customer.
+4. Add two or more requested items with quantities and requested prices.
+5. Match each available item to a Product and enter its agreed price.
+6. Save the inquiry.
+
+Expected result: One Open inquiry is created with all item lines visible in its detail page.
+
+## UAT-CI-002: Sales Closes or Cancels an Inquiry
+
+Role: Sales
+
+Steps:
+1. Open an Open Customer Inquiry using the eye icon.
+2. Enter a reason for price/timing failure and select Close Inquiry, or enter a cancellation reason and select Cancel Inquiry.
+
+Expected result: The status becomes Closed or Cancelled and the reason is retained in the detail page and Audit Trail.
+
+## UAT-CI-003: Convert Inquiry to Sales Order
+
+Role: Sales or Manager
+
+Steps:
+1. Open an Open inquiry where every item has a Product match and agreed price.
+2. Select Convert to Sales Order.
+3. Confirm customer, item rows, quantities, and agreed prices are filled automatically.
+4. Complete and save the Sales Order.
+
+Expected result: The Sales Order is created with the copied data and inquiry status becomes Converted to SO only after the order is saved.
+
+## UAT-CI-004: Convert Inquiry to Pre Order / PO
+
+Role: Sales or Manager
+
+Steps:
+1. Open an Open inquiry where every item has a Product match and agreed price.
+2. Select Convert to Pre Order.
+3. Confirm customer and item data are filled automatically.
+4. Enter required date, attach the required PO document, then save the Pre Order.
+
+Expected result: The Pre Order receives a Sales Order ID and separate PO ID, and inquiry status becomes Converted to PO only after the order is saved.
+
+## UAT-CI-005: Delivered Order Completes Inquiry
+
+Role: Admin or Manager
+
+Steps:
+1. Complete the invoice and delivery process for an inquiry-linked Sales Order or Pre Order.
+2. Open the linked Surat Jalan.
+3. Update its status to Delivered.
+4. Open the originating Customer Inquiry.
+
+Expected result: The inquiry status becomes Done and its status note records that the linked delivery was completed.

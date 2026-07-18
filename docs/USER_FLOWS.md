@@ -1,11 +1,12 @@
 # CV Tajuk Revenue Cycle MVP - Complete User Flows
 
-Updated: 22 June 2026
+Updated: 18 July 2026
 
 This revision reflects the current responsive layout, role-specific dashboards,
 Manager Sales Order approval, transaction confirmation dialogs, confirmation
 notes, cascading ongoing-order deletion, customer activation controls, table
-pagination/search/filter/sort behavior, expandable comments, and the latest role restrictions.
+pagination/search/filter/sort behavior, expandable comments, the latest role restrictions,
+Customer Inquiry, Pre Order conversion, PO IDs, and inquiry completion after delivery.
 
 ## 1. Main System Flow
 
@@ -14,6 +15,10 @@ flowchart TD
     A["Login"] --> B["Role Dashboard"]
     B --> C["Customer Management"]
     C --> C1["Activate or deactivate customer"]
+    C --> CI["Customer Inquiry"]
+    CI --> CI1{"Inquiry outcome"}
+    CI1 -->|"Close or cancel"| O["Dashboard and Audit Trail"]
+    CI1 -->|"Convert to Sales Order or Pre Order"| D
     C --> D["Create Sales Order"]
     D --> E{"Creator and customer risk"}
     E -->|"Manager"| F["Sales Order and Invoice created"]
@@ -60,7 +65,8 @@ use the action.
 |---|:---:|:---:|:---:|
 | View dashboards and operational modules | Yes | Yes | Yes |
 | Manage customer records | Yes | Yes | Yes |
-| Create Sales Order | Yes | No | Yes |
+| Create Customer Inquiry | Yes | No | Yes |
+| Create Sales Order or Pre Order | Yes | No | Yes |
 | Delete eligible ongoing Sales Order | Yes | Yes | No |
 | Approve or reject risky Sales Order | Yes | No | No |
 | Generate Invoice | Yes | Yes | No |
@@ -208,7 +214,33 @@ The system calculates payment risk from invoice due dates and payment history:
 6. Review the confirmation dialog, add an optional note of up to 150 characters, and Submit or Cancel.
 7. Select the transaction action to open the full Sales Order detail.
 
-## 7. Sales Order Flows
+## 7. Customer Inquiry Flow
+
+### Create and Review Inquiry
+
+1. Open **Customer Inquiries** and select **Add Customer Inquiry**.
+2. Select a customer, add an optional needed-by date and inquiry note, then add one or more requested items.
+3. Each item may be linked to a Product or recorded as not listed/unavailable. Record quantity, requested price, agreed price, and item notes as needed.
+4. Save the inquiry. Its initial status is **Open**.
+5. Select the eye icon in the table to open the inquiry detail.
+
+### Inquiry Outcome and Conversion
+
+1. For a failed negotiation or unavailable timing, enter a reason and select **Close Inquiry**. The status becomes **Closed**.
+2. To stop an active inquiry, enter a cancellation reason and select **Cancel Inquiry**. The status becomes **Cancelled**.
+3. To convert an Open inquiry, every item must have a matched Product and agreed price.
+4. Select **Convert to Sales Order** or **Convert to Pre Order** from the detail page.
+5. The destination form copies the customer, item lines, quantities, and agreed prices. The inquiry remains Open until the order is actually saved.
+6. A saved Sales Order changes the inquiry status to **Converted to SO**. A saved Pre Order changes it to **Converted to PO**.
+7. When the linked Surat Jalan becomes **Delivered**, the inquiry status becomes **Done**.
+
+### Pre Order / PO Rules
+
+- A Pre Order uses transaction type `PRE_ORDER` and has both a Sales Order ID and a separate PO ID.
+- Pre Orders require a required date and supporting PO document.
+- The PO ID is shown in related invoice and Surat Jalan documents.
+
+## 8. Sales Order Flows
 
 ### Create Sales Order
 
@@ -307,7 +339,7 @@ If rejected:
 5. The system downloads an `.xlsx` workbook.
 6. Open **Summary** for order-level data or **Items** for item-level data.
 
-## 8. Invoice Flows
+## 9. Invoice Flows
 
 ### Review Invoice
 
@@ -333,7 +365,7 @@ If rejected:
 3. Review the printable document.
 4. Use the browser Print action to print or save it as PDF.
 
-## 9. Payment Flow
+## 10. Payment Flow
 
 1. Open **Payments**.
 2. Review the Payment Queue of Unpaid, Partial, and Overdue invoices.
@@ -347,7 +379,7 @@ If rejected:
 10. A fully paid Receivable moves to Done Process.
 11. Review the payment and confirmation note in Recorded Payments and the Sales Order detail.
 
-## 10. Surat Jalan Flows
+## 11. Surat Jalan Flows
 
 ### Start Surat Jalan
 
@@ -371,7 +403,7 @@ Eligibility rules:
 4. Update the status when delivery progresses.
 5. Select Print to print or save the Surat Jalan as PDF.
 
-## 11. Receivable Flow
+## 12. Receivable Flow
 
 1. Open **Receivables**.
 2. Review Active Receivables and the total Remaining Amount.
@@ -385,7 +417,7 @@ Eligibility rules:
 
 Receivables are calculated from Invoices and Payments; users do not manually create a Receivable record.
 
-## 12. Billing Flow
+## 13. Billing Flow
 
 1. Open **Billing**, or select Create Billing from a Receivable.
 2. If opened from a Receivable, confirm the preselected Customer and Invoice.
@@ -397,7 +429,7 @@ Receivables are calculated from Invoices and Payments; users do not manually cre
 8. Admin sees near or overdue Billing work on the dashboard and in notifications.
 9. Open the task from the notification and use its customer, Invoice, deadline, and notes to perform the collection activity.
 
-## 13. Product Follow Up Flow
+## 14. Product Follow Up Flow
 
 1. Open **Follow Up**.
 2. Search for a customer.
@@ -410,7 +442,7 @@ Receivables are calculated from Invoices and Payments; users do not manually cre
 9. Submit or Cancel the Follow Up.
 10. The latest-contact information and Audit Trail update.
 
-## 14. Table Search, Sort, and Filter Flow
+## 15. Table Search, Sort, and Filter Flow
 
 1. Open any operational page containing a table.
 2. Use the single **Search** box to show rows containing the entered text in any column; no field selection is required.
@@ -431,7 +463,7 @@ Sorting and filtering are excluded from printable Invoice and Surat Jalan docume
 
 Product Follow Up is for sales relationship activity. Billing is a separate collection workflow.
 
-## 15. Audit Trail Flow
+## 16. Audit Trail Flow
 
 1. Open **Audit Trail**.
 2. Review who performed an action, their role, the module, transaction code, action, confirmation note, summary, and time.
@@ -440,7 +472,7 @@ Product Follow Up is for sales relationship activity. Billing is a separate coll
 5. Compare old and new values when change detail is available.
 6. Deletion evidence remains in Audit Trail even after the operational Sales Order chain is removed.
 
-## 16. Account Settings Flow
+## 17. Account Settings Flow
 
 1. Open **Settings**.
 2. Enter Username, Display Name, Password, Role, and Active/Inactive status.
@@ -453,7 +485,7 @@ This MVP supports creating and listing local demo accounts. It does not currentl
 
 Sales can inspect Settings and existing accounts, but all account-creation fields and the Save Account button are disabled.
 
-## 17. Help and Printable Documents
+## 18. Help and Printable Documents
 
 ### Page Help
 
@@ -476,7 +508,7 @@ Sales can inspect Settings and existing accounts, but all account-creation field
 3. Check the business and transaction information.
 4. Use the browser Print action to print or save as PDF.
 
-## 18. End-to-End Business Scenarios
+## 19. End-to-End Business Scenarios
 
 ### Clean Debit Customer
 
@@ -521,7 +553,7 @@ Invoice reaches due date with remaining balance
   -> Receivable closes when fully paid
 ```
 
-## 19. Role Limitation Flow
+## 20. Role Limitation Flow
 
 ### Manager
 

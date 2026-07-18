@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type {
   CustomerStatus,
+  CustomerInquiryStatus,
   DeliveryNoteStatus,
   FollowUpStatus,
   PaymentMethod,
@@ -27,12 +28,14 @@ import {
   canGenerateInvoiceForApproval,
   requiresManagerApproval
 } from "@/lib/sales-order-approval";
-import { getCurrentUser } from "@/lib/session";
+import { requireCurrentUser } from "@/lib/session";
 import {
   canDeleteOngoingSalesOrder,
   deleteSalesOrderProcess
 } from "@/lib/sales-order-deletion";
 import { mergeActionNotes, normalizeActionNote } from "@/lib/action-notes";
+import { parseOptionalInquiryPrice } from "@/lib/customer-inquiry";
+import { completeCustomerInquiryForDeliveredOrder } from "@/lib/customer-inquiry-lifecycle";
 import { nextNumberFromExisting } from "@/lib/document-numbering";
 import {
   calculateOrderTotals,
@@ -49,6 +52,7 @@ const pathsToRefresh = [
   "/",
   "/customers",
   "/products",
+  "/customer-inquiries",
   "/pre-orders",
   "/sales-orders",
   "/invoices",
@@ -61,6 +65,7 @@ const pathsToRefresh = [
 ];
 
 export async function createCustomer(formData: FormData) {
+  await requireCurrentUser();
   const name = getRequiredString(formData, "name");
   const companyName = getRequiredString(formData, "companyName");
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
@@ -99,6 +104,7 @@ export async function createCustomer(formData: FormData) {
 }
 
 export async function updateCustomer(formData: FormData) {
+  await requireCurrentUser();
   const id = getRequiredString(formData, "id");
   const name = getRequiredString(formData, "name");
   const companyName = getRequiredString(formData, "companyName");
@@ -153,6 +159,7 @@ export async function updateCustomer(formData: FormData) {
 }
 
 export async function updateCustomerStatus(formData: FormData) {
+  await requireCurrentUser();
   const id = getRequiredString(formData, "id");
   const requestedStatus = getString(formData, "status");
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
@@ -194,6 +201,7 @@ export async function updateCustomerStatus(formData: FormData) {
 }
 
 export async function createProduct(formData: FormData) {
+  await requireCurrentUser();
   const productName = getRequiredString(formData, "productName");
   const basePrice = parseProductBasePrice(formData.get("basePrice"));
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
@@ -232,6 +240,7 @@ export async function createProduct(formData: FormData) {
 }
 
 export async function updateProduct(formData: FormData) {
+  await requireCurrentUser();
   const id = getRequiredString(formData, "id");
   const productName = getRequiredString(formData, "productName");
   const basePrice = parseProductBasePrice(formData.get("basePrice"));
@@ -282,6 +291,7 @@ export async function updateProduct(formData: FormData) {
 }
 
 export async function updateProductStatus(formData: FormData) {
+  await requireCurrentUser();
   const id = getRequiredString(formData, "id");
   const requestedStatus = getString(formData, "status");
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
@@ -322,6 +332,49 @@ export async function updateProductStatus(formData: FormData) {
   );
 }
 
+export async function createCustomerInquiry(formData: FormData) {
+  await requireCurrentUser();
+  const customerId = getRequiredString(formData, "customerId");
+  const notes = getString(formData, "notes");
+  const neededBy = parseDateInput(getString(formData, "neededBy"));
+  const rawItems = safeJsonParse(getString(formData, "items"));
+  const items = Array.isArray(rawItems)
+    ? rawItems.map((item) => ({
+        productId: typeof item?.productId === "string" && item.productId ? item.productId : null,
+        itemName: typeof item?.itemName === "string" ? item.itemName.trim() : "",
+        quantity: Number(item?.quantity),
+        requestedPrice: parseOptionalInquiryPrice(item?.requestedPrice),
+        agreedPrice: parseOptionalInquiryPrice(item?.agreedPrice),
+        notes: typeof item?.notes === "string" && item.notes.trim() ? item.notes.trim() : null
+      }))
+    : [];
+
+  if (!customerId || !items.length || items.some((item) => !item.itemName || !Number.isInteger(item.quantity) || item.quantity < 1)) {
+    redirectWithMessage("/customer-inquiries", "error", "Select a customer and add at least one valid item");
+  }
+  const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+  if (!customer) redirectWithMessage("/customer-inquiries", "error", "Customer was not found");
+  const inquiryNumber = `INQ-${new Date().getFullYear()}-${String((await prisma.customerInquiry.count()) + 1).padStart(3, "0")}`;
+  const inquiry = await prisma.customerInquiry.create({ data: { inquiryNumber, customerId, neededBy, notes: notes || null, items: { create: items } } });
+  await createAuditTrailLog({ moduleName: "Customer Inquiry", entityType: "CUSTOMER_INQUIRY", entityId: inquiry.id, transactionCode: inquiry.inquiryNumber, action: "CREATED", changeSummary: `Customer inquiry ${inquiry.inquiryNumber} created for ${customer.companyName}`, newValue: { status: inquiry.status, itemCount: items.length } });
+  refreshApp();
+  redirectWithMessage(`/customer-inquiries/${inquiry.id}`, "success", "Customer inquiry created");
+}
+
+export async function updateCustomerInquiryStatus(formData: FormData) {
+  const currentUser = await requireCurrentUser();
+  const inquiryId = getRequiredString(formData, "inquiryId");
+  const status = getStatus<CustomerInquiryStatus>(formData, "status", ["Closed", "Cancelled"], "Closed");
+  const statusNote = getRequiredString(formData, "statusNote");
+  if (!inquiryId || !statusNote) redirectWithMessage("/customer-inquiries", "error", "A status reason is required");
+  const inquiry = await prisma.customerInquiry.findUnique({ where: { id: inquiryId } });
+  if (!inquiry || inquiry.status !== "Open") redirectWithMessage("/customer-inquiries", "error", "Only open inquiries can be updated");
+  await prisma.customerInquiry.update({ where: { id: inquiryId }, data: { status, statusNote } });
+  await createAuditTrailLog({ moduleName: "Customer Inquiry", entityType: "CUSTOMER_INQUIRY", entityId: inquiryId, transactionCode: inquiry.inquiryNumber, action: status === "Cancelled" ? "CANCELLED" : "CLOSED", changeSummary: `Customer inquiry ${inquiry.inquiryNumber} marked ${status.toLowerCase()} by ${currentUser.displayName}`, newValue: { status, statusNote } });
+  refreshApp();
+  redirectWithMessage(`/customer-inquiries/${inquiryId}`, "success", `Inquiry marked ${status.toLowerCase()}`);
+}
+
 export async function createSalesOrder(formData: FormData) {
   const transactionType = getStatus<TransactionType>(
     formData,
@@ -334,6 +387,7 @@ export async function createSalesOrder(formData: FormData) {
   const moduleName = isPreOrder ? "Pre Orders" : "Sales Orders";
   const transactionLabel = isPreOrder ? "Pre order" : "Sales order";
   const customerId = getRequiredString(formData, "customerId");
+  const inquiryId = getString(formData, "inquiryId");
   const rawItems = getString(formData, "items");
   const notes = getString(formData, "notes");
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
@@ -366,7 +420,7 @@ export async function createSalesOrder(formData: FormData) {
     );
   }
 
-  const currentUser = await getCurrentUser();
+  const currentUser = await requireCurrentUser();
   if (!canRole(currentUser?.role, "CREATE_SALES_ORDER")) {
     redirectWithMessage(
       basePath,
@@ -391,6 +445,12 @@ export async function createSalesOrder(formData: FormData) {
   if (!customer) {
     redirectWithMessage(`${basePath}?mode=create`, "error", "Customer was not found");
   }
+  if (inquiryId) {
+    const inquiry = await prisma.customerInquiry.findUnique({ where: { id: inquiryId }, include: { items: true } });
+    if (!inquiry || inquiry.customerId !== customerId || inquiry.status !== "Open") {
+      redirectWithMessage(basePath, "error", "Customer Inquiry is not available for conversion");
+    }
+  }
 
   const productIds = [...new Set(submittedItems.map((item) => item.productId))];
   const activeProducts = await prisma.product.findMany({
@@ -414,19 +474,10 @@ export async function createSalesOrder(formData: FormData) {
     itemName: productNames.get(item.productId) ?? item.itemName
   }));
   const totals = calculateOrderTotals(items);
-  const manualOrderNumber = getRequiredString(formData, "orderNumber");
   const requiredDate = isPreOrder
     ? parseDateInput(getString(formData, "requiredDate"))
     : null;
   const poDocument = isPreOrder ? getPreOrderDocument(formData) : null;
-
-  if (isPreOrder && !manualOrderNumber) {
-    redirectWithMessage(
-      `${basePath}?mode=create`,
-      "error",
-      "Pre Order ID must be entered manually"
-    );
-  }
 
   if (isPreOrder && !requiredDate) {
     redirectWithMessage(
@@ -444,25 +495,12 @@ export async function createSalesOrder(formData: FormData) {
     );
   }
 
-  const orderNumber = isPreOrder ? manualOrderNumber : await nextDocumentNumber("SO");
-
-  if (isPreOrder) {
-    const existingOrder = await prisma.salesOrder.findUnique({
-      where: { orderNumber },
-      select: { id: true }
-    });
-    if (existingOrder) {
-      redirectWithMessage(
-        `${basePath}?mode=create`,
-        "error",
-        "This Pre Order ID is already in use"
-      );
-    }
-  }
-
+  const orderNumber = await nextDocumentNumber("SO");
+  const poNumber = isPreOrder ? await nextDocumentNumber("PO") : null;
   const storedDocument = poDocument ? await storePreOrderDocument(poDocument) : null;
   const transactionData = {
     transactionType,
+    poNumber,
     requiredDate,
     poDocumentName: storedDocument?.originalName ?? null,
     poDocumentStoredName: storedDocument?.storedName ?? null,
@@ -501,6 +539,7 @@ export async function createSalesOrder(formData: FormData) {
         }
       }
     });
+    await linkCustomerInquiry(inquiryId, salesOrder.id, isPreOrder);
 
     await createAuditTrailLog({
       moduleName,
@@ -512,6 +551,7 @@ export async function createSalesOrder(formData: FormData) {
       changeSummary: `${transactionLabel} ${salesOrder.orderNumber} requires Manager approval because the customer is ${paymentRisk}`,
       newValue: {
         orderNumber: salesOrder.orderNumber,
+        poNumber: salesOrder.poNumber,
         status: salesOrder.status,
         approvalStatus: salesOrder.approvalStatus,
         approvalRisk: paymentRisk,
@@ -557,6 +597,7 @@ export async function createSalesOrder(formData: FormData) {
         }
       }
     });
+    await linkCustomerInquiry(inquiryId, salesOrder.id, isPreOrder);
 
     await createAuditTrailLog({
       moduleName,
@@ -568,6 +609,7 @@ export async function createSalesOrder(formData: FormData) {
       changeSummary: `${transactionLabel} ${salesOrder.orderNumber} created and is ready for Admin or Manager invoicing`,
       newValue: {
         orderNumber: salesOrder.orderNumber,
+        poNumber: salesOrder.poNumber,
         status: salesOrder.status,
         approvalStatus: salesOrder.approvalStatus,
         total: salesOrder.total,
@@ -655,6 +697,8 @@ export async function createSalesOrder(formData: FormData) {
     return { salesOrder, invoice: createdInvoice, followUp };
   });
 
+  await linkCustomerInquiry(inquiryId, result.salesOrder.id, isPreOrder);
+
   await createAuditTrailLog({
     moduleName,
     entityType: "SALES_ORDER",
@@ -665,6 +709,7 @@ export async function createSalesOrder(formData: FormData) {
     changeSummary: `${transactionLabel} ${result.salesOrder.orderNumber} created and invoiced`,
     newValue: {
       orderNumber: result.salesOrder.orderNumber,
+      poNumber: result.salesOrder.poNumber,
       status: result.salesOrder.status,
       total: result.salesOrder.total,
       paymentTermType: result.salesOrder.paymentTermType,
@@ -719,7 +764,7 @@ export async function deleteSalesOrder(formData: FormData) {
     ? "/pre-orders"
     : "/sales-orders";
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
-  const currentUser = await getCurrentUser();
+  const currentUser = await requireCurrentUser();
 
   if (!canRole(currentUser?.role, "DELETE_SALES_ORDER")) {
     redirectWithMessage(
@@ -824,7 +869,7 @@ export async function deleteSalesOrder(formData: FormData) {
 }
 
 export async function generateInvoice(formData: FormData) {
-  const currentUser = await getCurrentUser();
+  const currentUser = await requireCurrentUser();
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   if (!canRole(currentUser?.role, "CREATE_INVOICE")) {
     redirectWithMessage(
@@ -966,7 +1011,7 @@ export async function generateInvoice(formData: FormData) {
 }
 
 export async function decideSalesOrderApproval(formData: FormData) {
-  const currentUser = await getCurrentUser();
+  const currentUser = await requireCurrentUser();
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   const requestedBasePath = getString(formData, "returnPath") === "/pre-orders"
     ? "/pre-orders"
@@ -1157,7 +1202,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
 }
 
 export async function recordPayment(formData: FormData) {
-  const currentUser = await getCurrentUser();
+  const currentUser = await requireCurrentUser();
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   if (!canRole(currentUser?.role, "RECORD_PAYMENT")) {
     redirectWithMessage(
@@ -1289,6 +1334,7 @@ export async function recordPayment(formData: FormData) {
 }
 
 export async function updateInvoiceNotes(formData: FormData) {
+  await requireCurrentUser();
   const id = getRequiredString(formData, "id");
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
@@ -1326,6 +1372,7 @@ export async function updateInvoiceNotes(formData: FormData) {
 }
 
 export async function createFollowUp(formData: FormData) {
+  await requireCurrentUser();
   const customerId = getRequiredString(formData, "customerId");
   const invoiceId = getString(formData, "invoiceId");
   const followUpDate = new Date(getRequiredString(formData, "followUpDate"));
@@ -1368,6 +1415,7 @@ export async function createFollowUp(formData: FormData) {
 }
 
 export async function recordCustomerProductFollowUp(formData: FormData) {
+  await requireCurrentUser();
   const customerId = getRequiredString(formData, "customerId");
   const contactDateValue = getRequiredString(formData, "contactDate");
   const contactDate = new Date(`${contactDateValue}T00:00:00`);
@@ -1418,7 +1466,7 @@ export async function recordCustomerProductFollowUp(formData: FormData) {
 }
 
 export async function createDeliveryNote(formData: FormData) {
-  const currentUser = await getCurrentUser();
+  const currentUser = await requireCurrentUser();
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   if (!canRole(currentUser?.role, "CREATE_SURAT_JALAN")) {
     redirectWithMessage(
@@ -1525,6 +1573,7 @@ export async function createDeliveryNote(formData: FormData) {
 }
 
 export async function updateDeliveryNoteStatus(formData: FormData) {
+  await requireCurrentUser();
   const id = getRequiredString(formData, "id");
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   const status = getStatus<DeliveryNoteStatus>(
@@ -1563,6 +1612,10 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
     oldValue: { status: oldDeliveryNote.status },
     newValue: { status: deliveryNote.status }
   });
+
+  if (deliveryNote.status === "Delivered") {
+    await completeLinkedCustomerInquiry(deliveryNote.salesOrderId);
+  }
 
   refreshApp();
   redirect(`/surat-jalan?view=${id}&success=${encodeURIComponent("Surat Jalan status updated")}`);
@@ -1794,6 +1847,37 @@ function refreshApp() {
   for (const path of pathsToRefresh) {
     revalidatePath(path);
   }
+}
+
+async function linkCustomerInquiry(inquiryId: string, salesOrderId: string, isPreOrder: boolean) {
+  if (!inquiryId) return;
+  await prisma.customerInquiry.update({
+    where: { id: inquiryId },
+    data: {
+      salesOrderId,
+      status: isPreOrder ? "ConvertedToPO" : "ConvertedToSO",
+      statusNote: isPreOrder ? "Converted to Pre Order" : "Converted to Sales Order"
+    }
+  });
+  refreshApp();
+}
+
+async function completeLinkedCustomerInquiry(salesOrderId: string | null) {
+  if (!salesOrderId) return;
+
+  const inquiry = await completeCustomerInquiryForDeliveredOrder(prisma, salesOrderId);
+
+  if (!inquiry) return;
+  await createAuditTrailLog({
+    moduleName: "Customer Inquiry",
+    entityType: "CUSTOMER_INQUIRY",
+    entityId: inquiry.id,
+    transactionCode: inquiry.inquiryNumber,
+    action: "COMPLETED",
+    changeSummary: `Customer inquiry ${inquiry.inquiryNumber} completed after linked order delivery`,
+    oldValue: { status: inquiry.status },
+    newValue: { status: "Done", salesOrderId }
+  });
 }
 
 function redirectWithMessage(path: string, kind: "success" | "error", message: string): never {

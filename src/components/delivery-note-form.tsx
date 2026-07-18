@@ -43,6 +43,8 @@ type InvoiceOption = {
 type SalesOrderOption = {
   id: string;
   orderNumber: string;
+  poNumber?: string | null;
+  transactionType: string;
   customerId: string;
   customerName: string;
   recipientName: string;
@@ -215,7 +217,11 @@ export function DeliveryNoteForm({
             <option value="">No sales order link</option>
             {salesOrders.map((order) => (
               <option key={order.id} value={order.id}>
-                {order.orderNumber} - {order.customerName}
+                {order.orderNumber}
+                {order.transactionType === "PRE_ORDER" && order.poNumber
+                  ? ` / ${order.poNumber}`
+                  : ""}{" "}
+                - {order.customerName}
               </option>
             ))}
           </select>

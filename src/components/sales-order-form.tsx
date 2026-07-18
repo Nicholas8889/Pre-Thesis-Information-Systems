@@ -35,6 +35,9 @@ export function SalesOrderForm({
   products,
   action,
   transactionType = "SALES_ORDER",
+  inquiryId = "",
+  initialCustomerId = "",
+  initialItems,
   disabled = false,
   restrictionMessage = ""
 }: {
@@ -42,13 +45,16 @@ export function SalesOrderForm({
   products: ProductOption[];
   action: (formData: FormData) => void | Promise<void>;
   transactionType?: "SALES_ORDER" | "PRE_ORDER";
+  inquiryId?: string;
+  initialCustomerId?: string;
+  initialItems?: DraftItem[];
   disabled?: boolean;
   restrictionMessage?: string;
 }) {
   const isPreOrder = transactionType === "PRE_ORDER";
   const [paymentTermType, setPaymentTermType] = useState("DEBIT");
-  const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [items, setItems] = useState<DraftItem[]>([createEmptyItem()]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(initialCustomerId);
+  const [items, setItems] = useState<DraftItem[]>(initialItems?.length ? initialItems : [createEmptyItem()]);
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
   const serializedItems = items.map((item) => ({
     ...item,
@@ -95,22 +101,20 @@ export function SalesOrderForm({
       <form action={action}>
         <fieldset disabled={disabled} className="space-y-4 disabled:cursor-not-allowed disabled:opacity-60">
       <input type="hidden" name="items" value={JSON.stringify(serializedItems)} />
+      <input type="hidden" name="inquiryId" value={inquiryId} />
       <input type="hidden" name="transactionType" value={transactionType} />
 
       {isPreOrder && (
         <div className="grid gap-4 rounded-md border border-blue-200 bg-blue-50 p-4 md:grid-cols-2">
-          <label className="text-sm font-medium text-slate-700">
-            Pre Order ID / Customer Sales Order ID
-            <input
-              name="orderNumber"
-              required
-              className={`${inputClass} mt-1 bg-white`}
-              placeholder="Enter the customer document number"
-            />
+          <div className="text-sm font-medium text-slate-700">
+            Generated IDs
+            <div className="mt-1 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+              Sales Order ID and PO ID are generated after save.
+            </div>
             <span className="mt-1 block text-xs font-normal text-slate-500">
-              Enter this manually exactly as shown on the customer PO document.
+              Pre Orders receive both an SO number and a PO number.
             </span>
-          </label>
+          </div>
 
           <label className="text-sm font-medium text-slate-700">
             Product Required Date

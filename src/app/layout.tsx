@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { AppShell } from "@/components/app-shell";
 import { roleLabel } from "@/lib/auth";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, requireCurrentUser } from "@/lib/session";
 import { getRoleNotifications } from "@/lib/notifications";
 import "@/styles/globals.css";
 
@@ -15,7 +16,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const currentUser = await getCurrentUser();
+  const requestHeaders = await headers();
+  const currentUser =
+    requestHeaders.get("x-cv-tajuk-protected") === "1"
+      ? await requireCurrentUser()
+      : await getCurrentUser();
   const currentRole = currentUser ? roleLabel(currentUser.role) : undefined;
   const notifications = currentUser ? await getRoleNotifications(currentUser) : [];
 

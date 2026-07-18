@@ -95,7 +95,10 @@ export default async function InvoicePrintPage({
             <InfoRow label="Due Date" value={formatDate(invoice.dueDate)} />
             <InfoRow label="Payment Term" value={paymentTerm} />
             <InfoRow label="Transaction Type" value={transactionLabel} />
-            <InfoRow label={isPreOrder ? "Pre Order ID" : "Sales Order"} value={invoice.salesOrder.orderNumber} />
+            <InfoRow label="Sales Order" value={invoice.salesOrder.orderNumber} />
+            {isPreOrder && (
+              <InfoRow label="PO ID" value={invoice.salesOrder.poNumber ?? "-"} />
+            )}
             {isPreOrder && invoice.salesOrder.requiredDate && (
               <InfoRow label="Required Date" value={formatDate(invoice.salesOrder.requiredDate)} />
             )}

@@ -264,6 +264,9 @@ export default async function CustomersPage({
       )}
 
       <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+        <div className="mb-5 flex items-center gap-2 border-b border-line pb-4">
+          <h2 className="text-lg font-semibold">Customer Records</h2>
+        </div>
         <form className="mb-4 flex max-w-md items-center gap-2 rounded-md border border-line bg-white px-3 py-2">
           <Search aria-hidden="true" className="h-4 w-4 text-slate-400" />
           <input

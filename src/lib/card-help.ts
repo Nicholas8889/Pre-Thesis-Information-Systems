@@ -2,6 +2,7 @@ const moduleNames: Record<string, string> = {
   "/": "Dashboard",
   "/customers": "Customer",
   "/products": "Product",
+  "/customer-inquiries": "Customer Inquiry",
   "/sales-orders": "Sales Order",
   "/pre-orders": "Pre Order",
   "/invoices": "Invoice",

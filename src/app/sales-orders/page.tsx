@@ -46,6 +46,7 @@ export async function OrderTransactionsPage({
   const pluralLabel = isPreOrder ? "Pre Orders" : "Sales Orders";
   const mode = getFirst(params.mode);
   const viewId = getFirst(params.view);
+  const inquiryId = getFirst(params.inquiryId);
   const currentUser = await getCurrentUser();
   const canCreateSalesOrder = canRole(currentUser?.role, "CREATE_SALES_ORDER");
   const canCreateInvoice = canRole(currentUser?.role, "CREATE_INVOICE");
@@ -93,6 +94,12 @@ export async function OrderTransactionsPage({
     name: customer.name,
     category: getCustomerCategory(customer).category
   }));
+  const conversionInquiry = inquiryId && mode === "create"
+    ? await prisma.customerInquiry.findFirst({ where: { id: inquiryId, status: "Open" }, include: { items: true } })
+    : null;
+  const inquiryItems = conversionInquiry?.items.every((item) => item.productId && item.agreedPrice !== null)
+    ? conversionInquiry.items.map((item) => ({ productId: item.productId!, itemName: item.itemName, quantity: item.quantity, basePrice: item.agreedPrice!, markupPercent: 0, discountPercent: 0 }))
+    : undefined;
 
   const ongoingSalesOrders = salesOrders.filter((order) =>
     order.approvalStatus !== "Pending" &&
@@ -178,7 +185,7 @@ export async function OrderTransactionsPage({
           <h2 className="mb-2 text-lg font-semibold">Create {singularLabel}</h2>
           <p className="mb-4 text-sm leading-6 text-slate-600">
             {isPreOrder
-              ? "Record the customer PO reference, document, and product required date. Invoice, payment, delivery note, receivable, and billing continue through the same process as a normal Sales Order."
+              ? "Record the PO document and product required date. The system generates both a Sales Order ID and PO ID, then invoice, payment, delivery note, receivable, and billing continue through the same process as a normal Sales Order."
               : "Start from Sales Order, then the system generates invoice and connects payment, delivery note, receivable, and billing. Orders created by Sales for customers with late-payment risk are submitted to a Manager first."}
           </p>
           {customers.length === 0 ? (
@@ -191,6 +198,9 @@ export async function OrderTransactionsPage({
               products={products}
               action={createSalesOrder}
               transactionType={transactionType}
+              inquiryId={conversionInquiry?.id}
+              initialCustomerId={conversionInquiry?.customerId}
+              initialItems={inquiryItems}
               disabled={!canCreateSalesOrder}
               restrictionMessage={salesOrderRestriction}
             />
@@ -205,6 +215,7 @@ export async function OrderTransactionsPage({
               <h2 className="text-lg font-semibold">{selectedOrder.orderNumber}</h2>
               <p className="mt-1 text-sm text-slate-600">
                 {selectedOrder.customer.companyName} - {formatDate(selectedOrder.orderDate)}
+                {isPreOrder && selectedOrder.poNumber ? ` - PO ${selectedOrder.poNumber}` : ""}
               </p>
             </div>
             <StatusBadge status={selectedOrder.status} />
@@ -212,6 +223,9 @@ export async function OrderTransactionsPage({
 
           <div className="mb-4 grid gap-4 text-sm md:grid-cols-3">
             <Detail label="Transaction Type" value={singularLabel} />
+            {isPreOrder && (
+              <Detail label="PO ID" value={selectedOrder.poNumber ?? "-"} />
+            )}
             {isPreOrder && selectedOrder.requiredDate && (
               <Detail label="Product Required Date" value={formatDate(selectedOrder.requiredDate)} />
             )}
@@ -352,6 +366,7 @@ export async function OrderTransactionsPage({
       )}
 
       <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+        <h2 className="mb-4 text-lg font-semibold">{singularLabel} Records</h2>
         {visibleSalesOrders.length === 0 ? (
           <EmptyState
             message={
@@ -368,6 +383,7 @@ export async function OrderTransactionsPage({
               <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="py-3 pr-4">Order Number</th>
+                  {isPreOrder && <th className="py-3 pr-4">PO ID</th>}
                   <th className="py-3 pr-4">Customer</th>
                   <th className="py-3 pr-4">Order Date</th>
                   {isPreOrder && <th className="py-3 pr-4">Required Date</th>}
@@ -386,6 +402,11 @@ export async function OrderTransactionsPage({
                 {visibleSalesOrders.map((order) => (
                   <tr key={order.id} className="transition hover:bg-slate-50">
                     <td className="py-3 pr-4 font-medium">{order.orderNumber}</td>
+                    {isPreOrder && (
+                      <td className="py-3 pr-4 font-medium text-slate-700">
+                        {order.poNumber ?? "-"}
+                      </td>
+                    )}
                     <td className="py-3 pr-4 text-slate-600">{order.customer.companyName}</td>
                     <td className="py-3 pr-4 text-slate-600">{formatDate(order.orderDate)}</td>
                     {isPreOrder && (
@@ -524,7 +545,7 @@ function TransactionTypeDialog() {
             <ClipboardList aria-hidden="true" className="h-7 w-7 text-brand" />
             <h3 className="mt-3 font-semibold text-ink">Pre Order (PO)</h3>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              Requires a manual PO ID, product required date, and customer document upload.
+              Generates a Sales Order ID and PO ID, then requires a product required date and customer document upload.
             </p>
           </Link>
         </div>

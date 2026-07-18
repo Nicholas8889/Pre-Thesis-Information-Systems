@@ -1,0 +1,75 @@
+@startuml
+title CV Tajuk Revenue Cycle System - Activity Diagram
+
+|Sales|
+start
+:Maintain Customer and Product data;
+:Create a new transaction;
+
+if (Is this a Pre Order?) then (Yes)
+  |System|
+  :Generate the Sales Order ID\nand PO ID;
+  |Sales|
+  :Enter required date and\nupload the PO document;
+else (No)
+  |System|
+  :Generate the Sales Order ID;
+endif
+
+|Sales|
+:Select the customer and products;
+:Edit Base Price and enter optional\nMarkup or Discount;
+
+|System|
+:Calculate Unit Price and total;
+:Validate and save the transaction;
+
+if (Is this a Pre Order?) then (Yes)
+  :Send the required-date reminder;
+endif
+
+:Evaluate customer payment risk;
+
+if (Is Manager approval required?) then (Yes)
+  |Manager|
+  :Review the transaction;
+  if (Is the transaction approved?) then (Yes)
+    :Approve the transaction;
+  else (No)
+    :Reject the transaction;
+    stop
+  endif
+endif
+
+|Admin|
+:Generate the Invoice;
+
+|System|
+:Create the Receivable;
+
+if (Is the payment term Debit?) then (Yes)
+  |Admin|
+  :Record the payment;
+else (No)
+  |System|
+  :Schedule the billing follow-up;
+  |Sales|
+  :Perform the billing follow-up;
+  |Admin|
+  :Record partial or full payment;
+endif
+
+|System|
+:Update Invoice and Receivable status;
+
+|Admin|
+:Create the Surat Jalan;
+
+|System|
+:Generate printable Invoice and Surat Jalan\nwith transaction type and PO details;
+
+|Customer|
+:Receive the product and documents;
+stop
+
+@enduml

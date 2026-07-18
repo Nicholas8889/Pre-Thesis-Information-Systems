@@ -143,6 +143,7 @@ export default async function SalesOrderDetailPage({
             <h1 className="mt-1 text-2xl font-semibold">{salesOrder.orderNumber}</h1>
             <p className="mt-1 text-sm text-slate-600">
               {salesOrder.customer.companyName} - {formatDate(salesOrder.orderDate)}
+              {isPreOrder && salesOrder.poNumber ? ` - PO ${salesOrder.poNumber}` : ""}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -159,6 +160,7 @@ export default async function SalesOrderDetailPage({
 
         <div className="mt-5 grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
           <Summary label="Transaction Type" value={transactionLabel} />
+          {isPreOrder && <Summary label="PO ID" value={salesOrder.poNumber ?? "-"} />}
           {isPreOrder && salesOrder.requiredDate && (
             <Summary label="Product Required Date" value={formatDate(salesOrder.requiredDate)} />
           )}

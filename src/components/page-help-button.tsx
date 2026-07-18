@@ -89,7 +89,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       title: "Pre Orders Help",
       purpose: "Use Pre Orders to manage customer PO transactions and monitor product required dates.",
       steps: [
-        "Create a Pre Order using the manual customer PO ID, required date, and uploaded PO document.",
+        "Create a Pre Order using the required date and uploaded PO document; the system generates both Sales Order ID and PO ID.",
         "Review the PO detail and process it before the required date reminder becomes overdue.",
         "Continue with invoice, payment, receivable, billing, and Surat Jalan using the same process as Sales Orders."
       ]

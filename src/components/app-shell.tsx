@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 import {
   Banknote,
   BarChart3,
+  ChevronDown,
   ClipboardList,
   FileText,
+  MessageSquareText,
   Handshake,
   History,
   LayoutDashboard,
@@ -19,6 +21,7 @@ import {
   Truck,
   Users
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { clsx } from "clsx";
 import { logout } from "@/lib/auth-actions";
 import { PageHelpButton } from "@/components/page-help-button";
@@ -28,21 +31,62 @@ import { TableEnhancer } from "@/components/table-enhancer";
 import { ActionConfirmationDialog } from "@/components/action-confirmation-dialog";
 import { CardHelpEnhancer } from "@/components/card-help-enhancer";
 
-const navigation = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/customers", label: "Customers", icon: Users },
-  { href: "/products", label: "Products", icon: Package },
-  { href: "/sales-orders", label: "Sales Orders", icon: ShoppingCart },
-  { href: "/pre-orders", label: "Pre Orders", icon: ClipboardList },
-  { href: "/invoices", label: "Invoices", icon: FileText },
-  { href: "/payments", label: "Payments", icon: Banknote },
-  { href: "/surat-jalan", label: "Surat Jalan", icon: Truck },
-  { href: "/receivables", label: "Receivables", icon: ReceiptText },
-  { href: "/billing", label: "Billing", icon: Handshake },
-  { href: "/follow-ups", label: "Follow Up", icon: PhoneCall },
-  { href: "/audit-trail", label: "Audit Trail", icon: History },
-  { href: "/settings", label: "Settings", icon: Settings }
+type NavigationItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+};
+
+const navigationSections: Array<{ title: string; items: NavigationItem[] }> = [
+  {
+    title: "Overview",
+    items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }]
+  },
+  {
+    title: "Master Data",
+    items: [
+      { href: "/customers", label: "Customers", icon: Users },
+      { href: "/products", label: "Products", icon: Package }
+    ]
+  },
+  {
+    title: "Sales",
+    items: [
+      { href: "/sales-orders", label: "Sales Orders", icon: ShoppingCart },
+      { href: "/pre-orders", label: "Pre Orders", icon: ClipboardList },
+      { href: "/invoices", label: "Invoices", icon: FileText },
+      { href: "/surat-jalan", label: "Surat Jalan", icon: Truck }
+    ]
+  },
+  {
+    title: "Finance",
+    items: [
+      { href: "/payments", label: "Payments", icon: Banknote },
+      { href: "/receivables", label: "Receivables", icon: ReceiptText },
+      { href: "/billing", label: "Billing", icon: Handshake }
+    ]
+  },
+  {
+    title: "Customer Relationship",
+    items: [
+      { href: "/follow-ups", label: "Follow Up", icon: PhoneCall },
+      { href: "/customer-inquiries", label: "Customer Inquiry", icon: MessageSquareText }
+    ]
+  },
+  {
+    title: "System",
+    items: [
+      { href: "/audit-trail", label: "Audit Trail", icon: History },
+      { href: "/settings", label: "Settings", icon: Settings }
+    ]
+  }
 ];
+
+const navigation = navigationSections.flatMap((section) => section.items);
+
+function isNavigationItemActive(pathname: string, href: string) {
+  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+}
 
 export function AppShell({
   children,
@@ -86,31 +130,40 @@ export function AppShell({
           )}
         </Link>
 
-        <div className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Main Menu
-        </div>
+        <nav className="flex-1 space-y-2" aria-label="Main navigation">
+          {navigationSections.map((section) => (
+            <details key={section.title} open className="group">
+              <summary className="flex h-9 cursor-pointer list-none items-center justify-between rounded-md px-3 text-xs font-semibold uppercase tracking-wide text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 [&::-webkit-details-marker]:hidden">
+                <span>{section.title}</span>
+                <ChevronDown
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
+                />
+              </summary>
+              <div className="mt-1 space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = isNavigationItemActive(pathname, item.href);
 
-        <nav className="flex-1 space-y-1" aria-label="Main navigation">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={clsx(
-                  "flex h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition",
-                  isActive
-                    ? "bg-brand text-white shadow-sm"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-ink"
-                )}
-              >
-                <Icon aria-hidden="true" className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={clsx(
+                        "flex h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition",
+                        isActive
+                          ? "bg-brand text-white shadow-sm"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-ink"
+                      )}
+                    >
+                      <Icon aria-hidden="true" className="h-4 w-4" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </details>
+          ))}
         </nav>
 
         <form action={logout} data-no-action-confirmation="true" className="mt-6 shrink-0 border-t border-slate-200 pt-4">
@@ -137,7 +190,7 @@ export function AppShell({
           <nav className="mt-3 flex gap-2 overflow-x-auto pb-1" aria-label="Mobile navigation">
             {navigation.map((item) => {
               const Icon = item.icon;
-              const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+              const isActive = isNavigationItemActive(pathname, item.href);
 
               return (
                 <Link

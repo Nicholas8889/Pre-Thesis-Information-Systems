@@ -1,10 +1,10 @@
 # ERD Notes - CV Tajuk Revenue Cycle Information System
 
-Updated: 22 June 2026
+Updated: 18 July 2026
 
 ## Active Entities
 
-The active Prisma schema contains User, AuditTrail, Customer, SalesOrder, SalesOrderItem, Invoice, Payment, FollowUp, CustomerProductFollowUp, DeliveryNote, and DeliveryNoteItem.
+The active Prisma schema contains User, AuditTrail, Customer, CustomerInquiry, CustomerInquiryItem, Product, SalesOrder, SalesOrderItem, Invoice, Payment, FollowUp, CustomerProductFollowUp, DeliveryNote, and DeliveryNoteItem.
 
 All physical database attributes use camelCase. Each table has a descriptive primary key beginning with `id`, such as `idCustomer`, `idSalesOrder`, and `idDeliveryNoteItem`. Prisma field mappings preserve the application-facing `id` API.
 
@@ -12,6 +12,7 @@ All physical database attributes use camelCase. Each table has a descriptive pri
 
 ```text
 Customer
+  -> CustomerInquiry -> CustomerInquiryItem
   -> SalesOrder -> SalesOrderItem
   -> Invoice -> Payment
              -> FollowUp (Billing)
@@ -20,6 +21,9 @@ Customer
 ```
 
 - A Sales Order can generate at most one Invoice.
+- A Customer Inquiry can contain one or more requested item lines. It can be Closed, Cancelled, converted to a Sales Order or Pre Order, then marked Done after the linked Delivery Note is Delivered.
+- An inquiry item may reference a Product. Every item needs a product match and agreed price before conversion is available.
+- A Pre Order is a SalesOrder with transaction type `PRE_ORDER`, an independent PO ID, required date, and PO document metadata.
 - Payments reduce the Invoice remaining amount.
 - Receivable is derived from Invoice and is not a physical table.
 - FollowUp represents billing/collection work and may link to an Invoice.

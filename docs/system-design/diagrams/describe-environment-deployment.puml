@@ -1,0 +1,36 @@
+@startuml
+title Describe Environment Deployment Diagram - CV Tajuk Revenue Cycle MVP
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+actor "User\n(Sales / Admin / Manager)" as User
+
+node "Local Host Computer\n<<device>>" as Host {
+  node "Operating System\n<<execution environment>>\nNot fixed by repository" as OS {
+    artifact "Web Browser\n<<browser>>" as Browser
+    node "Node.js Runtime\n<<execution environment>>" as Node {
+      artifact "Next.js Application\nCV Tajuk Revenue Cycle MVP" as App
+      artifact "Prisma ORM Client" as Prisma
+    }
+    database "SQLite Database File\n(file:./dev.db)" as SQLite
+    artifact "Pre-order Document Storage\nstorage/pre-orders" as Storage
+  }
+}
+
+User --> Browser : User interaction
+Browser --> App : HTTP request/response\nlocalhost / 127.0.0.1
+App --> Prisma : Internal function call / ORM access
+Prisma --> SQLite : Prisma database access\nSQLite file read/write
+App --> Storage : Local file read/write\nPO document upload/download
+
+note right of Host
+The repository confirms a local thesis MVP,
+Next.js, Node.js, Prisma, and SQLite.
+No separate database server, cloud service,
+LAN client, or external API integration
+is implemented in the repository.
+end note
+
+@enduml

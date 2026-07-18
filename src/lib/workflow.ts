@@ -157,10 +157,14 @@ export async function syncOverdueInvoices() {
   });
 }
 
-export async function nextDocumentNumber(prefix: "SO" | "INV") {
+export async function nextDocumentNumber(prefix: "SO" | "PO" | "INV") {
   const year = new Date().getFullYear();
   const count =
-    prefix === "SO" ? await prisma.salesOrder.count() : await prisma.invoice.count();
+    prefix === "INV"
+      ? await prisma.invoice.count()
+      : prefix === "PO"
+        ? await prisma.salesOrder.count({ where: { poNumber: { not: null } } })
+        : await prisma.salesOrder.count();
   return `${prefix}-${year}-${String(count + 1).padStart(3, "0")}`;
 }
 
