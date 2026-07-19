@@ -1,7 +1,6 @@
-import { readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { downloadPreOrderDocument } from "@/lib/pre-order-storage";
 import { getCurrentUser } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -30,26 +29,29 @@ export async function GET(
     return NextResponse.json({ error: "PO document was not found" }, { status: 404 });
   }
 
-  const safeStoredName = basename(preOrder.poDocumentStoredName);
-  if (safeStoredName !== preOrder.poDocumentStoredName) {
+  if (!isSafeStoragePath(preOrder.poDocumentStoredName)) {
     return NextResponse.json({ error: "Invalid PO document path" }, { status: 400 });
   }
 
-  try {
-    const file = await readFile(join(process.cwd(), "storage", "pre-orders", safeStoredName));
-    const downloadName = (preOrder.poDocumentName ?? "po-document").replace(/["\r\n]/g, "_");
-    const asciiDownloadName = downloadName
-      .normalize("NFKD")
-      .replace(/[^\x20-\x7E]/g, "_");
-    const encodedDownloadName = encodeURIComponent(downloadName).replace(/'/g, "%27");
-    return new NextResponse(file, {
-      headers: {
-        "Content-Type": preOrder.poDocumentMimeType ?? "application/octet-stream",
-        "Content-Disposition": `inline; filename="${asciiDownloadName}"; filename*=UTF-8''${encodedDownloadName}`,
-        "Cache-Control": "private, no-store"
-      }
-    });
-  } catch {
+  const file = await downloadPreOrderDocument(preOrder.poDocumentStoredName);
+  if (!file) {
     return NextResponse.json({ error: "PO document file is unavailable" }, { status: 404 });
   }
+
+  const downloadName = (preOrder.poDocumentName ?? "po-document").replace(/["\r\n]/g, "_");
+  const asciiDownloadName = downloadName
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]/g, "_");
+  const encodedDownloadName = encodeURIComponent(downloadName).replace(/'/g, "%27");
+  return new NextResponse(file, {
+    headers: {
+      "Content-Type": preOrder.poDocumentMimeType ?? "application/octet-stream",
+      "Content-Disposition": `inline; filename="${asciiDownloadName}"; filename*=UTF-8''${encodedDownloadName}`,
+      "Cache-Control": "private, no-store"
+    }
+  });
+}
+
+function isSafeStoragePath(value: string) {
+  return !value.startsWith("/") && !value.includes("..") && !value.includes("\\");
 }

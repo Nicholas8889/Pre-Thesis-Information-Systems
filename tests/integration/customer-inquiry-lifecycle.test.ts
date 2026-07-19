@@ -3,11 +3,13 @@ import { completeCustomerInquiryForDeliveredOrder } from "../../src/lib/customer
 import { prisma } from "../../src/lib/prisma";
 
 describe("customer inquiry lifecycle integration", () => {
-  it("keeps multi-item inquiries linked through SO and PO conversion, then completes on delivery", async () => {
-    const marker = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  it(
+    "keeps multi-item inquiries linked through SO and PO conversion, then completes on delivery",
+    async () => {
+      const marker = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    await expect(
-      prisma.$transaction(async (tx) => {
+      await expect(
+        prisma.$transaction(async (tx) => {
         const customer = await tx.customer.create({
           data: {
             name: "Inquiry QA",
@@ -95,8 +97,10 @@ describe("customer inquiry lifecycle integration", () => {
           });
         }
 
-        throw new Error("ROLLBACK_CUSTOMER_INQUIRY_TEST");
-      })
-    ).rejects.toThrow("ROLLBACK_CUSTOMER_INQUIRY_TEST");
-  });
+          throw new Error("ROLLBACK_CUSTOMER_INQUIRY_TEST");
+        }, { maxWait: 10_000, timeout: 20_000 })
+      ).rejects.toThrow("ROLLBACK_CUSTOMER_INQUIRY_TEST");
+    },
+    30_000
+  );
 });

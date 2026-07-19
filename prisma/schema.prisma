@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum CustomerStatus {
@@ -186,10 +187,10 @@ model SalesOrder {
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
 
-  customer      Customer         @relation(fields: [customerId], references: [id])
-  items         SalesOrderItem[]
-  invoice       Invoice?
-  deliveryNotes DeliveryNote[]
+  customer        Customer         @relation(fields: [customerId], references: [id])
+  items           SalesOrderItem[]
+  invoice         Invoice?
+  deliveryNotes   DeliveryNote[]
   customerInquiry CustomerInquiry?
 
   @@index([approvalStatus])
@@ -198,17 +199,17 @@ model SalesOrder {
 }
 
 model CustomerInquiry {
-  id             String                @id @default(cuid()) @map("idCustomerInquiry")
-  inquiryNumber  String                @unique
-  customerId     String
-  inquiryDate    DateTime              @default(now())
-  neededBy       DateTime?
-  status         CustomerInquiryStatus @default(Open)
-  notes          String?
-  statusNote     String?
-  salesOrderId   String?               @unique
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  id            String                @id @default(cuid()) @map("idCustomerInquiry")
+  inquiryNumber String                @unique
+  customerId    String
+  inquiryDate   DateTime              @default(now())
+  neededBy      DateTime?
+  status        CustomerInquiryStatus @default(Open)
+  notes         String?
+  statusNote    String?
+  salesOrderId  String?               @unique
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   customer   Customer              @relation(fields: [customerId], references: [id])
   salesOrder SalesOrder?           @relation(fields: [salesOrderId], references: [id])
@@ -220,7 +221,7 @@ model CustomerInquiry {
 }
 
 model CustomerInquiryItem {
-  id                String          @id @default(cuid()) @map("idCustomerInquiryItem")
+  id                String  @id @default(cuid()) @map("idCustomerInquiryItem")
   customerInquiryId String
   productId         String?
   itemName          String

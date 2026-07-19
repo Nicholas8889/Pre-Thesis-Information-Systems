@@ -1,8 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { extname } from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type {
@@ -37,6 +36,12 @@ import { mergeActionNotes, normalizeActionNote } from "@/lib/action-notes";
 import { parseOptionalInquiryPrice } from "@/lib/customer-inquiry";
 import { completeCustomerInquiryForDeliveredOrder } from "@/lib/customer-inquiry-lifecycle";
 import { nextNumberFromExisting } from "@/lib/document-numbering";
+import {
+  deletePreOrderDocument,
+  PRE_ORDER_DOCUMENT_MAX_BYTES,
+  PRE_ORDER_DOCUMENT_TYPES,
+  uploadPreOrderDocument
+} from "@/lib/pre-order-storage";
 import {
   calculateOrderTotals,
   getDueDateForPaymentTerm,
@@ -844,9 +849,7 @@ export async function deleteSalesOrder(formData: FormData) {
   });
 
   if (salesOrder.poDocumentStoredName) {
-    await unlink(
-      join(process.cwd(), "storage", "pre-orders", salesOrder.poDocumentStoredName)
-    ).catch(() => undefined);
+    await deletePreOrderDocument(salesOrder.poDocumentStoredName).catch(() => undefined);
   }
 
   await createAuditTrailLog({
@@ -1790,36 +1793,20 @@ function parseDateInput(value: string) {
     : null;
 }
 
-const preOrderDocumentTypes: Record<string, readonly string[]> = {
-  ".pdf": ["application/pdf"],
-  ".jpg": ["image/jpeg"],
-  ".jpeg": ["image/jpeg"],
-  ".png": ["image/png"],
-  ".doc": ["application/msword"],
-  ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
-};
-
 function getPreOrderDocument(formData: FormData) {
   const entry = formData.get("poDocument");
-  if (!(entry instanceof File) || entry.size === 0 || entry.size > 8 * 1024 * 1024) {
+  if (!(entry instanceof File) || entry.size === 0 || entry.size > PRE_ORDER_DOCUMENT_MAX_BYTES) {
     return null;
   }
   const extension = extname(entry.name).toLowerCase();
-  const allowedMimeTypes = preOrderDocumentTypes[extension];
+  const allowedMimeTypes = PRE_ORDER_DOCUMENT_TYPES[extension];
   return allowedMimeTypes?.includes(entry.type) ? entry : null;
 }
 
 async function storePreOrderDocument(file: File) {
   const extension = extname(file.name).toLowerCase();
-  const storedName = `${randomUUID()}${extension}`;
-  const storageDirectory = join(process.cwd(), "storage", "pre-orders");
-  await mkdir(storageDirectory, { recursive: true });
-  await writeFile(join(storageDirectory, storedName), Buffer.from(await file.arrayBuffer()));
-  return {
-    originalName: file.name.slice(0, 255),
-    storedName,
-    mimeType: file.type
-  };
+  const storedName = `pre-orders/${randomUUID()}${extension}`;
+  return uploadPreOrderDocument(file, storedName);
 }
 
 function parseProductBasePrice(value: FormDataEntryValue | null) {

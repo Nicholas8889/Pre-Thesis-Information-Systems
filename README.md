@@ -12,7 +12,8 @@ Sales Order also records the selected payment term. Debit means immediate paymen
 - TypeScript
 - Tailwind CSS
 - Prisma
-- SQLite
+- PostgreSQL on Supabase
+- Supabase Storage
 - Vitest
 
 ## Install Dependencies
@@ -31,7 +32,20 @@ Create a local environment file:
 cp .env.example .env
 ```
 
-Generate Prisma client and apply the included SQLite migration:
+Fill `.env` with Supabase values:
+
+```bash
+DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres?sslmode=require"
+DIRECT_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres?sslmode=require"
+AUTH_SECRET="replace-with-a-long-random-secret"
+SUPABASE_URL="https://[YOUR-PROJECT-REF].supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="replace-with-your-server-only-service-role-key"
+SUPABASE_PRE_ORDER_BUCKET="pre-order-documents"
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` is server-only. Do not expose it in browser code or commit it to Git.
+
+Generate Prisma client and apply the included PostgreSQL migration:
 
 ```bash
 npm run prisma:generate
@@ -47,6 +61,11 @@ npm run prisma:seed
 ```
 
 The seed data includes five customers, five sales orders, five invoices, paid invoices, unpaid invoices, partial invoices, overdue invoices, payments, Surat Jalan records, and billing records.
+
+## Cloud Storage
+
+Pre Order PO documents are stored in the private Supabase Storage bucket configured by `SUPABASE_PRE_ORDER_BUCKET`.
+The app creates the bucket on first upload if it does not already exist.
 
 ## Run Locally
 

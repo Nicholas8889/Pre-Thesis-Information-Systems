@@ -99,7 +99,7 @@ describe("sales order process deletion integration", () => {
           expect(await tx.customer.count({ where: { id: customer.id } })).toBe(1);
 
           throw new Error("ROLLBACK_DELETION_TEST");
-        })
+        }, { maxWait: 10_000, timeout: 20_000 })
       ).rejects.toThrow("ROLLBACK_DELETION_TEST");
     },
     15_000
