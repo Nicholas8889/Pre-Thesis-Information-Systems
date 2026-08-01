@@ -8,6 +8,7 @@ import {
   getValidCreditTermMonths,
   type PaymentTermType
 } from "./calculations";
+import { nextNumberFromExisting } from "./document-numbering";
 import { prisma } from "./prisma";
 
 export type OrderItemInput = {
@@ -159,13 +160,32 @@ export async function syncOverdueInvoices() {
 
 export async function nextDocumentNumber(prefix: "SO" | "PO" | "INV") {
   const year = new Date().getFullYear();
-  const count =
-    prefix === "INV"
-      ? await prisma.invoice.count()
-      : prefix === "PO"
-        ? await prisma.salesOrder.count({ where: { poNumber: { not: null } } })
-        : await prisma.salesOrder.count();
-  return `${prefix}-${year}-${String(count + 1).padStart(3, "0")}`;
+  const sequencePrefix = `${prefix}-${year}-`;
+  let existingNumbers: string[];
+
+  if (prefix === "INV") {
+    const invoices = await prisma.invoice.findMany({
+      where: { invoiceNumber: { startsWith: sequencePrefix } },
+      select: { invoiceNumber: true }
+    });
+    existingNumbers = invoices.map((invoice) => invoice.invoiceNumber);
+  } else if (prefix === "PO") {
+    const preOrders = await prisma.salesOrder.findMany({
+      where: { poNumber: { startsWith: sequencePrefix } },
+      select: { poNumber: true }
+    });
+    existingNumbers = preOrders.flatMap((order) =>
+      order.poNumber ? [order.poNumber] : []
+    );
+  } else {
+    const salesOrders = await prisma.salesOrder.findMany({
+      where: { orderNumber: { startsWith: sequencePrefix } },
+      select: { orderNumber: true }
+    });
+    existingNumbers = salesOrders.map((order) => order.orderNumber);
+  }
+
+  return nextNumberFromExisting({ existingNumbers, prefix, year });
 }
 
 export function parseAmount(value: FormDataEntryValue | null) {

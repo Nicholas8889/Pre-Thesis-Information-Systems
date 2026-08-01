@@ -31,4 +31,14 @@ describe("document numbering", () => {
       })
     ).toBe("SJ-2026-005");
   });
+
+  it("does not reuse an invoice number after a lower invoice is deleted", () => {
+    expect(
+      nextNumberFromExisting({
+        existingNumbers: ["INV-2026-001", "INV-2026-095", "INV-2026-096"],
+        prefix: "INV",
+        year: 2026
+      })
+    ).toBe("INV-2026-097");
+  });
 });

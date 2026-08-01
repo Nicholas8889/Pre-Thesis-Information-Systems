@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { extname } from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import type {
   CustomerStatus,
   CustomerInquiryStatus,
@@ -500,50 +501,52 @@ export async function createSalesOrder(formData: FormData) {
     );
   }
 
-  const orderNumber = await nextDocumentNumber("SO");
-  const poNumber = isPreOrder ? await nextDocumentNumber("PO") : null;
   const storedDocument = poDocument ? await storePreOrderDocument(poDocument) : null;
-  const transactionData = {
+  const buildTransactionData = (poNumber: string | null) => ({
     transactionType,
     poNumber,
     requiredDate,
     poDocumentName: storedDocument?.originalName ?? null,
     poDocumentStoredName: storedDocument?.storedName ?? null,
     poDocumentMimeType: storedDocument?.mimeType ?? null
-  };
+  });
   const paymentRisk = getCustomerPaymentRisk(customer);
   const needsApproval = requiresManagerApproval(currentUser?.role ?? "", paymentRisk);
 
   if (needsApproval) {
-    const salesOrder = await prisma.salesOrder.create({
-      data: {
-        orderNumber,
-        ...transactionData,
-        customerId,
-        orderDate: new Date(),
-        status: "Draft",
-        subtotal: totals.subtotal,
-        total: totals.total,
-        paymentTermType,
-        creditTermMonths,
-        notes: mergeActionNotes(notes, actionNote),
-        approvalStatus: "Pending",
-        approvalRisk: paymentRisk,
-        createdByUserId: currentUser?.id ?? null,
-        items: {
-          create: items.map((item) => ({
-            productId: item.productId,
-            itemName: item.itemName,
-            quantity: item.quantity,
-            basePrice: item.basePrice,
-            markupPercent: item.markupPercent,
-            discountPercent: item.discountPercent,
-            unitPrice: item.unitPrice,
-            subtotal: item.quantity * item.unitPrice
-          }))
-        }
-      }
-    });
+    const salesOrder = await withDocumentNumberRetry(
+      async ({ orderNumber, poNumber }) =>
+        prisma.salesOrder.create({
+          data: {
+            orderNumber,
+            ...buildTransactionData(poNumber),
+            customerId,
+            orderDate: new Date(),
+            status: "Draft",
+            subtotal: totals.subtotal,
+            total: totals.total,
+            paymentTermType,
+            creditTermMonths,
+            notes: mergeActionNotes(notes, actionNote),
+            approvalStatus: "Pending",
+            approvalRisk: paymentRisk,
+            createdByUserId: currentUser?.id ?? null,
+            items: {
+              create: items.map((item) => ({
+                productId: item.productId,
+                itemName: item.itemName,
+                quantity: item.quantity,
+                basePrice: item.basePrice,
+                markupPercent: item.markupPercent,
+                discountPercent: item.discountPercent,
+                unitPrice: item.unitPrice,
+                subtotal: item.quantity * item.unitPrice
+              }))
+            }
+          }
+        }),
+      { includePo: isPreOrder }
+    );
     await linkCustomerInquiry(inquiryId, salesOrder.id, isPreOrder);
 
     await createAuditTrailLog({
@@ -574,34 +577,38 @@ export async function createSalesOrder(formData: FormData) {
   }
 
   if (currentUser?.role === "SALES") {
-    const salesOrder = await prisma.salesOrder.create({
-      data: {
-        orderNumber,
-        ...transactionData,
-        customerId,
-        orderDate: new Date(),
-        status: "Confirmed",
-        subtotal: totals.subtotal,
-        total: totals.total,
-        paymentTermType,
-        creditTermMonths,
-        notes: mergeActionNotes(notes, actionNote),
-        approvalStatus: "NotRequired",
-        createdByUserId: currentUser.id,
-        items: {
-          create: items.map((item) => ({
-            productId: item.productId,
-            itemName: item.itemName,
-            quantity: item.quantity,
-            basePrice: item.basePrice,
-            markupPercent: item.markupPercent,
-            discountPercent: item.discountPercent,
-            unitPrice: item.unitPrice,
-            subtotal: item.quantity * item.unitPrice
-          }))
-        }
-      }
-    });
+    const salesOrder = await withDocumentNumberRetry(
+      async ({ orderNumber, poNumber }) =>
+        prisma.salesOrder.create({
+          data: {
+            orderNumber,
+            ...buildTransactionData(poNumber),
+            customerId,
+            orderDate: new Date(),
+            status: "Confirmed",
+            subtotal: totals.subtotal,
+            total: totals.total,
+            paymentTermType,
+            creditTermMonths,
+            notes: mergeActionNotes(notes, actionNote),
+            approvalStatus: "NotRequired",
+            createdByUserId: currentUser.id,
+            items: {
+              create: items.map((item) => ({
+                productId: item.productId,
+                itemName: item.itemName,
+                quantity: item.quantity,
+                basePrice: item.basePrice,
+                markupPercent: item.markupPercent,
+                discountPercent: item.discountPercent,
+                unitPrice: item.unitPrice,
+                subtotal: item.quantity * item.unitPrice
+              }))
+            }
+          }
+        }),
+      { includePo: isPreOrder }
+    );
     await linkCustomerInquiry(inquiryId, salesOrder.id, isPreOrder);
 
     await createAuditTrailLog({
@@ -631,7 +638,6 @@ export async function createSalesOrder(formData: FormData) {
     );
   }
 
-  const invoiceNumber = await nextDocumentNumber("INV");
   const issueDate = new Date();
   const dueDate = getDueDateForPaymentTerm({
     issueDate,
@@ -639,68 +645,72 @@ export async function createSalesOrder(formData: FormData) {
     creditTermMonths
   });
 
-  const result = await prisma.$transaction(async (tx) => {
-    const salesOrder = await tx.salesOrder.create({
-      data: {
-        orderNumber,
-        ...transactionData,
-        customerId,
-        orderDate: issueDate,
-        status: "Invoiced",
-        subtotal: totals.subtotal,
-        total: totals.total,
-        paymentTermType,
-        creditTermMonths,
-        notes: mergeActionNotes(notes, actionNote),
-        approvalStatus: "NotRequired",
-        createdByUserId: currentUser?.id ?? null,
-        items: {
-          create: items.map((item) => ({
-            productId: item.productId,
-            itemName: item.itemName,
-            quantity: item.quantity,
-            basePrice: item.basePrice,
-            markupPercent: item.markupPercent,
-            discountPercent: item.discountPercent,
-            unitPrice: item.unitPrice,
-            subtotal: item.quantity * item.unitPrice
-          }))
-        }
-      }
-    });
+  const result = await withDocumentNumberRetry(
+    ({ orderNumber, poNumber, invoiceNumber }) =>
+      prisma.$transaction(async (tx) => {
+        const salesOrder = await tx.salesOrder.create({
+          data: {
+            orderNumber,
+            ...buildTransactionData(poNumber),
+            customerId,
+            orderDate: issueDate,
+            status: "Invoiced",
+            subtotal: totals.subtotal,
+            total: totals.total,
+            paymentTermType,
+            creditTermMonths,
+            notes: mergeActionNotes(notes, actionNote),
+            approvalStatus: "NotRequired",
+            createdByUserId: currentUser?.id ?? null,
+            items: {
+              create: items.map((item) => ({
+                productId: item.productId,
+                itemName: item.itemName,
+                quantity: item.quantity,
+                basePrice: item.basePrice,
+                markupPercent: item.markupPercent,
+                discountPercent: item.discountPercent,
+                unitPrice: item.unitPrice,
+                subtotal: item.quantity * item.unitPrice
+              }))
+            }
+          }
+        });
 
-    const createdInvoice = await tx.invoice.create({
-      data: {
-        invoiceNumber,
-        salesOrderId: salesOrder.id,
-        customerId: salesOrder.customerId,
-        issueDate,
-        dueDate,
-        totalAmount: salesOrder.total,
-        paidAmount: 0,
-        remainingAmount: salesOrder.total,
-        paymentTermType,
-        creditTermMonths,
-        status: "Unpaid",
-        notes: actionNote || null
-      }
-    });
+        const createdInvoice = await tx.invoice.create({
+          data: {
+            invoiceNumber: invoiceNumber as string,
+            salesOrderId: salesOrder.id,
+            customerId: salesOrder.customerId,
+            issueDate,
+            dueDate,
+            totalAmount: salesOrder.total,
+            paidAmount: 0,
+            remainingAmount: salesOrder.total,
+            paymentTermType,
+            creditTermMonths,
+            status: "Unpaid",
+            notes: actionNote || null
+          }
+        });
 
-    const followUp =
-      paymentTermType === "CREDIT"
-        ? await tx.followUp.create({
-        data: {
-          customerId,
-          invoiceId: createdInvoice.id,
-          followUpDate: dueDate,
-          status: "Planned",
-          notes: `Credit billing reminder for ${invoiceNumber}`
-        }
-          })
-        : null;
+        const followUp =
+          paymentTermType === "CREDIT"
+            ? await tx.followUp.create({
+                data: {
+                  customerId,
+                  invoiceId: createdInvoice.id,
+                  followUpDate: dueDate,
+                  status: "Planned",
+                  notes: `Credit billing reminder for ${invoiceNumber}`
+                }
+              })
+            : null;
 
-    return { salesOrder, invoice: createdInvoice, followUp };
-  });
+        return { salesOrder, invoice: createdInvoice, followUp };
+      }),
+    { includePo: isPreOrder, includeInvoice: true }
+  );
 
   await linkCustomerInquiry(inquiryId, result.salesOrder.id, isPreOrder);
 
@@ -1776,6 +1786,40 @@ async function nextDeliveryNoteNumber() {
 
 function getString(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
+}
+
+async function withDocumentNumberRetry<T>(
+  operation: (numbers: {
+    orderNumber: string;
+    poNumber: string | null;
+    invoiceNumber: string | null;
+  }) => Promise<T>,
+  options: { includePo?: boolean; includeInvoice?: boolean } = {}
+) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const [orderNumber, poNumber, invoiceNumber] = await Promise.all([
+      nextDocumentNumber("SO"),
+      options.includePo ? nextDocumentNumber("PO") : Promise.resolve(null),
+      options.includeInvoice ? nextDocumentNumber("INV") : Promise.resolve(null)
+    ]);
+
+    try {
+      return await operation({ orderNumber, poNumber, invoiceNumber });
+    } catch (error) {
+      if (attempt === 0 && isDocumentNumberCollision(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error("Unable to allocate a unique document number");
+}
+
+function isDocumentNumberCollision(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+  );
 }
 
 function getRequiredString(formData: FormData, name: string) {
