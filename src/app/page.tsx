@@ -24,7 +24,6 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { buildCustomerInsights } from "@/lib/customer-intelligence";
 import { buildPopularProducts, type PopularProduct } from "@/lib/product-insights";
 import { getCurrentUser } from "@/lib/session";
-import { syncOverdueInvoices } from "@/lib/workflow";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +56,6 @@ const invoiceStatuses = [
 ] as const;
 
 export default async function DashboardPage() {
-  await syncOverdueInvoices();
   const currentUser = await getCurrentUser();
   const dashboardRole = currentUser?.role ?? "SALES";
 

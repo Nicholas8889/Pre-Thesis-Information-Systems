@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "Local thesis MVP for CV Tajuk revenue cycle workflows."
 };
 
+export const preferredRegion = "sin1";
+
 export default async function RootLayout({
   children
 }: Readonly<{

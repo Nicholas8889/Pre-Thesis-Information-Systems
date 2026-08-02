@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { UserRole } from "@prisma/client";
@@ -47,7 +48,7 @@ export async function deleteSession() {
   });
 }
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async function getCurrentUser() {
   const cookieStore = await cookies();
   const session = await verifySignedSession(cookieStore.get(AUTH_COOKIE_NAME)?.value);
 
@@ -74,7 +75,7 @@ export async function getCurrentUser() {
   }
 
   return user;
-}
+});
 
 export async function requireCurrentUser() {
   const user = await getCurrentUser();

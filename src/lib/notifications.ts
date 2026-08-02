@@ -17,15 +17,18 @@ export type AppNotification = {
 };
 
 export async function getRoleNotifications(user: { role: UserRole }) {
-  const roleNotifications =
+  const roleNotificationsPromise =
     user.role === "ADMIN"
-      ? await getAdminBillingNotifications()
+      ? getAdminBillingNotifications()
       : user.role === "SALES"
-        ? await getSalesFollowUpNotifications()
+        ? getSalesFollowUpNotifications()
         : user.role === "MANAGER"
-          ? await getManagerApprovalNotifications()
-          : [];
-  const preOrderNotifications = await getPreOrderNotifications();
+          ? getManagerApprovalNotifications()
+          : Promise.resolve([]);
+  const [roleNotifications, preOrderNotifications] = await Promise.all([
+    roleNotificationsPromise,
+    getPreOrderNotifications()
+  ]);
   return [...preOrderNotifications, ...roleNotifications].slice(0, 12);
 }
 
