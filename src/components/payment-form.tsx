@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/format";
+import { paymentInvoiceSelectionEvent } from "@/components/record-payment-button";
 
 type InvoiceOption = {
   id: string;
@@ -42,10 +43,22 @@ export function PaymentForm({
     [invoices, selectedInvoiceId]
   );
 
+  useEffect(() => {
+    function selectInvoice(event: Event) {
+      const invoiceId = (event as CustomEvent<{ invoiceId?: string }>).detail?.invoiceId;
+      if (invoiceId && invoices.some((invoice) => invoice.id === invoiceId)) {
+        setSelectedInvoiceId(invoiceId);
+      }
+    }
+
+    window.addEventListener(paymentInvoiceSelectionEvent, selectInvoice);
+    return () => window.removeEventListener(paymentInvoiceSelectionEvent, selectInvoice);
+  }, [invoices]);
+
   return (
     <div className={disabled ? "group/form-restriction relative" : ""}>
       {disabled && <RestrictionTooltip message={restrictionMessage} />}
-      <form action={action}>
+      <form id="record-payment" action={action}>
         <fieldset disabled={disabled} className="grid gap-4 disabled:cursor-not-allowed disabled:opacity-60 md:grid-cols-2 xl:grid-cols-5">
       <label className="text-sm font-medium text-slate-700 xl:col-span-2">
         Invoice

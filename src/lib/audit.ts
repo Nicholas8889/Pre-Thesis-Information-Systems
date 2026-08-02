@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { AUTH_COOKIE_NAME, roleLabel } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeActionNote } from "@/lib/action-notes";
+import { verifySignedSession } from "@/lib/session-token";
 
 type AuditTrailInput = {
   moduleName: string;
@@ -45,9 +46,9 @@ export async function createAuditTrailLog(input: AuditTrailInput) {
 
 async function getAuditActor() {
   const cookieStore = await cookies();
-  const userId = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+  const session = await verifySignedSession(cookieStore.get(AUTH_COOKIE_NAME)?.value);
 
-  if (!userId) {
+  if (!session) {
     return {
       userId: null,
       username: "System",
@@ -57,7 +58,7 @@ async function getAuditActor() {
   }
 
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: session.userId },
     select: {
       id: true,
       username: true,

@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
 import { PaymentForm } from "@/components/payment-form";
+import { RecordPaymentButton } from "@/components/record-payment-button";
 import { StatusBadge } from "@/components/status-badge";
 import { RestrictedAction } from "@/components/restricted-action";
 import { prisma } from "@/lib/prisma";
@@ -123,13 +124,7 @@ export default async function PaymentsPage({
                     <td className="py-3">
                       <div className="flex justify-end gap-2">
                         {canRecordPayment ? (
-                          <Link
-                            href={`/payments?invoiceId=${invoice.id}`}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
-                          >
-                            <Banknote aria-hidden="true" className="h-4 w-4" />
-                            Record Payment
-                          </Link>
+                          <RecordPaymentButton invoiceId={invoice.id} />
                         ) : (
                           <RestrictedAction message={getRestrictionMessage("RECORD_PAYMENT")}>
                             <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-slate-50 px-3 text-sm font-semibold text-slate-400">
