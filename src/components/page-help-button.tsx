@@ -16,7 +16,7 @@ const defaultHelp: HelpContent = {
   steps: [
     "Review the page title and summary first.",
     "Use the main table or form to continue the workflow.",
-    "Use action buttons on each row to view, print, update, or continue the transaction."
+    "Use action buttons on each row to view, print, update, or continue the workflow."
   ]
 };
 
@@ -26,11 +26,11 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
     content: {
       title: "Dashboard Help",
       purpose:
-        "Use the Dashboard to quickly monitor sales, payments, receivables, overdue invoices, and billing workload.",
+        "Use the Dashboard to quickly monitor sales, payments, receivables, overdue invoices, and collection workload.",
       steps: [
         "Start with the top summary cards to understand the overall condition.",
         "Check receivable and overdue sections to see payment risk.",
-        "Use recent orders, invoices, payments, and billing tasks to decide which module to open next."
+        "Use recent orders, invoices, payments, and collection tasks to decide which module to open next."
       ]
     }
   },
@@ -38,11 +38,11 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
     match: (pathname) => pathname === "/customers",
     content: {
       title: "Customers Help",
-      purpose: "Use Customers to manage company and contact records used in transactions.",
+      purpose: "Use Customers to manage company, contact, and optional NPWP records used in orders.",
       steps: [
-        "Use Add Customer to create a customer master record.",
-        "Search by customer name, company, phone, or email.",
-        "Use view or edit actions before creating Sales Orders for that customer."
+        "Use Add Customer to create a customer master record, with an optional NPWP for tax handling.",
+        "Search by contact person, company, phone, or email.",
+        "Use view to review customer segment, payment risk, payment behaviour, and the tax profile before creating new orders."
       ]
     }
   },
@@ -50,10 +50,11 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
     match: (pathname) => pathname === "/products",
     content: {
       title: "Products Help",
-      purpose: "Use Products to manage product names, base prices, notes, and availability status.",
+      purpose: "Use Products to manage product names, prices, notes, and availability status.",
       steps: [
         "Use Add Product to create a product master record.",
-        "Search products by name or notes, then use view to review the full detail.",
+        "Search products by name or notes, and sort the current-month average sold-price column when comparing products.",
+        "Use view to compare the editable List Price with the weighted average final selling price for this month.",
         "Use edit to update product data, or mark a product active or inactive from its detail."
       ]
     }
@@ -65,9 +66,9 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       purpose:
         "Use Sales Order Detail as the central hub for one order and its related revenue cycle records.",
       steps: [
-        "Check the summary card for order status, invoice, payments, and remaining amount.",
-        "Review customer, item, invoice, payment, Surat Jalan, receivable, and billing sections.",
-        "Use available buttons to print invoice, record payment, or continue the transaction flow."
+        "Check the summary card for the snapshotted NPWP, PPN, Net Sales, order status, invoice, payments, and remaining amount.",
+        "Review customer, item, invoice, payment, Surat Jalan, receivable, and collection sections.",
+        "Use available buttons to print an invoice, record payment, or continue the order workflow."
       ]
     }
   },
@@ -75,23 +76,25 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
     match: (pathname) => pathname === "/sales-orders",
     content: {
       title: "Sales Orders Help",
-      purpose: "Use Sales Orders to start and monitor the revenue cycle transaction flow.",
+      purpose: "Use Sales Orders to start and monitor the direct-order revenue cycle.",
       steps: [
-        "Click Create Sales Order to select a customer, add items, and choose payment term.",
+        "Click Create Sales Order to select a customer, review customer and product insights, add items, and choose payment terms.",
+        "Review the estimated Total Price, PPN, and Net Sales calculation before confirming the order.",
         "The system generates a connected invoice after confirmation.",
-        "Use Need Approval to review risky Sales-created orders, Ongoing Process for active orders, and Done Process for completed or closed orders."
+        "Use Need Approval to review risky Sales-created orders, Open for active orders, and Completed for completed or closed orders."
       ]
     }
   },
   {
-    match: (pathname) => pathname.startsWith("/pre-orders"),
+    match: (pathname) => pathname.startsWith("/customer-purchase-orders"),
     content: {
-      title: "Pre Orders Help",
-      purpose: "Use Pre Orders to manage customer PO transactions and monitor product required dates.",
+      title: "Customer Purchase Orders Help",
+      purpose: "Use Customer Purchase Orders to manage orders received from customer POs and monitor product required dates.",
       steps: [
-        "Create a Pre Order using the required date and uploaded PO document; the system generates both Sales Order ID and PO ID.",
+        "Create a Customer PO using the required date and uploaded customer PO document; the system generates both Sales Order Number and Customer PO Number.",
+        "Review the same customer, product, PPN, and Net Sales estimates used by Direct Sales Orders before confirming.",
         "Review the PO detail and process it before the required date reminder becomes overdue.",
-        "Continue with invoice, payment, receivable, billing, and Surat Jalan using the same process as Sales Orders."
+        "Continue with invoice, payment, receivable, collection, and Surat Jalan using the same process as Sales Orders."
       ]
     }
   },
@@ -101,7 +104,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       title: "Printable Invoice Help",
       purpose: "Use this page to review and print the customer invoice document.",
       steps: [
-        "Check customer, invoice number, date, due date, items, and totals before printing.",
+        "Check customer, snapshotted NPWP where present, Net Sales, PPN, invoice number, dates, items, and total before printing.",
         "Use the print button to open the browser print dialog.",
         "Return to the invoice list or Sales Order detail after the document is checked."
       ]
@@ -114,8 +117,8 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       purpose: "Use Invoices to review generated invoices, payment status, and printable invoice documents.",
       steps: [
         "Select an invoice from the list to view its detail.",
-        "Review due date, payment term, total, paid, and remaining amount.",
-        "Use View / Print Invoice for the document view, or create Surat Jalan when the transaction rule allows it."
+        "Review the snapshotted NPWP and tax breakdown, due date, payment terms, total, paid, and remaining amount.",
+        "Use View / Print Invoice for the document view, or create Surat Jalan when the order rule allows it."
       ]
     }
   },
@@ -137,7 +140,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       title: "Printable Surat Jalan Help",
       purpose: "Use this page to review and print the delivery note document.",
       steps: [
-        "Check recipient, delivery date, delivery status, and item list.",
+        "Check recipient, driver, vehicle plate, delivery date, delivery status, and item list.",
         "Use the print button when the delivery note information is correct.",
         "Return to Surat Jalan or Sales Order detail after printing or review."
       ]
@@ -150,7 +153,8 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       purpose: "Use Surat Jalan to create, update, and print delivery notes.",
       steps: [
         "Create Surat Jalan from an invoice or Sales Order when allowed.",
-        "Review recipient, delivery date, status, and delivered items.",
+        "Select the required driver and vehicle plate before saving.",
+        "Review recipient, driver, vehicle plate, delivery date, status, and delivered items.",
         "Use View / Print for the delivery document, or Edit Status to update delivery progress."
       ]
     }
@@ -163,27 +167,27 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       steps: [
         "Use status filters to focus on unpaid, partial, or overdue receivables.",
         "Review remaining amount and due date to prioritize collection.",
-        "Use Create Billing when a customer billing reminder is needed."
+        "Use Create Collection Task when a payment collection reminder is needed."
       ]
     }
   },
   {
-    match: (pathname) => pathname === "/billing",
+    match: (pathname) => pathname === "/collections",
     content: {
-      title: "Billing Help",
-      purpose: "Use Billing to record customer collection reminders related to open invoices or general billing contact.",
+      title: "Collections Help",
+      purpose: "Use Collections to schedule and record payment collection work for open invoices or a customer.",
       steps: [
         "Select customer and optional invoice.",
-        "Set billing date, status, and notes.",
-        "Use the list to monitor planned, done, or cancelled billing activities."
+        "Set the scheduled date, status, and notes.",
+        "Use the list to monitor planned, done, or cancelled collection tasks."
       ]
     }
   },
   {
-    match: (pathname) => pathname === "/follow-ups",
+    match: (pathname) => pathname === "/customer-outreach",
     content: {
-      title: "Follow Up Help",
-      purpose: "Use Follow Up to track the last time each customer was contacted about new products.",
+      title: "Customer Outreach Help",
+      purpose: "Use Customer Outreach to track the last time each customer was contacted about new products.",
       steps: [
         "Select a customer and the date they were contacted.",
         "Optionally add a note about the product or conversation.",

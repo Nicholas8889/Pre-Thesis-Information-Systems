@@ -178,8 +178,8 @@ export default async function SuratJalanPage({
               salesOrders={salesOrders.map((order) => ({
                 id: order.id,
                 orderNumber: order.orderNumber,
-                poNumber: order.poNumber,
-                transactionType: order.transactionType,
+                customerPoNumber: order.customerPoNumber,
+                source: order.source,
                 customerId: order.customerId,
                 customerName: order.customer.companyName,
                 recipientName: order.customer.name,
@@ -213,9 +213,9 @@ export default async function SuratJalanPage({
                 {selectedDeliveryNote.invoice?.invoiceNumber ??
                   selectedDeliveryNote.salesOrder?.orderNumber ??
                   "Manual delivery note"}
-                {selectedDeliveryNote.salesOrder?.transactionType === "PRE_ORDER" &&
-                selectedDeliveryNote.salesOrder.poNumber
-                  ? ` - PO ${selectedDeliveryNote.salesOrder.poNumber}`
+                {selectedDeliveryNote.salesOrder?.source === "CUSTOMER_PO" &&
+                selectedDeliveryNote.salesOrder.customerPoNumber
+                  ? ` - PO ${selectedDeliveryNote.salesOrder.customerPoNumber}`
                   : ""}
               </p>
             </div>
@@ -233,7 +233,7 @@ export default async function SuratJalanPage({
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white"
               >
                 <Printer aria-hidden="true" className="h-4 w-4" />
-                View / Print
+                Cetak
               </Link>
             </div>
           </div>
@@ -283,7 +283,7 @@ export default async function SuratJalanPage({
               value={selectedDeliveryNote.invoice?.invoiceNumber ?? "-"}
             />
             <Detail
-              label="Payment Term"
+              label="Payment Terms"
               value={
                 selectedDeliveryNote.invoice
                   ? getPaymentTermLabel({
@@ -297,9 +297,17 @@ export default async function SuratJalanPage({
               label="Sales Order"
               value={selectedDeliveryNote.salesOrder?.orderNumber ?? "-"}
             />
-            {selectedDeliveryNote.salesOrder?.transactionType === "PRE_ORDER" && (
-              <Detail label="PO ID" value={selectedDeliveryNote.salesOrder.poNumber ?? "-"} />
+            {selectedDeliveryNote.salesOrder?.source === "CUSTOMER_PO" && (
+              <Detail label="Customer PO Number" value={selectedDeliveryNote.salesOrder.customerPoNumber ?? "-"} />
             )}
+            <Detail
+              label="Driver Name"
+              value={selectedDeliveryNote.driverName ?? "Not recorded"}
+            />
+            <Detail
+              label="Vehicle Plate Number"
+              value={selectedDeliveryNote.vehiclePlateNumber ?? "Not recorded"}
+            />
             <Detail label="Sender" value={selectedDeliveryNote.senderName ?? "-"} />
             <Detail label="Authorized By" value={selectedDeliveryNote.authorizedBy ?? "-"} />
           </div>
@@ -398,7 +406,7 @@ export default async function SuratJalanPage({
                         )}
                         <Link
                           href={`/surat-jalan/${deliveryNote.id}/print`}
-                          title="Print Surat Jalan"
+                          title="Cetak Surat Jalan"
                           className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
                         >
                           <Printer aria-hidden="true" className="h-4 w-4" />

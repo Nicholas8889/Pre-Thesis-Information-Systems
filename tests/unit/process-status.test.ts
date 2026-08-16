@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   isDoneDeliveryNote,
-  isDoneFollowUp,
+  isDoneCollectionTask,
   isDoneInvoice,
   isDoneReceivable,
   isDoneSalesOrder,
   isOngoingDeliveryNote,
-  isOngoingFollowUp,
+  isOngoingCollectionTask,
   isOngoingInvoice,
   isOngoingReceivable,
   isOngoingSalesOrder
@@ -58,10 +58,10 @@ describe("process status helpers", () => {
     expect(isDoneReceivable({ status: "Cancelled", remainingAmount: 500 })).toBe(true);
   });
 
-  it("separates ongoing and done follow-up statuses", () => {
-    expect(isOngoingFollowUp("Planned")).toBe(true);
-    expect(isDoneFollowUp("Done")).toBe(true);
-    expect(isDoneFollowUp("Cancelled")).toBe(true);
-    expect(isOngoingFollowUp("Done")).toBe(false);
+  it("separates ongoing and done collection task statuses", () => {
+    expect(isOngoingCollectionTask("Planned")).toBe(true);
+    expect(isDoneCollectionTask("Done")).toBe(true);
+    expect(isDoneCollectionTask("Cancelled")).toBe(true);
+    expect(isOngoingCollectionTask("Done")).toBe(false);
   });
 });

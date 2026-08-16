@@ -25,7 +25,7 @@ const statusStyles: Record<string, string> = {
 };
 
 const statusDescriptions: Record<string, string> = {
-  Active: "Customer can be used in transactions",
+  Active: "Customer can be used in orders",
   Inactive: "Customer is not currently used",
   Draft: "Sales order is not confirmed yet",
   Confirmed: "Sales order is ready for invoice generation",
@@ -38,8 +38,8 @@ const statusDescriptions: Record<string, string> = {
   Partial: "Some payment has been recorded but balance remains",
   Paid: "Invoice has been fully paid",
   Overdue: "Due date has passed and balance remains",
-  Planned: "Billing activity is scheduled",
-  Done: "Billing activity is completed",
+  Planned: "Collections activity is scheduled",
+  Done: "Collections activity is completed",
   Pending: "Waiting for Manager approval",
   Approved: "Approved by a Manager",
   Rejected: "Rejected by a Manager",

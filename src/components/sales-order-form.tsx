@@ -4,25 +4,36 @@ import { CircleHelp, FileUp, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { calculateAdjustedUnitPrice } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/format";
+import { getProductPriceComparison } from "@/lib/product-insights";
+import { calculateTaxInclusiveAmounts, formatPpnRate } from "@/lib/tax";
 
 type CustomerOption = {
   id: string;
   companyName: string;
   name: string;
   category: string;
+  recommendedMarkup: string;
+  paymentRisk: string;
+  paymentBehaviour: string;
+  paymentBehaviourEvidence: string;
+  npwp: string | null;
+  ppnApplied: boolean;
 };
 
 type ProductOption = {
   id: string;
   productName: string;
-  basePrice: number;
+  listPrice: number;
+  averageSoldPrice: number | null;
+  averageEligibleQuantity: number;
+  averageMonthLabel: string;
 };
 
 type DraftItem = {
   productId: string;
   itemName: string;
   quantity: number;
-  basePrice: number;
+  baseUnitPrice: number;
   markupPercent: number | "";
   discountPercent: number | "";
 };
@@ -33,8 +44,9 @@ const inputClass =
 export function SalesOrderForm({
   customers,
   products,
+  ppnRateBasisPoints,
   action,
-  transactionType = "SALES_ORDER",
+  source = "DIRECT",
   inquiryId = "",
   initialCustomerId = "",
   initialItems,
@@ -43,16 +55,17 @@ export function SalesOrderForm({
 }: {
   customers: CustomerOption[];
   products: ProductOption[];
+  ppnRateBasisPoints: number;
   action: (formData: FormData) => void | Promise<void>;
-  transactionType?: "SALES_ORDER" | "PRE_ORDER";
+  source?: "DIRECT" | "CUSTOMER_PO";
   inquiryId?: string;
   initialCustomerId?: string;
   initialItems?: DraftItem[];
   disabled?: boolean;
   restrictionMessage?: string;
 }) {
-  const isPreOrder = transactionType === "PRE_ORDER";
-  const [paymentTermType, setPaymentTermType] = useState("DEBIT");
+  const isCustomerPo = source === "CUSTOMER_PO";
+  const [paymentTermType, setPaymentTermType] = useState("IMMEDIATE");
   const [selectedCustomerId, setSelectedCustomerId] = useState(initialCustomerId);
   const [items, setItems] = useState<DraftItem[]>(initialItems?.length ? initialItems : [createEmptyItem()]);
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
@@ -60,13 +73,34 @@ export function SalesOrderForm({
     ...item,
     markupPercent: Number(item.markupPercent || 0),
     discountPercent: Number(item.discountPercent || 0),
-    unitPrice: getUnitPrice(item)
+    finalUnitPrice: getFinalUnitPrice(item)
   }));
 
   const total = useMemo(
-    () => items.reduce((sum, item) => sum + item.quantity * getUnitPrice(item), 0),
+    () => items.reduce((sum, item) => sum + item.quantity * getFinalUnitPrice(item), 0),
     [items]
   );
+  const estimatedTax = useMemo(
+    () =>
+      selectedCustomer
+        ? calculateTaxInclusiveAmounts({
+            totalAmount: total,
+            ppnApplied: selectedCustomer.ppnApplied,
+            ppnRateBasisPoints
+          })
+        : null,
+    [ppnRateBasisPoints, selectedCustomer, total]
+  );
+  const ppnRateLabel = formatPpnRate(ppnRateBasisPoints);
+  const confirmationSummary = estimatedTax
+    ? [
+        `Total Price: ${formatCurrency(total)}`,
+        estimatedTax.ppnApplied
+          ? `PPN (${formatPpnRate(estimatedTax.ppnRateBasisPoints)}): ${formatCurrency(estimatedTax.ppnAmount)}`
+          : "PPN: Not applied - customer NPWP not provided",
+        `Net Sales (Margin): ${formatCurrency(estimatedTax.netSalesAmount)}`
+      ].join("\n")
+    : `Total Price: ${formatCurrency(total)}\nPPN and Net Sales: Select a customer`;
 
   function updateItem(index: number, patch: Partial<DraftItem>) {
     setItems((current) =>
@@ -85,7 +119,7 @@ export function SalesOrderForm({
     updateItem(index, {
       productId,
       itemName: product?.productName ?? "",
-      basePrice: product?.basePrice ?? 0
+      baseUnitPrice: product?.listPrice ?? 0
     });
   }
 
@@ -98,21 +132,25 @@ export function SalesOrderForm({
   return (
     <div className={disabled ? "group/form-restriction relative" : ""}>
       {disabled && <RestrictionTooltip message={restrictionMessage} />}
-      <form action={action}>
+      <form
+        action={action}
+        data-confirm-title={isCustomerPo ? "Create Customer PO" : "Create Sales Order"}
+        data-confirm-summary={confirmationSummary}
+      >
         <fieldset disabled={disabled} className="space-y-4 disabled:cursor-not-allowed disabled:opacity-60">
       <input type="hidden" name="items" value={JSON.stringify(serializedItems)} />
       <input type="hidden" name="inquiryId" value={inquiryId} />
-      <input type="hidden" name="transactionType" value={transactionType} />
+      <input type="hidden" name="source" value={source} />
 
-      {isPreOrder && (
+      {isCustomerPo && (
         <div className="grid gap-4 rounded-md border border-blue-200 bg-blue-50 p-4 md:grid-cols-2">
           <div className="text-sm font-medium text-slate-700">
             Generated IDs
             <div className="mt-1 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
-              Sales Order ID and PO ID are generated after save.
+              Sales Order Number and Customer PO Number are generated after save.
             </div>
             <span className="mt-1 block text-xs font-normal text-slate-500">
-              Pre Orders receive both an SO number and a PO number.
+              Customer Purchase Orders receive both an SO number and a PO number.
             </span>
           </div>
 
@@ -130,11 +168,11 @@ export function SalesOrderForm({
           </label>
 
           <label className="text-sm font-medium text-slate-700 md:col-span-2">
-            PO Document
+            Customer PO Document
             <span className="mt-1 flex min-h-12 items-center gap-3 rounded-md border border-dashed border-blue-300 bg-white px-3 py-2">
               <FileUp aria-hidden="true" className="h-5 w-5 shrink-0 text-brand" />
               <input
-                name="poDocument"
+                name="customerPoDocument"
                 type="file"
                 required
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -173,7 +211,7 @@ export function SalesOrderForm({
         </label>
 
         <label className="text-sm font-medium text-slate-700">
-          Payment Method / Term
+          Payment Terms
           <select
             name="paymentTermType"
             required
@@ -181,7 +219,7 @@ export function SalesOrderForm({
             onChange={(event) => setPaymentTermType(event.target.value)}
             className={`${inputClass} mt-1`}
           >
-            <option value="DEBIT">Debit</option>
+            <option value="IMMEDIATE">Immediate Payment</option>
             <option value="CREDIT">Credit</option>
           </select>
         </label>
@@ -200,9 +238,62 @@ export function SalesOrderForm({
         )}
       </div>
 
+      {selectedCustomer && (
+        <section
+          aria-live="polite"
+          className="rounded-md border border-blue-200 bg-blue-50/70 p-4"
+        >
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Customer Insight</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                Historical guidance only. It does not change payment terms, markup, discounts, or approval.
+              </p>
+            </div>
+            <span className="w-fit rounded-full border border-blue-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand">
+              {selectedCustomer.ppnApplied ? "PPN included" : "No PPN for this order"}
+            </span>
+          </div>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <InsightMetric label="Purchase Frequency Category" value={selectedCustomer.category} />
+            <InsightMetric
+              label="Recommended Markup"
+              value={selectedCustomer.recommendedMarkup}
+            />
+            <InsightMetric label="Payment Risk" value={selectedCustomer.paymentRisk} />
+            <InsightMetric
+              label="Payment Behaviour"
+              value={selectedCustomer.paymentBehaviour}
+              help={selectedCustomer.paymentBehaviourEvidence}
+            />
+            <InsightMetric
+              label="NPWP"
+              value={selectedCustomer.npwp ?? "Not provided"}
+              help={
+                selectedCustomer.ppnApplied
+                  ? "Tax status: PPN included."
+                  : "Tax status: No PPN for this order."
+              }
+            />
+          </div>
+        </section>
+      )}
+
       <div className="space-y-3">
-        {items.map((item, index) => (
-          <div key={index} className="grid gap-3 rounded-md border border-line p-3 md:grid-cols-2 xl:grid-cols-[minmax(180px,1.4fr)_90px_140px_110px_110px_150px_150px_44px]">
+        {items.map((item, index) => {
+          const selectedProduct = products.find(
+            (product) => product.id === item.productId
+          );
+          const proposedUnitPrice = getFinalUnitPrice(item);
+          const comparison = getProductPriceComparison(
+            proposedUnitPrice,
+            selectedProduct?.averageSoldPrice ?? null
+          );
+
+          return (
+          <div key={index} className="space-y-3 rounded-md border border-line p-3">
+            <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-[minmax(180px,1.4fr)_90px_140px_110px_110px_150px_150px_44px]">
             <label className="text-sm font-medium text-slate-700">
               Product Name
               <select
@@ -235,15 +326,15 @@ export function SalesOrderForm({
             </label>
 
             <label className="text-sm font-medium text-slate-700">
-              Base Price
+              Base Unit Price
               <input
                 required
                 min={0}
                 step={1}
                 type="number"
-                value={item.basePrice}
+                value={item.baseUnitPrice}
                 onChange={(event) =>
-                  updateItem(index, { basePrice: Number(event.target.value) })
+                  updateItem(index, { baseUnitPrice: Number(event.target.value) })
                 }
                 className={`${inputClass} mt-1`}
               />
@@ -287,7 +378,7 @@ export function SalesOrderForm({
 
             <div className="text-sm font-medium text-slate-700">
               <span className="flex items-center gap-1.5">
-                Unit Price
+                Final Unit Price
                 <span
                   className="group/price-help relative inline-flex"
                   tabIndex={0}
@@ -300,14 +391,14 @@ export function SalesOrderForm({
                 </span>
               </span>
               <div className="mt-1 flex h-10 items-center rounded-md border border-line bg-slate-50 px-3">
-                {formatCurrency(getUnitPrice(item))}
+                {formatCurrency(getFinalUnitPrice(item))}
               </div>
             </div>
 
             <div className="text-sm font-medium text-slate-700">
               Subtotal
               <div className="mt-1 flex h-10 items-center rounded-md border border-line bg-slate-50 px-3">
-                {formatCurrency(item.quantity * getUnitPrice(item))}
+                {formatCurrency(item.quantity * getFinalUnitPrice(item))}
               </div>
             </div>
 
@@ -319,9 +410,109 @@ export function SalesOrderForm({
             >
               <Trash2 aria-hidden="true" className="h-4 w-4" />
             </button>
+            </div>
+
+            {selectedProduct && (
+              <section
+                aria-live="polite"
+                className="rounded-md border border-slate-200 bg-slate-50 p-3"
+              >
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Product Price Insight
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Advisory only; your Base Unit Price, markup, and discount remain unchanged.
+                  </p>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <InsightMetric
+                    label="Average Sold Price - This Month"
+                    value={
+                      selectedProduct.averageSoldPrice === null
+                        ? "No sales this month"
+                        : formatCurrency(selectedProduct.averageSoldPrice)
+                    }
+                    help={
+                      selectedProduct.averageEligibleQuantity > 0
+                        ? `${selectedProduct.averageEligibleQuantity} eligible unit(s) in ${selectedProduct.averageMonthLabel}.`
+                        : `No eligible sales in ${selectedProduct.averageMonthLabel}.`
+                    }
+                  />
+                  <InsightMetric
+                    label="Proposed Final Unit Price"
+                    value={formatCurrency(proposedUnitPrice)}
+                  />
+                  <InsightMetric
+                    label="Difference"
+                    value={formatSignedCurrency(comparison.absoluteDifference)}
+                  />
+                  <InsightMetric
+                    label="Difference (%)"
+                    value={formatSignedPercentage(comparison.percentageDifference)}
+                  />
+                </div>
+              </section>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
+
+      <section
+        aria-live="polite"
+        className="rounded-md border border-violet-200 bg-violet-50/70 p-4"
+      >
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Calculation Summary</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              Estimated until the order is submitted and recalculated by the server.
+            </p>
+          </div>
+          <span className="w-fit rounded-full border border-violet-200 bg-white px-2.5 py-1 text-xs font-semibold text-violet-700">
+            Tax-inclusive customer charge
+          </span>
+        </div>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <InsightMetric
+            label="Estimated Total Price"
+            value={formatCurrency(total)}
+            help="Final amount charged to the customer."
+          />
+          <InsightMetric
+            label={
+              estimatedTax?.ppnApplied
+                ? `Estimated PPN (${ppnRateLabel})`
+                : "Estimated PPN"
+            }
+            value={
+              !estimatedTax
+                ? "Select a customer"
+                : estimatedTax.ppnApplied
+                  ? formatCurrency(estimatedTax.ppnAmount)
+                  : "Not applied"
+            }
+            help={
+              !estimatedTax
+                ? "Customer selection determines the MVP tax treatment."
+                : estimatedTax.ppnApplied
+                  ? `Separated from Total Price at the configured ${ppnRateLabel} effective rate.`
+                  : "Customer NPWP not provided."
+            }
+          />
+          <InsightMetric
+            label="Estimated Net Sales (Margin)"
+            value={
+              estimatedTax
+                ? formatCurrency(estimatedTax.netSalesAmount)
+                : "Select a customer"
+            }
+            help="Total after separating PPN; not profit after product cost."
+          />
+        </div>
+      </section>
 
       <div className="flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
         <button
@@ -336,7 +527,7 @@ export function SalesOrderForm({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <p className="text-base font-semibold">Total: {formatCurrency(total)}</p>
           <button className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
-            {isPreOrder ? "Create Pre Order" : "Create Sales Order"}
+            {isCustomerPo ? "Create Customer PO" : "Create Sales Order"}
           </button>
         </div>
       </div>
@@ -351,17 +542,51 @@ function createEmptyItem(): DraftItem {
     productId: "",
     itemName: "",
     quantity: 1,
-    basePrice: 0,
+    baseUnitPrice: 0,
     markupPercent: "",
     discountPercent: ""
   };
 }
 
-function getUnitPrice(item: DraftItem) {
+function getFinalUnitPrice(item: DraftItem) {
   return calculateAdjustedUnitPrice(
-    item.basePrice,
+    item.baseUnitPrice,
     Number(item.markupPercent || 0),
     Number(item.discountPercent || 0)
+  );
+}
+
+function formatSignedCurrency(value: number | null) {
+  if (value === null) return "Not available";
+  if (value === 0) return formatCurrency(0);
+  return `${value > 0 ? "+" : "-"}${formatCurrency(Math.abs(value))}`;
+}
+
+function formatSignedPercentage(value: number | null) {
+  if (value === null) return "Not available";
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded > 0 ? "+" : ""}${rounded.toLocaleString("en-US", {
+    maximumFractionDigits: 1
+  })}%`;
+}
+
+function InsightMetric({
+  label,
+  value,
+  help
+}: {
+  label: string;
+  value: string;
+  help?: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-md border border-white/80 bg-white p-3 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+      <p className="mt-1 break-words text-sm font-semibold text-ink">{value}</p>
+      {help && <p className="mt-1 text-xs leading-5 text-slate-500">{help}</p>}
+    </div>
   );
 }
 

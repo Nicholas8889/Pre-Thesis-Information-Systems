@@ -14,14 +14,14 @@ import {
   canGenerateInvoice,
   getSalesOrderProgressStatus,
   isActiveReceivable,
-  isFullyPaidTransaction,
+  isInvoiceFullyPaid,
   isValidSalesOrderPaymentTerm
 } from "../../src/lib/calculations";
 import { amountToWords, formatInvoiceCurrency } from "../../src/lib/format";
 import { hashPassword, verifyPassword } from "../../src/lib/auth";
 
 describe("revenue cycle calculations", () => {
-  it("applies optional markup and discount to a product base price", () => {
+  it("applies optional markup and discount to a product price", () => {
     expect(calculateAdjustedUnitPrice(100000, 10, 0)).toBe(110000);
     expect(calculateAdjustedUnitPrice(100000, 0, 15)).toBe(85000);
     expect(calculateAdjustedUnitPrice(100000, 10, 5)).toBe(105000);
@@ -29,8 +29,8 @@ describe("revenue cycle calculations", () => {
 
   it("calculates sales order total from item quantity and unit price", () => {
     const total = calculateSalesOrderTotal([
-      { quantity: 2, unitPrice: 100000 },
-      { quantity: 3, unitPrice: 250000 }
+      { quantity: 2, finalUnitPrice: 100000 },
+      { quantity: 3, finalUnitPrice: 250000 }
     ]);
 
     expect(total).toBe(950000);
@@ -110,13 +110,13 @@ describe("revenue cycle calculations", () => {
     expect(canRecordPayment(1500000, 0)).toBe(false);
   });
 
-  it("builds a debit invoice draft from sales order data with immediate due date", () => {
+  it("builds a immediate payment invoice draft from sales order data with immediate due date", () => {
     const invoice = buildInvoiceDraftFromSalesOrder({
       salesOrderId: "so-001",
       customerId: "cust-001",
       total: 1250000,
       issueDate: new Date("2026-06-01"),
-      paymentTermType: "DEBIT"
+      paymentTermType: "IMMEDIATE"
     });
 
     expect(invoice).toMatchObject({
@@ -125,7 +125,7 @@ describe("revenue cycle calculations", () => {
       totalAmount: 1250000,
       paidAmount: 0,
       remainingAmount: 1250000,
-      paymentTermType: "DEBIT",
+      paymentTermType: "IMMEDIATE",
       creditTermMonths: null,
       status: "Unpaid"
     });
@@ -160,7 +160,7 @@ describe("revenue cycle calculations", () => {
   });
 
   it("validates payment term rules for sales order creation", () => {
-    expect(isValidSalesOrderPaymentTerm({ paymentTermType: "DEBIT" })).toBe(true);
+    expect(isValidSalesOrderPaymentTerm({ paymentTermType: "IMMEDIATE" })).toBe(true);
     expect(
       isValidSalesOrderPaymentTerm({ paymentTermType: "CREDIT", creditTermMonths: 3 })
     ).toBe(true);
@@ -182,9 +182,9 @@ describe("revenue cycle calculations", () => {
     expect(isActiveReceivable({ remainingAmount: 0, status: "Paid" })).toBe(false);
   });
 
-  it("detects fully paid transactions and excludes unpaid or partial transactions", () => {
+  it("detects fully paid invoices and excludes unpaid or partial invoices", () => {
     expect(
-      isFullyPaidTransaction({
+      isInvoiceFullyPaid({
         invoiceStatus: "Paid",
         remainingAmount: 1000,
         totalPaid: 0,
@@ -192,7 +192,7 @@ describe("revenue cycle calculations", () => {
       })
     ).toBe(true);
     expect(
-      isFullyPaidTransaction({
+      isInvoiceFullyPaid({
         invoiceStatus: "Partial",
         remainingAmount: 0,
         totalPaid: 500000,
@@ -200,7 +200,7 @@ describe("revenue cycle calculations", () => {
       })
     ).toBe(true);
     expect(
-      isFullyPaidTransaction({
+      isInvoiceFullyPaid({
         invoiceStatus: "Unpaid",
         remainingAmount: 1000000,
         totalPaid: 1000000,
@@ -208,7 +208,7 @@ describe("revenue cycle calculations", () => {
       })
     ).toBe(true);
     expect(
-      isFullyPaidTransaction({
+      isInvoiceFullyPaid({
         invoiceStatus: "Partial",
         remainingAmount: 500000,
         totalPaid: 500000,
@@ -216,7 +216,7 @@ describe("revenue cycle calculations", () => {
       })
     ).toBe(false);
     expect(
-      isFullyPaidTransaction({
+      isInvoiceFullyPaid({
         invoiceStatus: "Unpaid",
         remainingAmount: 1000000,
         totalPaid: 0,
@@ -225,14 +225,14 @@ describe("revenue cycle calculations", () => {
     ).toBe(false);
   });
 
-  it("summarizes sales order transaction progress without missing related records crashing", () => {
+  it("summarizes sales order progress without missing related records crashing", () => {
     expect(
       getSalesOrderProgressStatus({
         hasInvoice: false,
         paymentCount: 0,
         deliveryNoteCount: 0,
         remainingAmount: 0,
-        followUpCount: 0
+        collectionTaskCount: 0
       })
     ).toBe("Sales Order Only");
 
@@ -242,7 +242,7 @@ describe("revenue cycle calculations", () => {
         paymentCount: 0,
         deliveryNoteCount: 0,
         remainingAmount: 1000000,
-        followUpCount: 0
+        collectionTaskCount: 0
       })
     ).toBe("Invoice Open");
 
@@ -252,7 +252,7 @@ describe("revenue cycle calculations", () => {
         paymentCount: 1,
         deliveryNoteCount: 0,
         remainingAmount: 500000,
-        followUpCount: 0
+        collectionTaskCount: 0
       })
     ).toBe("Payment In Progress");
 
@@ -262,16 +262,16 @@ describe("revenue cycle calculations", () => {
         paymentCount: 1,
         deliveryNoteCount: 1,
         remainingAmount: 0,
-        followUpCount: 0
+        collectionTaskCount: 0
       })
     ).toBe("Paid and Delivered");
   });
 
-  it("applies Debit and Credit Surat Jalan creation rules", () => {
+  it("applies Immediate Payment and Credit Surat Jalan creation rules", () => {
     expect(
-      canCreateDeliveryNoteForInvoice({ paymentTermType: "DEBIT", status: "Unpaid" })
+      canCreateDeliveryNoteForInvoice({ paymentTermType: "IMMEDIATE", status: "Unpaid" })
     ).toBe(false);
-    expect(canCreateDeliveryNoteForInvoice({ paymentTermType: "DEBIT", status: "Paid" })).toBe(
+    expect(canCreateDeliveryNoteForInvoice({ paymentTermType: "IMMEDIATE", status: "Paid" })).toBe(
       true
     );
     expect(
@@ -304,7 +304,7 @@ describe("revenue cycle calculations", () => {
   });
 
   it("verifies demo account password hashes without storing plain text", () => {
-    const passwordHash = hashPassword("PrabowoBiji1", "demo-salt");
+    const passwordHash = hashPassword("PrabowoBiji1");
 
     expect(passwordHash).not.toContain("PrabowoBiji1");
     expect(verifyPassword("PrabowoBiji1", passwordHash)).toBe(true);

@@ -9,7 +9,7 @@ export async function completeCustomerInquiryForDeliveredOrder(
   const inquiry = await db.customerInquiry.findFirst({
     where: {
       salesOrderId,
-      status: { in: ["ConvertedToPO", "ConvertedToSO"] }
+      status: { in: ["ConvertedToCustomerPO", "ConvertedToSO"] }
     }
   });
 

@@ -1,3 +1,10 @@
-export { default } from "@/app/sales-orders/[salesOrderId]/page";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
+export default async function LegacyPreOrderDetailPage({
+  params
+}: {
+  params: Promise<{ salesOrderId: string }>;
+}) {
+  const { salesOrderId } = await params;
+  redirect(`/customer-purchase-orders/${encodeURIComponent(salesOrderId)}`);
+}

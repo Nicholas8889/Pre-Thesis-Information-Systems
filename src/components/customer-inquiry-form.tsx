@@ -7,8 +7,8 @@ type Item = {
   productId: string;
   itemName: string;
   quantity: number;
-  requestedPrice: number | "";
-  agreedPrice: number | "";
+  requestedUnitPrice: number | "";
+  agreedUnitPrice: number | "";
   notes: string;
 };
 
@@ -20,7 +20,7 @@ export function CustomerInquiryForm({
   action
 }: {
   customers: { id: string; companyName: string; name: string }[];
-  products: { id: string; productName: string; basePrice: number }[];
+  products: { id: string; productName: string; listPrice: number }[];
   action: (formData: FormData) => void | Promise<void>;
 }) {
   const [items, setItems] = useState<Item[]>([emptyItem()]);
@@ -50,7 +50,7 @@ export function CustomerInquiryForm({
             <label className="text-sm font-medium text-slate-700">Product
               <select value={item.productId} onChange={(event) => {
                 const product = products.find((candidate) => candidate.id === event.target.value);
-                updateItem(index, { productId: event.target.value, itemName: product?.productName ?? "", agreedPrice: product?.basePrice ?? item.agreedPrice });
+                updateItem(index, { productId: event.target.value, itemName: product?.productName ?? "", agreedUnitPrice: product?.listPrice ?? item.agreedUnitPrice });
               }} className={inputClass}>
                 <option value="">Not listed / unavailable</option>
                 {products.map((product) => <option key={product.id} value={product.id}>{product.productName}</option>)}
@@ -62,11 +62,11 @@ export function CustomerInquiryForm({
             <label className="text-sm font-medium text-slate-700">Qty
               <input required min={1} type="number" value={item.quantity} onChange={(event) => updateItem(index, { quantity: Number(event.target.value) })} className={inputClass} />
             </label>
-            <label className="text-sm font-medium text-slate-700">Requested Price
-              <input min={0} type="number" value={item.requestedPrice} onChange={(event) => updateItem(index, { requestedPrice: event.target.value === "" ? "" : Number(event.target.value) })} className={inputClass} />
+            <label className="text-sm font-medium text-slate-700">Requested Unit Price
+              <input min={0} type="number" value={item.requestedUnitPrice} onChange={(event) => updateItem(index, { requestedUnitPrice: event.target.value === "" ? "" : Number(event.target.value) })} className={inputClass} />
             </label>
-            <label className="text-sm font-medium text-slate-700">Agreed Price
-              <input min={0} type="number" value={item.agreedPrice} onChange={(event) => updateItem(index, { agreedPrice: event.target.value === "" ? "" : Number(event.target.value) })} className={inputClass} />
+            <label className="text-sm font-medium text-slate-700">Agreed Unit Price
+              <input min={0} type="number" value={item.agreedUnitPrice} onChange={(event) => updateItem(index, { agreedUnitPrice: event.target.value === "" ? "" : Number(event.target.value) })} className={inputClass} />
             </label>
             <label className="text-sm font-medium text-slate-700">Item Note
               <input value={item.notes} onChange={(event) => updateItem(index, { notes: event.target.value })} className={inputClass} />
@@ -83,4 +83,4 @@ export function CustomerInquiryForm({
   );
 }
 
-function emptyItem(): Item { return { productId: "", itemName: "", quantity: 1, requestedPrice: "", agreedPrice: "", notes: "" }; }
+function emptyItem(): Item { return { productId: "", itemName: "", quantity: 1, requestedUnitPrice: "", agreedUnitPrice: "", notes: "" }; }

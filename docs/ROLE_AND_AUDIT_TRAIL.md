@@ -17,9 +17,26 @@ Older role values are mapped during migration:
 
 ## Access Behavior
 
-All roles can currently access every page. Role is used as account identity and audit information only.
+All roles can open and review the main pages, but important operational actions are restricted by role.
 
-The app does not hide menus or block routes by role yet. Role-based restrictions can be added later if the thesis scope needs it.
+Current behavior:
+
+| Action Area | Manager | Admin | Sales |
+| --- | :---: | :---: | :---: |
+| View dashboards and operational modules | Yes | Yes | Yes |
+| Manage customer records | Yes | Yes | Yes |
+| Create Customer Inquiry | Yes | No | Yes |
+| Create Sales Order or Customer PO | Yes | No | Yes |
+| Delete eligible ongoing Sales Order | Yes | Yes | No |
+| Approve or reject risky Sales Order | Yes | No | No |
+| Generate Invoice | Yes | Yes | No |
+| Record Payment | Yes | Yes | No |
+| Create Surat Jalan | Yes | Yes | No |
+| Manage Collections and Customer Outreach | Yes | Yes | Yes |
+| Review Audit Trail | Yes | Yes | Yes |
+| Create user account | Yes | Yes | No |
+
+The MVP primarily uses action-level restriction. Some menus remain visible across roles so users can review related records during thesis demonstration.
 
 ## Demo Accounts
 
@@ -33,7 +50,7 @@ Passwords are stored with the existing local password hashing helper.
 
 ## Audit Trail Purpose
 
-The Audit Trail page is a centralized record of important data changes. It shows who made the change, what module was changed, which transaction code was affected, and the exact date/time of the change.
+The Audit Trail page is a centralized record of important data changes. It shows who made the change, what module was changed, which record reference was affected, and the exact date/time of the change.
 
 Route:
 
@@ -51,37 +68,40 @@ The `AuditTrail` model stores:
 - `moduleName`
 - `entityType`
 - `entityId`
-- `transactionCode`
+- `recordReference`
 - `action`
 - `changeSummary`
 - `oldValue`
 - `newValue`
 - `createdAt`
 
-`oldValue` and `newValue` are stored as readable text/JSON strings for SQLite simplicity.
+`oldValue` and `newValue` are stored as readable text/JSON strings for simple thesis evidence and review.
 
 ## Logged Actions
 
 Current logging covers:
 
 - Customers: created, updated, status changed
-- Sales Orders: created, status changed when invoice is generated separately
+- Customer Inquiries: created, closed, cancelled, converted to Sales Order/Customer PO, and completed after delivery
+- Sales Orders and Customer Purchase Orders: created, status changed, approval decisions, PO conversion, and deletion of eligible ongoing chains
 - Invoices: created/generated, notes updated, status changed after payment
 - Payments: payment recorded
 - Surat Jalan: created, status changed, delivered
 - Receivables: created from invoice, updated after payment, closed when fully paid
-- Follow-ups: created, including automatic credit follow-ups
+- Collections: Collection Task created, including automatic credit payment collection reminders
+- Customer Outreach: customer product/contact activity recorded
 - Settings / Accounts: account created
 
 Seed data also creates a few demo audit records for presentation.
 
 ## Limitations
 
-This is intentionally simple for the local thesis MVP:
+This is intentionally simple for the thesis MVP:
 
-- Roles do not restrict access yet.
-- Existing pages do not have per-module history pages.
+- Role control is action-level and not full page-level isolation.
+- Existing pages do not have separate per-module history pages.
 - Audit logging focuses on current major create/update/status flows.
 - Account editing and password reset flows are not currently implemented, so only account creation is logged from Settings.
 - Receivables are derived from invoices, so receivable audit entries use the related invoice id and invoice number.
 - System-generated updates may use `System` if no logged-in user session is available.
+- Demo accounts and role checks are suitable for thesis demonstration and controlled pilot review, but production rollout should review password policy, session hardening, and administrative controls.

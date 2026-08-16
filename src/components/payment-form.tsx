@@ -104,7 +104,7 @@ export function PaymentForm({
       </label>
 
       <label className="text-sm font-medium text-slate-700">
-        Method
+        Payment Method
         <select name="paymentMethod" className={`${inputClass} mt-1`} defaultValue="BankTransfer">
           <option value="Cash">Cash</option>
           <option value="BankTransfer">Bank Transfer</option>

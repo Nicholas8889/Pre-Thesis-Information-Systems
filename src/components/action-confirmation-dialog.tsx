@@ -9,6 +9,7 @@ type PendingSubmission = {
   submitter: HTMLButtonElement | HTMLInputElement | null;
   title: string;
   requiresNote: boolean;
+  summary: string;
 };
 
 export function ActionConfirmationDialog() {
@@ -46,7 +47,13 @@ export function ActionConfirmationDialog() {
       }).requiresNote;
 
       setNote("");
-      setPending({ form, submitter, title: label, requiresNote: destructive });
+      setPending({
+        form,
+        submitter,
+        title: label,
+        requiresNote: destructive,
+        summary: form.dataset.confirmSummary?.trim() ?? ""
+      });
     };
 
     document.addEventListener("submit", handleSubmit, true);
@@ -106,6 +113,11 @@ export function ActionConfirmationDialog() {
           Review this action before submitting. Your note will be saved with the record and
           shown in the Audit Trail.
         </p>
+        {pending.summary && (
+          <div className="mt-4 whitespace-pre-line rounded-md border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold leading-7 text-slate-700">
+            {pending.summary}
+          </div>
+        )}
         <label className="mt-4 block text-sm font-semibold text-slate-700">
           Confirmation Note {pending.requiresNote ? "(required)" : "(optional)"}
           <textarea

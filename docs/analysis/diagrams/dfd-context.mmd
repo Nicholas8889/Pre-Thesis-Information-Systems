@@ -1,0 +1,30 @@
+%%{init: {"flowchart": {"curve": "stepBefore", "nodeSpacing": 80, "rankSpacing": 90}}}%%
+flowchart LR
+  Sales["Staff Sales\nExternal Entity"]
+  Admin["Staff Admin\nExternal Entity"]
+  Manager["General Manager\nExternal Entity"]
+  Administrator["Administrator\nExternal Entity"]
+  Customer["Customer\nNo direct app login"]
+
+  System(["0\nCV Tajuk Revenue Cycle\nInformation System"])
+
+  Sales -->|"Login data; customer inquiry; customer outreach; sales order/customer PO input"| System
+  System -->|"Dashboard sales; customer status; inquiry/order status; customer outreach reminders"| Sales
+
+  Admin -->|"Login data; invoice data; payment data; surat jalan data; collection data"| System
+  System -->|"Invoice list; payment status; surat jalan document; receivable and collection information"| Admin
+
+  Manager -->|"Login data; approval decision; monitoring and report filters"| System
+  System -->|"Management dashboard; approval queue; audit trail; revenue-cycle report"| Manager
+
+  Administrator -->|"Login data; user account and role data"| System
+  System -->|"User account list; access status; audit trail information"| Administrator
+
+  Customer -->|"Customer profile data; request details; PO document; payment information"| System
+  System -->|"Invoice information; payment receipt/status; surat jalan information; customer outreach information"| Customer
+
+  classDef entity fill:#b8d5f2,stroke:#5b8fc0,color:#1f2937
+  classDef process fill:#a8c9e8,stroke:#4f84b4,color:#1f2937
+
+  class Sales,Admin,Manager,Administrator,Customer entity
+  class System process

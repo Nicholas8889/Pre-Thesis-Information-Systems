@@ -36,8 +36,8 @@ Routes checked:
 - Payments
 - Surat Jalan
 - Receivables
-- Billing
-- Follow Up
+- Collections
+- Customer Outreach
 - Audit Trail
 - Settings
 

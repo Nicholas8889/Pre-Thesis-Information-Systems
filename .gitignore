@@ -13,3 +13,12 @@ prisma/dev.db
 prisma/dev.db-journal
 storage/pre-orders/*
 !storage/pre-orders/.gitkeep
+
+.codex/
+.vercel/
+.env*
+!.env.example
+*.tsbuildinfo
+/output/
+/outputs/
+/tmp/

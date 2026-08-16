@@ -2,14 +2,14 @@
 
 Updated: 18 July 2026
 
-This ERD reflects the active Prisma schema and the camelCase physical database naming currently applied by the migrations. Every physical primary key begins with `id` followed by its entity name, such as `idCustomer`, `idSalesOrder`, and `idInvoice`. Prisma maps these physical names to its stable application-facing `id` fields.
+This ERD uses the canonical Prisma domain API. The physical PostgreSQL schema uses lowercase snake_case table, column, enum-type, constraint, and index identifiers through explicit Prisma `@map`/`@@map` metadata; every primary key is `id`.
 
 ## Mermaid ERD
 
 ```mermaid
 erDiagram
   USER {
-    String idUser PK
+    String id PK
     String username UK
     String passwordHash
     String displayName
@@ -20,7 +20,7 @@ erDiagram
   }
 
   AUDIT_TRAIL {
-    String idAuditTrail PK
+    String id PK
     String actorUserId
     String actorUsername
     String actorDisplayName
@@ -28,7 +28,7 @@ erDiagram
     String moduleName
     String entityType
     String entityId
-    String transactionCode
+    String recordReference
     String action
     String changeSummary
     String actionNote
@@ -38,13 +38,14 @@ erDiagram
   }
 
   CUSTOMER {
-    String idCustomer PK
+    String id PK
     String name
     String companyName
+    String npwp UK
     String phone
     String email
     String address
-    String customerType
+    String customerSegment
     CustomerStatus status
     String notes
     DateTime createdAt
@@ -52,24 +53,24 @@ erDiagram
   }
 
   PRODUCT {
-    String idProduct PK
+    String id PK
     String productName
     String notes
-    Int basePrice
+    Int listPrice
     ProductStatus status
     DateTime createdAt
     DateTime updatedAt
   }
 
   SALES_ORDER {
-    String idSalesOrder PK
+    String id PK
     String orderNumber UK
-    String poNumber UK
-    TransactionType transactionType
+    String customerPoNumber UK
+    SalesOrderSource source
     DateTime requiredDate
-    String poDocumentName
-    String poDocumentStoredName
-    String poDocumentMimeType
+    String customerPoDocumentName
+    String customerPoDocumentStoredName
+    String customerPoDocumentMimeType
     String customerId FK
     DateTime orderDate
     SalesOrderStatus status
@@ -89,17 +90,20 @@ erDiagram
   }
 
   SALES_ORDER_ITEM {
-    String idSalesOrderItem PK
+    String id PK
     String salesOrderId FK
     String productId FK
     String itemName
     Int quantity
-    Int unitPrice
+    Int baseUnitPrice
+    Int markupPercent
+    Int discountPercent
+    Int finalUnitPrice
     Int subtotal
   }
 
   CUSTOMER_INQUIRY {
-    String idCustomerInquiry PK
+    String id PK
     String inquiryNumber UK
     String customerId FK
     DateTime inquiryDate
@@ -113,18 +117,18 @@ erDiagram
   }
 
   CUSTOMER_INQUIRY_ITEM {
-    String idCustomerInquiryItem PK
+    String id PK
     String customerInquiryId FK
     String productId FK
     String itemName
     Int quantity
-    Int requestedPrice
-    Int agreedPrice
+    Int requestedUnitPrice
+    Int agreedUnitPrice
     String notes
   }
 
   INVOICE {
-    String idInvoice PK
+    String id PK
     String invoiceNumber UK
     String salesOrderId FK
     String customerId FK
@@ -142,7 +146,7 @@ erDiagram
   }
 
   PAYMENT {
-    String idPayment PK
+    String id PK
     String invoiceId FK
     DateTime paymentDate
     Int amount
@@ -152,19 +156,19 @@ erDiagram
     DateTime updatedAt
   }
 
-  FOLLOW_UP {
-    String idFollowUp PK
+  COLLECTION_TASK {
+    String id PK
     String customerId FK
     String invoiceId FK
-    DateTime followUpDate
-    FollowUpStatus status
+    DateTime scheduledDate
+    CollectionTaskStatus status
     String notes
     DateTime createdAt
     DateTime updatedAt
   }
 
-  CUSTOMER_PRODUCT_FOLLOW_UP {
-    String idCustomerProductFollowUp PK
+  CUSTOMER_OUTREACH {
+    String id PK
     String customerId FK
     DateTime contactDate
     String notes
@@ -173,7 +177,7 @@ erDiagram
   }
 
   DELIVERY_NOTE {
-    String idDeliveryNote PK
+    String id PK
     String deliveryNoteNumber UK
     String invoiceId FK
     String salesOrderId FK
@@ -192,7 +196,7 @@ erDiagram
   }
 
   DELIVERY_NOTE_ITEM {
-    String idDeliveryNoteItem PK
+    String id PK
     String deliveryNoteId FK
     String productCode
     String itemName
@@ -211,9 +215,9 @@ erDiagram
   SALES_ORDER ||--o| INVOICE : generates
   CUSTOMER ||--o{ INVOICE : receives
   INVOICE ||--o{ PAYMENT : has
-  CUSTOMER ||--o{ FOLLOW_UP : has_billing
-  INVOICE ||--o{ FOLLOW_UP : may_have
-  CUSTOMER ||--o{ CUSTOMER_PRODUCT_FOLLOW_UP : has_contact
+  CUSTOMER ||--o{ COLLECTION_TASK : has_collection
+  INVOICE ||--o{ COLLECTION_TASK : may_have
+  CUSTOMER ||--o{ CUSTOMER_OUTREACH : has_contact
   CUSTOMER ||--o{ DELIVERY_NOTE : receives
   SALES_ORDER ||--o{ DELIVERY_NOTE : may_support
   INVOICE ||--o{ DELIVERY_NOTE : may_support
@@ -224,39 +228,39 @@ erDiagram
 
 | Entity | Primary key | Purpose |
 | --- | --- | --- |
-| User | `idUser` | Local account, role, login status, and authorization identity. |
-| AuditTrail | `idAuditTrail` | Immutable activity evidence including actor, action, confirmation note, and old/new values. |
-| Customer | `idCustomer` | Customer master data, active/inactive state, and notes. |
-| CustomerInquiry | `idCustomerInquiry` | Customer request with lifecycle status before it becomes an order or is closed/cancelled. |
-| CustomerInquiryItem | `idCustomerInquiryItem` | Requested product line, quantity, requested/agreed prices, and optional product match. |
-| SalesOrder | `idSalesOrder` | Revenue-cycle starting document, payment terms, totals, approval state, and notes. |
-| SalesOrderItem | `idSalesOrderItem` | Product or service lines belonging to a Sales Order. |
-| Invoice | `idInvoice` | Billing document generated from one Sales Order. |
-| Payment | `idPayment` | Partial or full payment recorded against an Invoice. |
-| FollowUp | `idFollowUp` | Billing/collection activity linked to a Customer and optionally an Invoice. |
-| CustomerProductFollowUp | `idCustomerProductFollowUp` | Product/contact activity for maintaining the customer relationship. |
-| DeliveryNote | `idDeliveryNote` | Surat Jalan header linked to a Customer and optionally an Invoice/Sales Order. |
-| DeliveryNoteItem | `idDeliveryNoteItem` | Product lines contained in a Surat Jalan. |
+| User | `id` | Local account, role, login status, and authorization identity. |
+| AuditTrail | `id` | Immutable activity evidence including actor, action, confirmation note, and old/new values. |
+| Customer | `id` | Customer master data, active/inactive state, and notes. |
+| CustomerInquiry | `id` | Customer request with lifecycle status before it becomes an order or is closed/cancelled. |
+| CustomerInquiryItem | `id` | Requested product line, quantity, Requested/Agreed Unit Prices, and optional product match. |
+| SalesOrder | `id` | Revenue-cycle starting document, payment terms, totals, approval state, and notes. |
+| SalesOrderItem | `id` | Product or service lines belonging to a Sales Order. |
+| Invoice | `id` | Amount-due document generated from one Sales Order. |
+| Payment | `id` | Partial or full payment recorded against an Invoice. |
+| CollectionTask | `id` | Payment collection task linked to a Customer and optionally an Invoice. |
+| CustomerOutreach | `id` | Product/contact activity for maintaining the customer relationship. |
+| DeliveryNote | `id` | Surat Jalan header linked to a Customer and optionally an Invoice/Sales Order. |
+| DeliveryNoteItem | `id` | Product lines contained in a Surat Jalan. |
 
 ## Relationship and Deletion Rules
 
-- One Customer can have many Sales Orders, Invoices, Billing Follow-ups, Product Follow-ups, and Delivery Notes.
-- One Customer can have many Customer Inquiries. One Customer Inquiry has one or more Customer Inquiry Items and can link to at most one Sales Order/Pre Order.
-- A Customer Inquiry Item can optionally match a Product. The product match and agreed price are required before conversion.
+- One Customer can have many Sales Orders, Invoices, Collection Tasks, Customer Outreach records, and Delivery Notes.
+- One Customer can have many Customer Inquiries. One Customer Inquiry has one or more Customer Inquiry Items and can link to at most one Sales Order/Customer PO.
+- A Customer Inquiry Item can optionally match a Product. The product match and Agreed Unit Price are required before conversion.
 - One Sales Order contains many Sales Order Items and can generate at most one Invoice.
-- One Invoice can have many Payments, Billing Follow-ups, and Delivery Notes.
+- One Invoice can have many Payments, Collection Tasks, and Delivery Notes.
 - One Delivery Note contains many Delivery Note Items.
-- Sales Order Items, Payments, Customer Product Follow-ups, and Delivery Note Items use cascade behavior where configured in Prisma.
-- Deleting an eligible ongoing Sales Order is an application transaction that explicitly removes its Delivery Notes, Billing Follow-ups, Payments, Invoice, Sales Order Items, and Sales Order. The Customer and Audit Trail remain.
-- Paid, delivered, or cancelled transaction chains are protected from Sales Order deletion.
-- When a linked Delivery Note is marked Delivered, a Converted to SO/PO Customer Inquiry becomes Done.
+- Sales Order Items, Payments, Customer Outreach records, and Delivery Note Items use cascade behavior where configured in Prisma.
+- Deleting an eligible ongoing Sales Order is an application transaction that explicitly removes its Delivery Notes, Collection Tasks, Payments, Invoice, Sales Order Items, and Sales Order. The Customer and Audit Trail remain.
+- Paid, delivered, or cancelled order chains are protected from Sales Order deletion.
+- When a linked Delivery Note is marked Delivered, a Customer Inquiry converted to a Sales Order or Customer PO becomes Done.
 
 ## Logical Concepts
 
 - Receivable is derived from `Invoice.remainingAmount`, `Invoice.status`, and `Invoice.dueDate`; there is no separate Receivable table.
 - Dashboard values and charts are calculated from operational entities and do not require a Dashboard table.
 - `actorUserId`, `createdByUserId`, and `approvalDecidedById` are stored as trace values but are not declared as Prisma foreign-key relations in the current MVP.
-- A Pre Order uses the SalesOrder table with transaction type `PRE_ORDER`; it adds an independent PO ID, required date, and PO document metadata.
+- A Customer PO uses the SalesOrder table with order source `CUSTOMER_PO`; it adds an independent Customer PO Number, required date, and PO document metadata.
 - Audit Trail records retain deletion evidence and the required deletion confirmation note after the operational record has been removed.
 
 ## Naming Notes

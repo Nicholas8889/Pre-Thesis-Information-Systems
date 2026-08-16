@@ -53,7 +53,7 @@ const navigationSections: Array<{ title: string; items: NavigationItem[] }> = [
     title: "Sales",
     items: [
       { href: "/sales-orders", label: "Sales Orders", icon: ShoppingCart },
-      { href: "/pre-orders", label: "Pre Orders", icon: ClipboardList },
+      { href: "/customer-purchase-orders", label: "Customer Purchase Orders", icon: ClipboardList },
       { href: "/invoices", label: "Invoices", icon: FileText },
       { href: "/surat-jalan", label: "Surat Jalan", icon: Truck }
     ]
@@ -63,13 +63,13 @@ const navigationSections: Array<{ title: string; items: NavigationItem[] }> = [
     items: [
       { href: "/payments", label: "Payments", icon: Banknote },
       { href: "/receivables", label: "Receivables", icon: ReceiptText },
-      { href: "/billing", label: "Billing", icon: Handshake }
+      { href: "/collections", label: "Collections", icon: Handshake }
     ]
   },
   {
     title: "Customer Relationship",
     items: [
-      { href: "/follow-ups", label: "Follow Up", icon: PhoneCall },
+      { href: "/customer-outreach", label: "Customer Outreach", icon: PhoneCall },
       { href: "/customer-inquiries", label: "Customer Inquiry", icon: MessageSquareText }
     ]
   },

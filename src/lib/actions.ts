@@ -6,14 +6,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import type {
+  Customer,
   CustomerStatus,
   CustomerInquiryStatus,
   DeliveryNoteStatus,
-  FollowUpStatus,
+  CollectionTaskStatus,
   PaymentMethod,
   ProductStatus,
   SalesOrderApprovalStatus,
-  TransactionType
+  SalesOrderSource
 } from "@prisma/client";
 import {
   canCreateDeliveryNoteForInvoice,
@@ -23,12 +24,14 @@ import {
 import { createAuditTrailLog } from "@/lib/audit";
 import { getCustomerPaymentRisk } from "@/lib/customer-intelligence";
 import { prisma } from "@/lib/prisma";
+import { parseOptionalNpwp } from "@/lib/npwp";
 import { canRole } from "@/lib/role-access";
 import {
   canGenerateInvoiceForApproval,
   requiresManagerApproval
 } from "@/lib/sales-order-approval";
 import { requireCurrentUser } from "@/lib/session";
+import { buildOrderTaxSnapshot } from "@/lib/tax";
 import {
   canDeleteOngoingSalesOrder,
   deleteSalesOrderProcess
@@ -37,12 +40,13 @@ import { mergeActionNotes, normalizeActionNote } from "@/lib/action-notes";
 import { parseOptionalInquiryPrice } from "@/lib/customer-inquiry";
 import { completeCustomerInquiryForDeliveredOrder } from "@/lib/customer-inquiry-lifecycle";
 import { nextNumberFromExisting } from "@/lib/document-numbering";
+import { validateDeliveryAssignment } from "@/lib/delivery-options";
 import {
-  deletePreOrderDocument,
-  PRE_ORDER_DOCUMENT_MAX_BYTES,
-  PRE_ORDER_DOCUMENT_TYPES,
-  uploadPreOrderDocument
-} from "@/lib/pre-order-storage";
+  deleteCustomerPoDocument,
+  CUSTOMER_PO_DOCUMENT_MAX_BYTES,
+  CUSTOMER_PO_DOCUMENT_TYPES,
+  uploadCustomerPoDocument
+} from "@/lib/customer-po-storage";
 import {
   calculateOrderTotals,
   getDueDateForPaymentTerm,
@@ -59,14 +63,14 @@ const pathsToRefresh = [
   "/customers",
   "/products",
   "/customer-inquiries",
-  "/pre-orders",
+  "/customer-purchase-orders",
   "/sales-orders",
   "/invoices",
   "/payments",
   "/surat-jalan",
   "/receivables",
-  "/billing",
-  "/follow-ups",
+  "/collections",
+  "/customer-outreach",
   "/audit-trail"
 ];
 
@@ -74,31 +78,49 @@ export async function createCustomer(formData: FormData) {
   await requireCurrentUser();
   const name = getRequiredString(formData, "name");
   const companyName = getRequiredString(formData, "companyName");
+  const npwpResult = parseOptionalNpwp(formData.get("npwp"));
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   if (!name || !companyName) {
-    redirectWithMessage("/customers", "error", "Customer name and company name are required");
+    redirectWithMessage("/customers", "error", "Contact person and company name are required");
+  }
+
+  if (!npwpResult.valid) {
+    redirectWithMessage("/customers?mode=add", "error", npwpResult.error);
   }
 
   const status = getStatus<CustomerStatus>(formData, "status", ["Active", "Inactive"], "Active");
-  const customer = await prisma.customer.create({
-    data: {
-      name,
-      companyName,
-      phone: getString(formData, "phone"),
-      email: getString(formData, "email"),
-      address: getString(formData, "address"),
-      customerType: getString(formData, "customerType") || "Retail",
-      status,
-      notes: mergeActionNotes(getString(formData, "notes"), actionNote)
+  let customer: Customer;
+  try {
+    customer = await prisma.customer.create({
+      data: {
+        name,
+        companyName,
+        npwp: npwpResult.value,
+        phone: getString(formData, "phone"),
+        email: getString(formData, "email"),
+        address: getString(formData, "address"),
+        customerSegment: getString(formData, "customerSegment") || "Retail",
+        status,
+        notes: mergeActionNotes(getString(formData, "notes"), actionNote)
+      }
+    });
+  } catch (error) {
+    if (isUniqueFieldCollision(error, "npwp")) {
+      redirectWithMessage(
+        "/customers?mode=add",
+        "error",
+        "NPWP is already used by another customer"
+      );
     }
-  });
+    throw error;
+  }
 
   await createAuditTrailLog({
     moduleName: "Customers",
     entityType: "CUSTOMER",
     entityId: customer.id,
-    transactionCode: customer.companyName || customer.name,
+    recordReference: customer.companyName || customer.name,
     action: "CREATED",
     actionNote,
     changeSummary: `Customer ${customer.companyName || customer.name} created`,
@@ -114,6 +136,7 @@ export async function updateCustomer(formData: FormData) {
   const id = getRequiredString(formData, "id");
   const name = getRequiredString(formData, "name");
   const companyName = getRequiredString(formData, "companyName");
+  const npwpResult = parseOptionalNpwp(formData.get("npwp"));
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   if (!id || !name || !companyName) {
@@ -124,6 +147,10 @@ export async function updateCustomer(formData: FormData) {
     );
   }
 
+  if (!npwpResult.valid) {
+    redirectWithMessage(`/customers?edit=${id}`, "error", npwpResult.error);
+  }
+
   const oldCustomer = await prisma.customer.findUnique({ where: { id } });
 
   if (!oldCustomer) {
@@ -131,25 +158,38 @@ export async function updateCustomer(formData: FormData) {
   }
 
   const status = getStatus<CustomerStatus>(formData, "status", ["Active", "Inactive"], "Active");
-  const customer = await prisma.customer.update({
-    where: { id },
-    data: {
-      name,
-      companyName,
-      phone: getString(formData, "phone"),
-      email: getString(formData, "email"),
-      address: getString(formData, "address"),
-      customerType: getString(formData, "customerType") || "Retail",
-      status,
-      notes: mergeActionNotes(getString(formData, "notes"), actionNote)
+  let customer: Customer;
+  try {
+    customer = await prisma.customer.update({
+      where: { id },
+      data: {
+        name,
+        companyName,
+        npwp: npwpResult.value,
+        phone: getString(formData, "phone"),
+        email: getString(formData, "email"),
+        address: getString(formData, "address"),
+        customerSegment: getString(formData, "customerSegment") || "Retail",
+        status,
+        notes: mergeActionNotes(getString(formData, "notes"), actionNote)
+      }
+    });
+  } catch (error) {
+    if (isUniqueFieldCollision(error, "npwp")) {
+      redirectWithMessage(
+        `/customers?edit=${id}`,
+        "error",
+        "NPWP is already used by another customer"
+      );
     }
-  });
+    throw error;
+  }
 
   await createAuditTrailLog({
     moduleName: "Customers",
     entityType: "CUSTOMER",
     entityId: customer.id,
-    transactionCode: customer.companyName || customer.name,
+    recordReference: customer.companyName || customer.name,
     action: oldCustomer.status !== customer.status ? "STATUS_CHANGED" : "UPDATED",
     actionNote,
     changeSummary:
@@ -190,7 +230,7 @@ export async function updateCustomerStatus(formData: FormData) {
     moduleName: "Customers",
     entityType: "CUSTOMER",
     entityId: customer.id,
-    transactionCode: customer.companyName || customer.name,
+    recordReference: customer.companyName || customer.name,
     action: "STATUS_CHANGED",
     actionNote,
     changeSummary: `Customer status changed from ${oldCustomer.status} to ${customer.status}`,
@@ -209,15 +249,15 @@ export async function updateCustomerStatus(formData: FormData) {
 export async function createProduct(formData: FormData) {
   await requireCurrentUser();
   const productName = getRequiredString(formData, "productName");
-  const basePrice = parseProductBasePrice(formData.get("basePrice"));
+  const listPrice = parseProductPrice(formData.get("listPrice"));
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   if (!productName) {
     redirectWithMessage("/products", "error", "Product name is required");
   }
 
-  if (basePrice === null) {
-    redirectWithMessage("/products", "error", "Base price must be a valid non-negative amount");
+  if (listPrice === null) {
+    redirectWithMessage("/products", "error", "List Price must be a valid non-negative amount");
   }
 
   const status = getStatus<ProductStatus>(formData, "status", ["Active", "Inactive"], "Active");
@@ -225,7 +265,7 @@ export async function createProduct(formData: FormData) {
     data: {
       productName,
       notes: mergeActionNotes(getString(formData, "notes"), actionNote),
-      basePrice,
+      listPrice,
       status
     }
   });
@@ -234,7 +274,7 @@ export async function createProduct(formData: FormData) {
     moduleName: "Products",
     entityType: "PRODUCT",
     entityId: product.id,
-    transactionCode: product.productName,
+    recordReference: product.productName,
     action: "CREATED",
     actionNote,
     changeSummary: `Product ${product.productName} created`,
@@ -249,15 +289,15 @@ export async function updateProduct(formData: FormData) {
   await requireCurrentUser();
   const id = getRequiredString(formData, "id");
   const productName = getRequiredString(formData, "productName");
-  const basePrice = parseProductBasePrice(formData.get("basePrice"));
+  const listPrice = parseProductPrice(formData.get("listPrice"));
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   if (!id || !productName) {
     redirectWithMessage("/products", "error", "Product ID and product name are required");
   }
 
-  if (basePrice === null) {
-    redirectWithMessage("/products", "error", "Base price must be a valid non-negative amount");
+  if (listPrice === null) {
+    redirectWithMessage("/products", "error", "List Price must be a valid non-negative amount");
   }
 
   const oldProduct = await prisma.product.findUnique({ where: { id } });
@@ -272,7 +312,7 @@ export async function updateProduct(formData: FormData) {
     data: {
       productName,
       notes: mergeActionNotes(getString(formData, "notes"), actionNote),
-      basePrice,
+      listPrice,
       status
     }
   });
@@ -281,7 +321,7 @@ export async function updateProduct(formData: FormData) {
     moduleName: "Products",
     entityType: "PRODUCT",
     entityId: product.id,
-    transactionCode: product.productName,
+    recordReference: product.productName,
     action: oldProduct.status !== product.status ? "STATUS_CHANGED" : "UPDATED",
     actionNote,
     changeSummary:
@@ -322,7 +362,7 @@ export async function updateProductStatus(formData: FormData) {
     moduleName: "Products",
     entityType: "PRODUCT",
     entityId: product.id,
-    transactionCode: product.productName,
+    recordReference: product.productName,
     action: "STATUS_CHANGED",
     actionNote,
     changeSummary: `Product status changed from ${oldProduct.status} to ${product.status}`,
@@ -349,8 +389,8 @@ export async function createCustomerInquiry(formData: FormData) {
         productId: typeof item?.productId === "string" && item.productId ? item.productId : null,
         itemName: typeof item?.itemName === "string" ? item.itemName.trim() : "",
         quantity: Number(item?.quantity),
-        requestedPrice: parseOptionalInquiryPrice(item?.requestedPrice),
-        agreedPrice: parseOptionalInquiryPrice(item?.agreedPrice),
+        requestedUnitPrice: parseOptionalInquiryPrice(item?.requestedUnitPrice),
+        agreedUnitPrice: parseOptionalInquiryPrice(item?.agreedUnitPrice),
         notes: typeof item?.notes === "string" && item.notes.trim() ? item.notes.trim() : null
       }))
     : [];
@@ -362,7 +402,7 @@ export async function createCustomerInquiry(formData: FormData) {
   if (!customer) redirectWithMessage("/customer-inquiries", "error", "Customer was not found");
   const inquiryNumber = `INQ-${new Date().getFullYear()}-${String((await prisma.customerInquiry.count()) + 1).padStart(3, "0")}`;
   const inquiry = await prisma.customerInquiry.create({ data: { inquiryNumber, customerId, neededBy, notes: notes || null, items: { create: items } } });
-  await createAuditTrailLog({ moduleName: "Customer Inquiry", entityType: "CUSTOMER_INQUIRY", entityId: inquiry.id, transactionCode: inquiry.inquiryNumber, action: "CREATED", changeSummary: `Customer inquiry ${inquiry.inquiryNumber} created for ${customer.companyName}`, newValue: { status: inquiry.status, itemCount: items.length } });
+  await createAuditTrailLog({ moduleName: "Customer Inquiry", entityType: "CUSTOMER_INQUIRY", entityId: inquiry.id, recordReference: inquiry.inquiryNumber, action: "CREATED", changeSummary: `Customer inquiry ${inquiry.inquiryNumber} created for ${customer.companyName}`, newValue: { status: inquiry.status, itemCount: items.length } });
   refreshApp();
   redirectWithMessage(`/customer-inquiries/${inquiry.id}`, "success", "Customer inquiry created");
 }
@@ -376,22 +416,22 @@ export async function updateCustomerInquiryStatus(formData: FormData) {
   const inquiry = await prisma.customerInquiry.findUnique({ where: { id: inquiryId } });
   if (!inquiry || inquiry.status !== "Open") redirectWithMessage("/customer-inquiries", "error", "Only open inquiries can be updated");
   await prisma.customerInquiry.update({ where: { id: inquiryId }, data: { status, statusNote } });
-  await createAuditTrailLog({ moduleName: "Customer Inquiry", entityType: "CUSTOMER_INQUIRY", entityId: inquiryId, transactionCode: inquiry.inquiryNumber, action: status === "Cancelled" ? "CANCELLED" : "CLOSED", changeSummary: `Customer inquiry ${inquiry.inquiryNumber} marked ${status.toLowerCase()} by ${currentUser.displayName}`, newValue: { status, statusNote } });
+  await createAuditTrailLog({ moduleName: "Customer Inquiry", entityType: "CUSTOMER_INQUIRY", entityId: inquiryId, recordReference: inquiry.inquiryNumber, action: status === "Cancelled" ? "CANCELLED" : "CLOSED", changeSummary: `Customer inquiry ${inquiry.inquiryNumber} marked ${status.toLowerCase()} by ${currentUser.displayName}`, newValue: { status, statusNote } });
   refreshApp();
   redirectWithMessage(`/customer-inquiries/${inquiryId}`, "success", `Inquiry marked ${status.toLowerCase()}`);
 }
 
 export async function createSalesOrder(formData: FormData) {
-  const transactionType = getStatus<TransactionType>(
+  const source = getStatus<SalesOrderSource>(
     formData,
-    "transactionType",
-    ["SALES_ORDER", "PRE_ORDER"],
-    "SALES_ORDER"
+    "source",
+    ["DIRECT", "CUSTOMER_PO"],
+    "DIRECT"
   );
-  const isPreOrder = transactionType === "PRE_ORDER";
-  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
-  const moduleName = isPreOrder ? "Pre Orders" : "Sales Orders";
-  const transactionLabel = isPreOrder ? "Pre order" : "Sales order";
+  const isCustomerPo = source === "CUSTOMER_PO";
+  const basePath = isCustomerPo ? "/customer-purchase-orders" : "/sales-orders";
+  const moduleName = isCustomerPo ? "Customer Purchase Orders" : "Sales Orders";
+  const orderLabel = isCustomerPo ? "Customer PO" : "Sales order";
   const customerId = getRequiredString(formData, "customerId");
   const inquiryId = getString(formData, "inquiryId");
   const rawItems = getString(formData, "items");
@@ -422,7 +462,7 @@ export async function createSalesOrder(formData: FormData) {
     redirectWithMessage(
       `${basePath}?mode=create`,
       "error",
-      "Select Debit or choose a Credit term from 1 to 12 months"
+      "Select Immediate Payment or choose a Credit term from 1 to 12 months"
     );
   }
 
@@ -480,12 +520,16 @@ export async function createSalesOrder(formData: FormData) {
     itemName: productNames.get(item.productId) ?? item.itemName
   }));
   const totals = calculateOrderTotals(items);
-  const requiredDate = isPreOrder
+  const taxSnapshot = buildOrderTaxSnapshot({
+    totalAmount: totals.total,
+    customerNpwp: customer.npwp
+  });
+  const requiredDate = isCustomerPo
     ? parseDateInput(getString(formData, "requiredDate"))
     : null;
-  const poDocument = isPreOrder ? getPreOrderDocument(formData) : null;
+  const customerPoDocument = isCustomerPo ? getCustomerPoDocument(formData) : null;
 
-  if (isPreOrder && !requiredDate) {
+  if (isCustomerPo && !requiredDate) {
     redirectWithMessage(
       `${basePath}?mode=create`,
       "error",
@@ -493,7 +537,7 @@ export async function createSalesOrder(formData: FormData) {
     );
   }
 
-  if (isPreOrder && !poDocument) {
+  if (isCustomerPo && !customerPoDocument) {
     redirectWithMessage(
       `${basePath}?mode=create`,
       "error",
@@ -501,30 +545,31 @@ export async function createSalesOrder(formData: FormData) {
     );
   }
 
-  const storedDocument = poDocument ? await storePreOrderDocument(poDocument) : null;
-  const buildTransactionData = (poNumber: string | null) => ({
-    transactionType,
-    poNumber,
+  const storedDocument = customerPoDocument ? await storeCustomerPoDocument(customerPoDocument) : null;
+  const buildOrderSourceData = (customerPoNumber: string | null) => ({
+    source,
+    customerPoNumber,
     requiredDate,
-    poDocumentName: storedDocument?.originalName ?? null,
-    poDocumentStoredName: storedDocument?.storedName ?? null,
-    poDocumentMimeType: storedDocument?.mimeType ?? null
+    customerPoDocumentName: storedDocument?.originalName ?? null,
+    customerPoDocumentStoredName: storedDocument?.storedName ?? null,
+    customerPoDocumentMimeType: storedDocument?.mimeType ?? null
   });
   const paymentRisk = getCustomerPaymentRisk(customer);
   const needsApproval = requiresManagerApproval(currentUser?.role ?? "", paymentRisk);
 
   if (needsApproval) {
     const salesOrder = await withDocumentNumberRetry(
-      async ({ orderNumber, poNumber }) =>
+      async ({ orderNumber, customerPoNumber }) =>
         prisma.salesOrder.create({
           data: {
             orderNumber,
-            ...buildTransactionData(poNumber),
+            ...buildOrderSourceData(customerPoNumber),
             customerId,
             orderDate: new Date(),
             status: "Draft",
             subtotal: totals.subtotal,
             total: totals.total,
+            ...taxSnapshot,
             paymentTermType,
             creditTermMonths,
             notes: mergeActionNotes(notes, actionNote),
@@ -536,34 +581,35 @@ export async function createSalesOrder(formData: FormData) {
                 productId: item.productId,
                 itemName: item.itemName,
                 quantity: item.quantity,
-                basePrice: item.basePrice,
+                baseUnitPrice: item.baseUnitPrice,
                 markupPercent: item.markupPercent,
                 discountPercent: item.discountPercent,
-                unitPrice: item.unitPrice,
-                subtotal: item.quantity * item.unitPrice
+                finalUnitPrice: item.finalUnitPrice,
+                subtotal: item.quantity * item.finalUnitPrice
               }))
             }
           }
         }),
-      { includePo: isPreOrder }
+      { includeCustomerPo: isCustomerPo }
     );
-    await linkCustomerInquiry(inquiryId, salesOrder.id, isPreOrder);
+    await linkCustomerInquiry(inquiryId, salesOrder.id, isCustomerPo);
 
     await createAuditTrailLog({
       moduleName,
       entityType: "SALES_ORDER",
       entityId: salesOrder.id,
-      transactionCode: salesOrder.orderNumber,
+      recordReference: salesOrder.orderNumber,
       action: "APPROVAL_REQUESTED",
       actionNote,
-      changeSummary: `${transactionLabel} ${salesOrder.orderNumber} requires Manager approval because the customer is ${paymentRisk}`,
+      changeSummary: `${orderLabel} ${salesOrder.orderNumber} requires Manager approval because the customer is ${paymentRisk}`,
       newValue: {
         orderNumber: salesOrder.orderNumber,
-        poNumber: salesOrder.poNumber,
+        customerPoNumber: salesOrder.customerPoNumber,
         status: salesOrder.status,
         approvalStatus: salesOrder.approvalStatus,
         approvalRisk: paymentRisk,
         total: salesOrder.total,
+        taxSnapshot: summarizeTaxSnapshot(salesOrder),
         items: summarizeOrderPricing(items)
       }
     });
@@ -572,22 +618,23 @@ export async function createSalesOrder(formData: FormData) {
     redirectWithMessage(
       `${basePath}?tab=approval`,
       "success",
-      `${transactionLabel} submitted for Manager approval`
+      `${orderLabel} submitted for Manager approval`
     );
   }
 
   if (currentUser?.role === "SALES") {
     const salesOrder = await withDocumentNumberRetry(
-      async ({ orderNumber, poNumber }) =>
+      async ({ orderNumber, customerPoNumber }) =>
         prisma.salesOrder.create({
           data: {
             orderNumber,
-            ...buildTransactionData(poNumber),
+            ...buildOrderSourceData(customerPoNumber),
             customerId,
             orderDate: new Date(),
             status: "Confirmed",
             subtotal: totals.subtotal,
             total: totals.total,
+            ...taxSnapshot,
             paymentTermType,
             creditTermMonths,
             notes: mergeActionNotes(notes, actionNote),
@@ -598,33 +645,34 @@ export async function createSalesOrder(formData: FormData) {
                 productId: item.productId,
                 itemName: item.itemName,
                 quantity: item.quantity,
-                basePrice: item.basePrice,
+                baseUnitPrice: item.baseUnitPrice,
                 markupPercent: item.markupPercent,
                 discountPercent: item.discountPercent,
-                unitPrice: item.unitPrice,
-                subtotal: item.quantity * item.unitPrice
+                finalUnitPrice: item.finalUnitPrice,
+                subtotal: item.quantity * item.finalUnitPrice
               }))
             }
           }
         }),
-      { includePo: isPreOrder }
+      { includeCustomerPo: isCustomerPo }
     );
-    await linkCustomerInquiry(inquiryId, salesOrder.id, isPreOrder);
+    await linkCustomerInquiry(inquiryId, salesOrder.id, isCustomerPo);
 
     await createAuditTrailLog({
       moduleName,
       entityType: "SALES_ORDER",
       entityId: salesOrder.id,
-      transactionCode: salesOrder.orderNumber,
+      recordReference: salesOrder.orderNumber,
       action: "CREATED",
       actionNote,
-      changeSummary: `${transactionLabel} ${salesOrder.orderNumber} created and is ready for Admin or Manager invoicing`,
+      changeSummary: `${orderLabel} ${salesOrder.orderNumber} created and is ready for Admin or Manager invoicing`,
       newValue: {
         orderNumber: salesOrder.orderNumber,
-        poNumber: salesOrder.poNumber,
+        customerPoNumber: salesOrder.customerPoNumber,
         status: salesOrder.status,
         approvalStatus: salesOrder.approvalStatus,
         total: salesOrder.total,
+        taxSnapshot: summarizeTaxSnapshot(salesOrder),
         paymentTermType: salesOrder.paymentTermType,
         items: summarizeOrderPricing(items)
       }
@@ -634,7 +682,7 @@ export async function createSalesOrder(formData: FormData) {
     redirectWithMessage(
       `${basePath}?view=${salesOrder.id}`,
       "success",
-      `${transactionLabel} created. Admin or Manager can generate the invoice`
+      `${orderLabel} created. Admin or Manager can generate the invoice`
     );
   }
 
@@ -646,17 +694,18 @@ export async function createSalesOrder(formData: FormData) {
   });
 
   const result = await withDocumentNumberRetry(
-    ({ orderNumber, poNumber, invoiceNumber }) =>
+    ({ orderNumber, customerPoNumber, invoiceNumber }) =>
       prisma.$transaction(async (tx) => {
         const salesOrder = await tx.salesOrder.create({
           data: {
             orderNumber,
-            ...buildTransactionData(poNumber),
+            ...buildOrderSourceData(customerPoNumber),
             customerId,
             orderDate: issueDate,
             status: "Invoiced",
             subtotal: totals.subtotal,
             total: totals.total,
+            ...taxSnapshot,
             paymentTermType,
             creditTermMonths,
             notes: mergeActionNotes(notes, actionNote),
@@ -667,11 +716,11 @@ export async function createSalesOrder(formData: FormData) {
                 productId: item.productId,
                 itemName: item.itemName,
                 quantity: item.quantity,
-                basePrice: item.basePrice,
+                baseUnitPrice: item.baseUnitPrice,
                 markupPercent: item.markupPercent,
                 discountPercent: item.discountPercent,
-                unitPrice: item.unitPrice,
-                subtotal: item.quantity * item.unitPrice
+                finalUnitPrice: item.finalUnitPrice,
+                subtotal: item.quantity * item.finalUnitPrice
               }))
             }
           }
@@ -687,6 +736,11 @@ export async function createSalesOrder(formData: FormData) {
             totalAmount: salesOrder.total,
             paidAmount: 0,
             remainingAmount: salesOrder.total,
+            customerNpwpSnapshot: salesOrder.customerNpwpSnapshot,
+            ppnApplied: salesOrder.ppnApplied,
+            ppnRateBasisPoints: salesOrder.ppnRateBasisPoints,
+            ppnAmount: salesOrder.ppnAmount,
+            netSalesAmount: salesOrder.netSalesAmount,
             paymentTermType,
             creditTermMonths,
             status: "Unpaid",
@@ -694,39 +748,40 @@ export async function createSalesOrder(formData: FormData) {
           }
         });
 
-        const followUp =
+        const collectionTask =
           paymentTermType === "CREDIT"
-            ? await tx.followUp.create({
+            ? await tx.collectionTask.create({
                 data: {
                   customerId,
                   invoiceId: createdInvoice.id,
-                  followUpDate: dueDate,
+                  scheduledDate: dueDate,
                   status: "Planned",
-                  notes: `Credit billing reminder for ${invoiceNumber}`
+                  notes: `Credit payment collection reminder for ${invoiceNumber}`
                 }
               })
             : null;
 
-        return { salesOrder, invoice: createdInvoice, followUp };
+        return { salesOrder, invoice: createdInvoice, collectionTask };
       }),
-    { includePo: isPreOrder, includeInvoice: true }
+    { includeCustomerPo: isCustomerPo, includeInvoice: true }
   );
 
-  await linkCustomerInquiry(inquiryId, result.salesOrder.id, isPreOrder);
+  await linkCustomerInquiry(inquiryId, result.salesOrder.id, isCustomerPo);
 
   await createAuditTrailLog({
     moduleName,
     entityType: "SALES_ORDER",
     entityId: result.salesOrder.id,
-    transactionCode: result.salesOrder.orderNumber,
+    recordReference: result.salesOrder.orderNumber,
     action: "CREATED",
     actionNote,
-    changeSummary: `${transactionLabel} ${result.salesOrder.orderNumber} created and invoiced`,
+    changeSummary: `${orderLabel} ${result.salesOrder.orderNumber} created and invoiced`,
     newValue: {
       orderNumber: result.salesOrder.orderNumber,
-      poNumber: result.salesOrder.poNumber,
+      customerPoNumber: result.salesOrder.customerPoNumber,
       status: result.salesOrder.status,
       total: result.salesOrder.total,
+      taxSnapshot: summarizeTaxSnapshot(result.salesOrder),
       paymentTermType: result.salesOrder.paymentTermType,
       creditTermMonths: result.salesOrder.creditTermMonths,
       items: summarizeOrderPricing(items)
@@ -736,7 +791,7 @@ export async function createSalesOrder(formData: FormData) {
     moduleName: "Invoices",
     entityType: "INVOICE",
     entityId: result.invoice.id,
-    transactionCode: result.invoice.invoiceNumber,
+    recordReference: result.invoice.invoiceNumber,
     action: "CREATED",
     actionNote,
     changeSummary: `Invoice ${result.invoice.invoiceNumber} generated from sales order ${result.salesOrder.orderNumber}`,
@@ -746,37 +801,37 @@ export async function createSalesOrder(formData: FormData) {
     moduleName: "Receivables",
     entityType: "RECEIVABLE",
     entityId: result.invoice.id,
-    transactionCode: result.invoice.invoiceNumber,
+    recordReference: result.invoice.invoiceNumber,
     action: "CREATED",
     actionNote,
     changeSummary: `Receivable created from invoice ${result.invoice.invoiceNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
-  if (result.followUp) {
+  if (result.collectionTask) {
     await createAuditTrailLog({
-      moduleName: "Billing",
-      entityType: "FOLLOW_UP",
-      entityId: result.followUp.id,
-      transactionCode: result.invoice.invoiceNumber,
+      moduleName: "Collections",
+      entityType: "COLLECTION_TASK",
+      entityId: result.collectionTask.id,
+      recordReference: result.invoice.invoiceNumber,
       action: "CREATED",
       actionNote,
-      changeSummary: `Credit billing reminder created for invoice ${result.invoice.invoiceNumber}`,
-      newValue: summarizeFollowUp(result.followUp)
+      changeSummary: `Credit payment collection task created for invoice ${result.invoice.invoiceNumber}`,
+      newValue: summarizeCollectionTask(result.collectionTask)
     });
   }
 
   refreshApp();
   redirect(
     `/invoices?view=${result.invoice.id}&success=${encodeURIComponent(
-      `${transactionLabel} confirmed and invoice generated`
+      `${orderLabel} confirmed and invoice generated`
     )}`
   );
 }
 
 export async function deleteSalesOrder(formData: FormData) {
   const salesOrderId = getRequiredString(formData, "salesOrderId");
-  const requestedBasePath = getString(formData, "returnPath") === "/pre-orders"
-    ? "/pre-orders"
+  const requestedBasePath = getString(formData, "returnPath") === "/customer-purchase-orders"
+    ? "/customer-purchase-orders"
     : "/sales-orders";
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   const currentUser = await requireCurrentUser();
@@ -803,7 +858,7 @@ export async function deleteSalesOrder(formData: FormData) {
       invoice: {
         include: {
           payments: true,
-          followUps: true,
+          collectionTasks: true,
           deliveryNotes: { select: { id: true, status: true } }
         }
       },
@@ -813,12 +868,12 @@ export async function deleteSalesOrder(formData: FormData) {
   });
 
   if (!salesOrder) {
-    redirectWithMessage(requestedBasePath, "error", "Transaction was not found");
+    redirectWithMessage(requestedBasePath, "error", "Order was not found");
   }
 
-  const isPreOrder = salesOrder.transactionType === "PRE_ORDER";
-  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
-  const transactionLabel = isPreOrder ? "Pre order" : "Sales order";
+  const isCustomerPo = salesOrder.source === "CUSTOMER_PO";
+  const basePath = isCustomerPo ? "/customer-purchase-orders" : "/sales-orders";
+  const orderLabel = isCustomerPo ? "Customer PO" : "Sales order";
 
   if (
     !canDeleteOngoingSalesOrder({
@@ -844,7 +899,7 @@ export async function deleteSalesOrder(formData: FormData) {
     invoiceNumber: salesOrder.invoice?.invoiceNumber ?? null,
     itemCount: salesOrder.items.length,
     paymentCount: salesOrder.invoice?.payments.length ?? 0,
-    billingCount: salesOrder.invoice?.followUps.length ?? 0,
+    collectionTaskCount: salesOrder.invoice?.collectionTasks.length ?? 0,
     deliveryNoteCount: new Set([
       ...salesOrder.deliveryNotes.map((note) => note.id),
       ...(salesOrder.invoice?.deliveryNotes ?? []).map((note) => note.id)
@@ -858,18 +913,18 @@ export async function deleteSalesOrder(formData: FormData) {
     });
   });
 
-  if (salesOrder.poDocumentStoredName) {
-    await deletePreOrderDocument(salesOrder.poDocumentStoredName).catch(() => undefined);
+  if (salesOrder.customerPoDocumentStoredName) {
+    await deleteCustomerPoDocument(salesOrder.customerPoDocumentStoredName).catch(() => undefined);
   }
 
   await createAuditTrailLog({
-    moduleName: isPreOrder ? "Pre Orders" : "Sales Orders",
+    moduleName: isCustomerPo ? "Customer Purchase Orders" : "Sales Orders",
     entityType: "SALES_ORDER",
     entityId: salesOrder.id,
-    transactionCode: salesOrder.orderNumber,
+    recordReference: salesOrder.orderNumber,
     action: "DELETED",
     actionNote,
-    changeSummary: `Ongoing ${transactionLabel.toLowerCase()} ${salesOrder.orderNumber} and its related process records were deleted`,
+    changeSummary: `Ongoing ${orderLabel.toLowerCase()} ${salesOrder.orderNumber} and its related process records were deleted`,
     oldValue: deletedSummary
   });
 
@@ -877,7 +932,7 @@ export async function deleteSalesOrder(formData: FormData) {
   redirectWithMessage(
     basePath,
     "success",
-    `${transactionLabel} ${salesOrder.orderNumber} and its related records were deleted`
+    `${orderLabel} ${salesOrder.orderNumber} and its related records were deleted`
   );
 }
 
@@ -903,9 +958,9 @@ export async function generateInvoice(formData: FormData) {
     redirectWithMessage("/sales-orders", "error", "Sales order was not found");
   }
 
-  const isPreOrder = salesOrder.transactionType === "PRE_ORDER";
-  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
-  const transactionLabel = isPreOrder ? "Pre order" : "Sales order";
+  const isCustomerPo = salesOrder.source === "CUSTOMER_PO";
+  const basePath = isCustomerPo ? "/customer-purchase-orders" : "/sales-orders";
+  const orderLabel = isCustomerPo ? "Customer PO" : "Sales order";
 
   if (salesOrder.invoice) {
     redirectWithMessage(
@@ -944,6 +999,11 @@ export async function generateInvoice(formData: FormData) {
         totalAmount: salesOrder.total,
         paidAmount: 0,
         remainingAmount: salesOrder.total,
+        customerNpwpSnapshot: salesOrder.customerNpwpSnapshot,
+        ppnApplied: salesOrder.ppnApplied,
+        ppnRateBasisPoints: salesOrder.ppnRateBasisPoints,
+        ppnAmount: salesOrder.ppnAmount,
+        netSalesAmount: salesOrder.netSalesAmount,
         paymentTermType: salesOrder.paymentTermType,
         creditTermMonths: salesOrder.creditTermMonths,
         status: "Unpaid",
@@ -959,40 +1019,40 @@ export async function generateInvoice(formData: FormData) {
       }
     });
 
-    const followUp =
+    const collectionTask =
       salesOrder.paymentTermType === "CREDIT"
-        ? await tx.followUp.create({
+        ? await tx.collectionTask.create({
         data: {
           customerId: salesOrder.customerId,
           invoiceId: createdInvoice.id,
-          followUpDate: dueDate,
+          scheduledDate: dueDate,
           status: "Planned",
-          notes: `Credit billing reminder for ${invoiceNumber}`
+          notes: `Credit payment collection reminder for ${invoiceNumber}`
         }
           })
         : null;
 
-    return { invoice: createdInvoice, salesOrder: updatedSalesOrder, followUp };
+    return { invoice: createdInvoice, salesOrder: updatedSalesOrder, collectionTask };
   });
 
   await createAuditTrailLog({
     moduleName: "Invoices",
     entityType: "INVOICE",
     entityId: result.invoice.id,
-    transactionCode: result.invoice.invoiceNumber,
+    recordReference: result.invoice.invoiceNumber,
     action: "CREATED",
     actionNote,
-    changeSummary: `Invoice ${result.invoice.invoiceNumber} generated from ${transactionLabel.toLowerCase()} ${result.salesOrder.orderNumber}`,
+    changeSummary: `Invoice ${result.invoice.invoiceNumber} generated from ${orderLabel.toLowerCase()} ${result.salesOrder.orderNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
   await createAuditTrailLog({
-    moduleName: isPreOrder ? "Pre Orders" : "Sales Orders",
+    moduleName: isCustomerPo ? "Customer Purchase Orders" : "Sales Orders",
     entityType: "SALES_ORDER",
     entityId: result.salesOrder.id,
-    transactionCode: result.salesOrder.orderNumber,
+    recordReference: result.salesOrder.orderNumber,
     action: "STATUS_CHANGED",
     actionNote,
-    changeSummary: `${transactionLabel} status changed to ${result.salesOrder.status}`,
+    changeSummary: `${orderLabel} status changed to ${result.salesOrder.status}`,
     oldValue: { status: salesOrder.status },
     newValue: { status: result.salesOrder.status }
   });
@@ -1000,22 +1060,22 @@ export async function generateInvoice(formData: FormData) {
     moduleName: "Receivables",
     entityType: "RECEIVABLE",
     entityId: result.invoice.id,
-    transactionCode: result.invoice.invoiceNumber,
+    recordReference: result.invoice.invoiceNumber,
     action: "CREATED",
     actionNote,
     changeSummary: `Receivable created from invoice ${result.invoice.invoiceNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
-  if (result.followUp) {
+  if (result.collectionTask) {
     await createAuditTrailLog({
-      moduleName: "Billing",
-      entityType: "FOLLOW_UP",
-      entityId: result.followUp.id,
-      transactionCode: result.invoice.invoiceNumber,
+      moduleName: "Collections",
+      entityType: "COLLECTION_TASK",
+      entityId: result.collectionTask.id,
+      recordReference: result.invoice.invoiceNumber,
       action: "CREATED",
       actionNote,
-      changeSummary: `Credit billing reminder created for invoice ${result.invoice.invoiceNumber}`,
-      newValue: summarizeFollowUp(result.followUp)
+      changeSummary: `Credit payment collection task created for invoice ${result.invoice.invoiceNumber}`,
+      newValue: summarizeCollectionTask(result.collectionTask)
     });
   }
 
@@ -1026,8 +1086,8 @@ export async function generateInvoice(formData: FormData) {
 export async function decideSalesOrderApproval(formData: FormData) {
   const currentUser = await requireCurrentUser();
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
-  const requestedBasePath = getString(formData, "returnPath") === "/pre-orders"
-    ? "/pre-orders"
+  const requestedBasePath = getString(formData, "returnPath") === "/customer-purchase-orders"
+    ? "/customer-purchase-orders"
     : "/sales-orders";
   if (!currentUser || currentUser.role !== "MANAGER") {
     redirectWithMessage(
@@ -1054,11 +1114,11 @@ export async function decideSalesOrderApproval(formData: FormData) {
   });
 
   if (!salesOrder) {
-    redirectWithMessage(`${requestedBasePath}?tab=approval`, "error", "Transaction was not found");
+    redirectWithMessage(`${requestedBasePath}?tab=approval`, "error", "Order was not found");
   }
-  const isPreOrder = salesOrder.transactionType === "PRE_ORDER";
-  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
-  const transactionLabel = isPreOrder ? "Pre order" : "Sales order";
+  const isCustomerPo = salesOrder.source === "CUSTOMER_PO";
+  const basePath = isCustomerPo ? "/customer-purchase-orders" : "/sales-orders";
+  const orderLabel = isCustomerPo ? "Customer PO" : "Sales order";
   if (salesOrder.approvalStatus !== "Pending") {
     redirectWithMessage(
       `${basePath}?tab=approval`,
@@ -1088,13 +1148,13 @@ export async function decideSalesOrderApproval(formData: FormData) {
     });
 
     await createAuditTrailLog({
-      moduleName: isPreOrder ? "Pre Orders" : "Sales Orders",
+      moduleName: isCustomerPo ? "Customer Purchase Orders" : "Sales Orders",
       entityType: "SALES_ORDER",
       entityId: rejectedOrder.id,
-      transactionCode: rejectedOrder.orderNumber,
+      recordReference: rejectedOrder.orderNumber,
       action: "REJECTED",
       actionNote,
-      changeSummary: `Manager rejected ${transactionLabel.toLowerCase()} ${rejectedOrder.orderNumber}`,
+      changeSummary: `Manager rejected ${orderLabel.toLowerCase()} ${rejectedOrder.orderNumber}`,
       oldValue: { status: salesOrder.status, approvalStatus: salesOrder.approvalStatus },
       newValue: {
         status: rejectedOrder.status,
@@ -1104,7 +1164,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
     });
 
     refreshApp();
-    redirectWithMessage(`${basePath}?tab=approval`, "success", `${transactionLabel} rejected`);
+    redirectWithMessage(`${basePath}?tab=approval`, "success", `${orderLabel} rejected`);
   }
 
   const issueDate = new Date();
@@ -1126,6 +1186,11 @@ export async function decideSalesOrderApproval(formData: FormData) {
         totalAmount: salesOrder.total,
         paidAmount: 0,
         remainingAmount: salesOrder.total,
+        customerNpwpSnapshot: salesOrder.customerNpwpSnapshot,
+        ppnApplied: salesOrder.ppnApplied,
+        ppnRateBasisPoints: salesOrder.ppnRateBasisPoints,
+        ppnAmount: salesOrder.ppnAmount,
+        netSalesAmount: salesOrder.netSalesAmount,
         paymentTermType: salesOrder.paymentTermType,
         creditTermMonths: salesOrder.creditTermMonths,
         status: "Unpaid",
@@ -1143,29 +1208,29 @@ export async function decideSalesOrderApproval(formData: FormData) {
         notes: mergeActionNotes(salesOrder.notes, actionNote)
       }
     });
-    const followUp =
+    const collectionTask =
       salesOrder.paymentTermType === "CREDIT"
-        ? await tx.followUp.create({
+        ? await tx.collectionTask.create({
             data: {
               customerId: salesOrder.customerId,
               invoiceId: invoice.id,
-              followUpDate: dueDate,
+              scheduledDate: dueDate,
               status: "Planned",
-              notes: `Credit billing reminder for ${invoiceNumber}`
+              notes: `Credit payment collection reminder for ${invoiceNumber}`
             }
           })
         : null;
-    return { invoice, salesOrder: approvedOrder, followUp };
+    return { invoice, salesOrder: approvedOrder, collectionTask };
   });
 
   await createAuditTrailLog({
-    moduleName: isPreOrder ? "Pre Orders" : "Sales Orders",
+    moduleName: isCustomerPo ? "Customer Purchase Orders" : "Sales Orders",
     entityType: "SALES_ORDER",
     entityId: result.salesOrder.id,
-    transactionCode: result.salesOrder.orderNumber,
+    recordReference: result.salesOrder.orderNumber,
     action: "APPROVED",
     actionNote,
-    changeSummary: `Manager approved ${transactionLabel.toLowerCase()} ${result.salesOrder.orderNumber}`,
+    changeSummary: `Manager approved ${orderLabel.toLowerCase()} ${result.salesOrder.orderNumber}`,
     oldValue: { status: salesOrder.status, approvalStatus: salesOrder.approvalStatus },
     newValue: {
       status: result.salesOrder.status,
@@ -1177,7 +1242,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
     moduleName: "Invoices",
     entityType: "INVOICE",
     entityId: result.invoice.id,
-    transactionCode: result.invoice.invoiceNumber,
+    recordReference: result.invoice.invoiceNumber,
     action: "CREATED",
     actionNote,
     changeSummary: `Invoice ${result.invoice.invoiceNumber} generated after Manager approval of ${result.salesOrder.orderNumber}`,
@@ -1187,22 +1252,22 @@ export async function decideSalesOrderApproval(formData: FormData) {
     moduleName: "Receivables",
     entityType: "RECEIVABLE",
     entityId: result.invoice.id,
-    transactionCode: result.invoice.invoiceNumber,
+    recordReference: result.invoice.invoiceNumber,
     action: "CREATED",
     actionNote,
     changeSummary: `Receivable created from invoice ${result.invoice.invoiceNumber}`,
     newValue: summarizeInvoice(result.invoice)
   });
-  if (result.followUp) {
+  if (result.collectionTask) {
     await createAuditTrailLog({
-      moduleName: "Billing",
-      entityType: "FOLLOW_UP",
-      entityId: result.followUp.id,
-      transactionCode: result.invoice.invoiceNumber,
+      moduleName: "Collections",
+      entityType: "COLLECTION_TASK",
+      entityId: result.collectionTask.id,
+      recordReference: result.invoice.invoiceNumber,
       action: "CREATED",
       actionNote,
-      changeSummary: `Credit billing reminder created for invoice ${result.invoice.invoiceNumber}`,
-      newValue: summarizeFollowUp(result.followUp)
+      changeSummary: `Credit payment collection task created for invoice ${result.invoice.invoiceNumber}`,
+      newValue: summarizeCollectionTask(result.collectionTask)
     });
   }
 
@@ -1210,7 +1275,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
   redirectWithMessage(
     `${basePath}?tab=approval`,
     "success",
-    `${transactionLabel} approved and invoice generated`
+    `${orderLabel} approved and invoice generated`
   );
 }
 
@@ -1294,7 +1359,7 @@ export async function recordPayment(formData: FormData) {
     moduleName: "Payments",
     entityType: "PAYMENT",
     entityId: result.payment.id,
-    transactionCode: invoice.invoiceNumber,
+    recordReference: invoice.invoiceNumber,
     action: "PAYMENT_RECORDED",
     actionNote,
     changeSummary: `Payment recorded for invoice ${invoice.invoiceNumber}`,
@@ -1319,7 +1384,7 @@ export async function recordPayment(formData: FormData) {
       moduleName: "Invoices",
       entityType: "INVOICE",
       entityId: result.invoice.id,
-      transactionCode: invoice.invoiceNumber,
+      recordReference: invoice.invoiceNumber,
       action: "STATUS_CHANGED",
       actionNote,
       changeSummary: `Invoice status changed from ${invoice.status} to ${result.invoice.status}`,
@@ -1331,7 +1396,7 @@ export async function recordPayment(formData: FormData) {
     moduleName: "Receivables",
     entityType: "RECEIVABLE",
     entityId: result.invoice.id,
-    transactionCode: invoice.invoiceNumber,
+    recordReference: invoice.invoiceNumber,
     action: result.invoice.remainingAmount <= 0 ? "RECEIVABLE_CLOSED" : "STATUS_CHANGED",
     actionNote,
     changeSummary:
@@ -1372,7 +1437,7 @@ export async function updateInvoiceNotes(formData: FormData) {
     moduleName: "Invoices",
     entityType: "INVOICE",
     entityId: invoice.id,
-    transactionCode: invoice.invoiceNumber,
+    recordReference: invoice.invoiceNumber,
     action: "NOTE_UPDATED",
     actionNote,
     changeSummary: `Invoice notes updated for ${invoice.invoiceNumber}`,
@@ -1384,24 +1449,24 @@ export async function updateInvoiceNotes(formData: FormData) {
   redirect(`/invoices?view=${id}&success=${encodeURIComponent("Invoice notes updated")}`);
 }
 
-export async function createFollowUp(formData: FormData) {
+export async function createCollectionTask(formData: FormData) {
   await requireCurrentUser();
   const customerId = getRequiredString(formData, "customerId");
   const invoiceId = getString(formData, "invoiceId");
-  const followUpDate = new Date(getRequiredString(formData, "followUpDate"));
+  const scheduledDate = new Date(getRequiredString(formData, "scheduledDate"));
   const notes = getRequiredString(formData, "notes");
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   if (!customerId || !notes) {
-    redirectWithMessage("/billing", "error", "Customer and notes are required");
+    redirectWithMessage("/collections", "error", "Customer and notes are required");
   }
 
-  const followUp = await prisma.followUp.create({
+  const collectionTask = await prisma.collectionTask.create({
     data: {
       customerId,
       invoiceId: invoiceId || null,
-      followUpDate,
-      status: getStatus<FollowUpStatus>(
+      scheduledDate,
+      status: getStatus<CollectionTaskStatus>(
         formData,
         "status",
         ["Planned", "Done", "Cancelled"],
@@ -1413,21 +1478,21 @@ export async function createFollowUp(formData: FormData) {
   });
 
   await createAuditTrailLog({
-    moduleName: "Billing",
-    entityType: "FOLLOW_UP",
-    entityId: followUp.id,
-    transactionCode: followUp.invoice?.invoiceNumber ?? followUp.customer.companyName ?? followUp.id,
+    moduleName: "Collections",
+    entityType: "COLLECTION_TASK",
+    entityId: collectionTask.id,
+    recordReference: collectionTask.invoice?.invoiceNumber ?? collectionTask.customer.companyName ?? collectionTask.id,
     action: "CREATED",
     actionNote,
-    changeSummary: `Billing record created for ${followUp.invoice?.invoiceNumber ?? followUp.customer.companyName}`,
-    newValue: summarizeFollowUp(followUp)
+    changeSummary: `Collection task created for ${collectionTask.invoice?.invoiceNumber ?? collectionTask.customer.companyName}`,
+    newValue: summarizeCollectionTask(collectionTask)
   });
 
   refreshApp();
-  redirectWithMessage("/billing", "success", "Billing record added");
+  redirectWithMessage("/collections", "success", "Collection task added");
 }
 
-export async function recordCustomerProductFollowUp(formData: FormData) {
+export async function recordCustomerOutreach(formData: FormData) {
   await requireCurrentUser();
   const customerId = getRequiredString(formData, "customerId");
   const contactDateValue = getRequiredString(formData, "contactDate");
@@ -1436,7 +1501,7 @@ export async function recordCustomerProductFollowUp(formData: FormData) {
 
   if (!customerId || !contactDateValue || Number.isNaN(contactDate.getTime())) {
     redirectWithMessage(
-      "/follow-ups",
+      "/customer-outreach",
       "error",
       "Customer and a valid contact date are required"
     );
@@ -1448,10 +1513,10 @@ export async function recordCustomerProductFollowUp(formData: FormData) {
   });
 
   if (!customer) {
-    redirectWithMessage("/follow-ups", "error", "Customer was not found");
+    redirectWithMessage("/customer-outreach", "error", "Customer was not found");
   }
 
-  const productFollowUp = await prisma.customerProductFollowUp.create({
+  const outreach = await prisma.customerOutreach.create({
     data: {
       customerId,
       contactDate,
@@ -1460,22 +1525,22 @@ export async function recordCustomerProductFollowUp(formData: FormData) {
   });
 
   await createAuditTrailLog({
-    moduleName: "Follow Up",
-    entityType: "CUSTOMER_PRODUCT_FOLLOW_UP",
-    entityId: productFollowUp.id,
-    transactionCode: customer.companyName || customer.name,
+    moduleName: "Customer Outreach",
+    entityType: "CUSTOMER_OUTREACH",
+    entityId: outreach.id,
+    recordReference: customer.companyName || customer.name,
     action: "CONTACT_RECORDED",
     actionNote,
-    changeSummary: `Product follow-up contact recorded for ${customer.companyName || customer.name}`,
+    changeSummary: `Customer outreach recorded for ${customer.companyName || customer.name}`,
     newValue: {
       customerId,
-      contactDate: productFollowUp.contactDate,
-      notes: productFollowUp.notes
+      contactDate: outreach.contactDate,
+      notes: outreach.notes
     }
   });
 
   refreshApp();
-  redirectWithMessage("/follow-ups", "success", "Customer follow-up recorded");
+  redirectWithMessage("/customer-outreach", "success", "Customer outreach recorded");
 }
 
 export async function createDeliveryNote(formData: FormData) {
@@ -1499,12 +1564,29 @@ export async function createDeliveryNote(formData: FormData) {
   const senderName = getString(formData, "senderName");
   const authorizedBy = getString(formData, "authorizedBy");
   const items = normalizeDeliveryNoteItems(safeJsonParse(getString(formData, "items")));
+  const deliveryAssignment = validateDeliveryAssignment({
+    driverName: formData.get("driverName"),
+    vehiclePlateNumber: formData.get("vehiclePlateNumber")
+  });
 
   if (!customerId || !recipientName || !recipientAddress || items.length === 0) {
     redirectWithMessage(
       "/surat-jalan?mode=create",
       "error",
       "Customer, recipient, address, and at least one item are required"
+    );
+  }
+
+  if (!deliveryAssignment.valid) {
+    const sourceQuery = invoiceId
+      ? `&invoiceId=${encodeURIComponent(invoiceId)}`
+      : salesOrderId
+        ? `&salesOrderId=${encodeURIComponent(salesOrderId)}`
+        : "";
+    redirectWithMessage(
+      `/surat-jalan?mode=create${sourceQuery}`,
+      "error",
+      Object.values(deliveryAssignment.errors).join(". ")
     );
   }
 
@@ -1524,7 +1606,7 @@ export async function createDeliveryNote(formData: FormData) {
       redirectWithMessage(
         `/surat-jalan?mode=create&invoiceId=${invoiceId}`,
         "error",
-        "Debit transaction must be paid before Surat Jalan can be created"
+        "An immediate-payment order must be paid before Surat Jalan can be created"
       );
     }
   }
@@ -1545,6 +1627,8 @@ export async function createDeliveryNote(formData: FormData) {
       notes: mergeActionNotes(getString(formData, "notes"), actionNote),
       receiverName: getString(formData, "receiverName") || null,
       senderName: senderName || null,
+      driverName: deliveryAssignment.value.driverName,
+      vehiclePlateNumber: deliveryAssignment.value.vehiclePlateNumber,
       authorizedBy: authorizedBy || null,
       items: {
         create: items.map((item) => ({
@@ -1566,16 +1650,18 @@ export async function createDeliveryNote(formData: FormData) {
     moduleName: "Surat Jalan",
     entityType: "DELIVERY_NOTE",
     entityId: deliveryNote.id,
-    transactionCode: deliveryNote.deliveryNoteNumber,
+    recordReference: deliveryNote.deliveryNoteNumber,
     action: "CREATED",
     actionNote,
-    changeSummary: `Surat Jalan ${deliveryNote.deliveryNoteNumber} created`,
+    changeSummary: `Surat Jalan ${deliveryNote.deliveryNoteNumber} created for driver ${deliveryNote.driverName} with vehicle ${deliveryNote.vehiclePlateNumber}`,
     newValue: {
       deliveryNoteNumber: deliveryNote.deliveryNoteNumber,
       invoiceNumber: deliveryNote.invoice?.invoiceNumber,
       orderNumber: deliveryNote.salesOrder?.orderNumber,
       status: deliveryNote.status,
-      recipientName: deliveryNote.recipientName
+      recipientName: deliveryNote.recipientName,
+      driverName: deliveryNote.driverName,
+      vehiclePlateNumber: deliveryNote.vehiclePlateNumber
     }
   });
 
@@ -1618,7 +1704,7 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
     moduleName: "Surat Jalan",
     entityType: "DELIVERY_NOTE",
     entityId: deliveryNote.id,
-    transactionCode: deliveryNote.deliveryNoteNumber,
+    recordReference: deliveryNote.deliveryNoteNumber,
     action: deliveryNote.status === "Delivered" ? "DELIVERED" : "STATUS_CHANGED",
     actionNote,
     changeSummary: `Surat Jalan status changed from ${oldDeliveryNote.status} to ${deliveryNote.status}`,
@@ -1637,20 +1723,22 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
 function summarizeCustomer(customer: {
   name: string;
   companyName: string;
+  npwp?: string | null;
   phone: string;
   email: string;
   address: string;
-  customerType: string;
+  customerSegment: string;
   status: string;
   notes?: string | null;
 }) {
   return {
     name: customer.name,
     companyName: customer.companyName,
+    npwp: customer.npwp,
     phone: customer.phone,
     email: customer.email,
     address: customer.address,
-    customerType: customer.customerType,
+    customerSegment: customer.customerSegment,
     status: customer.status,
     notes: customer.notes
   };
@@ -1659,13 +1747,13 @@ function summarizeCustomer(customer: {
 function summarizeProduct(product: {
   productName: string;
   notes?: string | null;
-  basePrice: number;
+  listPrice: number;
   status: string;
 }) {
   return {
     productName: product.productName,
     notes: product.notes,
-    basePrice: product.basePrice,
+    listPrice: product.listPrice,
     status: product.status
   };
 }
@@ -1675,21 +1763,21 @@ function summarizeOrderPricing(
     productId: string;
     itemName: string;
     quantity: number;
-    basePrice: number;
+    baseUnitPrice: number;
     markupPercent: number;
     discountPercent: number;
-    unitPrice: number;
+    finalUnitPrice: number;
   }>
 ) {
   return items.map((item) => ({
     productId: item.productId,
     productName: item.itemName,
     quantity: item.quantity,
-    basePrice: item.basePrice,
+    baseUnitPrice: item.baseUnitPrice,
     markupPercent: item.markupPercent,
     discountPercent: item.discountPercent,
-    adjustedUnitPrice: item.unitPrice,
-    subtotal: item.quantity * item.unitPrice
+    adjustedUnitPrice: item.finalUnitPrice,
+    subtotal: item.quantity * item.finalUnitPrice
   }));
 }
 
@@ -1702,6 +1790,11 @@ function summarizeInvoice(invoice: {
   paymentTermType: string;
   creditTermMonths?: number | null;
   notes?: string | null;
+  customerNpwpSnapshot?: string | null;
+  ppnApplied?: boolean;
+  ppnRateBasisPoints?: number;
+  ppnAmount?: number;
+  netSalesAmount?: number;
 }) {
   return {
     invoiceNumber: invoice.invoiceNumber,
@@ -1711,19 +1804,40 @@ function summarizeInvoice(invoice: {
     status: invoice.status,
     paymentTermType: invoice.paymentTermType,
     creditTermMonths: invoice.creditTermMonths,
-    notes: invoice.notes
+    notes: invoice.notes,
+    customerNpwpSnapshot: invoice.customerNpwpSnapshot,
+    ppnApplied: invoice.ppnApplied,
+    ppnRateBasisPoints: invoice.ppnRateBasisPoints,
+    ppnAmount: invoice.ppnAmount,
+    netSalesAmount: invoice.netSalesAmount
   };
 }
 
-function summarizeFollowUp(followUp: {
-  followUpDate: Date;
+function summarizeTaxSnapshot(record: {
+  customerNpwpSnapshot: string | null;
+  ppnApplied: boolean;
+  ppnRateBasisPoints: number;
+  ppnAmount: number;
+  netSalesAmount: number;
+}) {
+  return {
+    customerNpwpSnapshot: record.customerNpwpSnapshot,
+    ppnApplied: record.ppnApplied,
+    ppnRateBasisPoints: record.ppnRateBasisPoints,
+    ppnAmount: record.ppnAmount,
+    netSalesAmount: record.netSalesAmount
+  };
+}
+
+function summarizeCollectionTask(collectionTask: {
+  scheduledDate: Date;
   status: string;
   notes: string;
 }) {
   return {
-    followUpDate: followUp.followUpDate.toISOString().slice(0, 10),
-    status: followUp.status,
-    notes: followUp.notes
+    scheduledDate: collectionTask.scheduledDate.toISOString().slice(0, 10),
+    status: collectionTask.status,
+    notes: collectionTask.notes
   };
 }
 
@@ -1791,20 +1905,20 @@ function getString(formData: FormData, name: string) {
 async function withDocumentNumberRetry<T>(
   operation: (numbers: {
     orderNumber: string;
-    poNumber: string | null;
+    customerPoNumber: string | null;
     invoiceNumber: string | null;
   }) => Promise<T>,
-  options: { includePo?: boolean; includeInvoice?: boolean } = {}
+  options: { includeCustomerPo?: boolean; includeInvoice?: boolean } = {}
 ) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const [orderNumber, poNumber, invoiceNumber] = await Promise.all([
+    const [orderNumber, customerPoNumber, invoiceNumber] = await Promise.all([
       nextDocumentNumber("SO"),
-      options.includePo ? nextDocumentNumber("PO") : Promise.resolve(null),
+      options.includeCustomerPo ? nextDocumentNumber("PO") : Promise.resolve(null),
       options.includeInvoice ? nextDocumentNumber("INV") : Promise.resolve(null)
     ]);
 
     try {
-      return await operation({ orderNumber, poNumber, invoiceNumber });
+      return await operation({ orderNumber, customerPoNumber, invoiceNumber });
     } catch (error) {
       if (attempt === 0 && isDocumentNumberCollision(error)) {
         continue;
@@ -1822,6 +1936,19 @@ function isDocumentNumberCollision(error: unknown) {
   );
 }
 
+function isUniqueFieldCollision(error: unknown, fieldName: string) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+    return false;
+  }
+
+  const target = error.meta?.target;
+  if (Array.isArray(target)) {
+    return target.some((field) => field === fieldName);
+  }
+
+  return typeof target === "string" && target.includes(fieldName);
+}
+
 function getRequiredString(formData: FormData, name: string) {
   return getString(formData, name);
 }
@@ -1837,23 +1964,23 @@ function parseDateInput(value: string) {
     : null;
 }
 
-function getPreOrderDocument(formData: FormData) {
-  const entry = formData.get("poDocument");
-  if (!(entry instanceof File) || entry.size === 0 || entry.size > PRE_ORDER_DOCUMENT_MAX_BYTES) {
+function getCustomerPoDocument(formData: FormData) {
+  const entry = formData.get("customerPoDocument");
+  if (!(entry instanceof File) || entry.size === 0 || entry.size > CUSTOMER_PO_DOCUMENT_MAX_BYTES) {
     return null;
   }
   const extension = extname(entry.name).toLowerCase();
-  const allowedMimeTypes = PRE_ORDER_DOCUMENT_TYPES[extension];
+  const allowedMimeTypes = CUSTOMER_PO_DOCUMENT_TYPES[extension];
   return allowedMimeTypes?.includes(entry.type) ? entry : null;
 }
 
-async function storePreOrderDocument(file: File) {
+async function storeCustomerPoDocument(file: File) {
   const extension = extname(file.name).toLowerCase();
-  const storedName = `pre-orders/${randomUUID()}${extension}`;
-  return uploadPreOrderDocument(file, storedName);
+  const storedName = `customer-purchase-orders/${randomUUID()}${extension}`;
+  return uploadCustomerPoDocument(file, storedName);
 }
 
-function parseProductBasePrice(value: FormDataEntryValue | null) {
+function parseProductPrice(value: FormDataEntryValue | null) {
   const rawValue = String(value ?? "").trim();
   const parsed = Number(rawValue);
 
@@ -1880,14 +2007,14 @@ function refreshApp() {
   }
 }
 
-async function linkCustomerInquiry(inquiryId: string, salesOrderId: string, isPreOrder: boolean) {
+async function linkCustomerInquiry(inquiryId: string, salesOrderId: string, isCustomerPo: boolean) {
   if (!inquiryId) return;
   await prisma.customerInquiry.update({
     where: { id: inquiryId },
     data: {
       salesOrderId,
-      status: isPreOrder ? "ConvertedToPO" : "ConvertedToSO",
-      statusNote: isPreOrder ? "Converted to Pre Order" : "Converted to Sales Order"
+      status: isCustomerPo ? "ConvertedToCustomerPO" : "ConvertedToSO",
+      statusNote: isCustomerPo ? "Converted to Customer PO" : "Converted to Sales Order"
     }
   });
   refreshApp();
@@ -1903,7 +2030,7 @@ async function completeLinkedCustomerInquiry(salesOrderId: string | null) {
     moduleName: "Customer Inquiry",
     entityType: "CUSTOMER_INQUIRY",
     entityId: inquiry.id,
-    transactionCode: inquiry.inquiryNumber,
+    recordReference: inquiry.inquiryNumber,
     action: "COMPLETED",
     changeSummary: `Customer inquiry ${inquiry.inquiryNumber} completed after linked order delivery`,
     oldValue: { status: inquiry.status },

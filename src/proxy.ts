@@ -11,7 +11,7 @@ export async function proxy(request: NextRequest) {
   const session = await verifySignedSession(request.cookies.get(AUTH_COOKIE_NAME)?.value);
 
   if (isPublicPath && session) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   if (!isPublicPath && !isAuthEndpoint && !session) {

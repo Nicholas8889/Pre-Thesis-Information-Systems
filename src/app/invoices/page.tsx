@@ -14,6 +14,8 @@ import { isDoneInvoice, isOngoingInvoice } from "@/lib/process-status";
 import { getSearchMessage, syncOverdueInvoices } from "@/lib/workflow";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
+import { formatNpwp } from "@/lib/npwp";
+import { formatPpnRate } from "@/lib/tax";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -90,9 +92,9 @@ export default async function InvoicesPage({
               <h2 className="mt-1 text-2xl font-semibold">{selectedInvoice.invoiceNumber}</h2>
               <p className="mt-1 text-sm text-slate-600">
                 Sales Order {selectedInvoice.salesOrder.orderNumber}
-                {selectedInvoice.salesOrder.transactionType === "PRE_ORDER" &&
-                selectedInvoice.salesOrder.poNumber
-                  ? ` - PO ${selectedInvoice.salesOrder.poNumber}`
+                {selectedInvoice.salesOrder.source === "CUSTOMER_PO" &&
+                selectedInvoice.salesOrder.customerPoNumber
+                  ? ` - PO ${selectedInvoice.salesOrder.customerPoNumber}`
                   : ""}
               </p>
             </div>
@@ -122,7 +124,7 @@ export default async function InvoicesPage({
                 </RestrictedAction>
               ) : (
                 <span
-                  title="Debit transaction must be paid before Surat Jalan can be created."
+                  title="An immediate-payment order must be paid before Surat Jalan can be created."
                   className="inline-flex h-10 items-center justify-center rounded-md border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-800"
                 >
                   Payment Required First
@@ -130,30 +132,46 @@ export default async function InvoicesPage({
               )}
               <Link
                 href={`/invoices/${selectedInvoice.id}/print`}
-                title="View / Print Invoice"
+                title="Cetak Invoice"
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white"
               >
                 <Printer aria-hidden="true" className="h-4 w-4" />
-                View / Print Invoice
+                Cetak Invoice
               </Link>
             </div>
           </div>
 
           <div className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
             <Detail label="Customer" value={selectedInvoice.customer.companyName} />
-            {selectedInvoice.salesOrder.transactionType === "PRE_ORDER" && (
-              <Detail label="PO ID" value={selectedInvoice.salesOrder.poNumber ?? "-"} />
+            {selectedInvoice.salesOrder.source === "CUSTOMER_PO" && (
+              <Detail label="Customer PO Number" value={selectedInvoice.salesOrder.customerPoNumber ?? "-"} />
             )}
             <Detail label="Contact" value={selectedInvoice.customer.name} />
             <Detail label="Issue Date" value={formatDate(selectedInvoice.issueDate)} />
             <Detail label="Due Date" value={formatDate(selectedInvoice.dueDate)} />
             <Detail
-              label="Payment Term"
+              label="Payment Terms"
               value={getPaymentTermLabel({
                 paymentTermType: selectedInvoice.paymentTermType,
                 creditTermMonths: selectedInvoice.creditTermMonths
               })}
             />
+            {selectedInvoice.customerNpwpSnapshot && (
+              <Detail
+                label="NPWP"
+                value={formatNpwp(selectedInvoice.customerNpwpSnapshot) ?? ""}
+              />
+            )}
+            <Detail
+              label={selectedInvoice.ppnApplied ? "Net Sales (DPP)" : "Invoice Subtotal / Net Sales"}
+              value={formatCurrency(selectedInvoice.netSalesAmount)}
+            />
+            {selectedInvoice.ppnApplied && (
+              <Detail
+                label={`PPN (${formatPpnRate(selectedInvoice.ppnRateBasisPoints)})`}
+                value={formatCurrency(selectedInvoice.ppnAmount)}
+              />
+            )}
             <Detail label="Total Amount" value={formatCurrency(selectedInvoice.totalAmount)} />
             <Detail label="Paid Amount" value={formatCurrency(selectedInvoice.paidAmount)} />
             <Detail
@@ -169,7 +187,7 @@ export default async function InvoicesPage({
                 <tr>
                   <th className="py-3 pr-4">Item</th>
                   <th className="py-3 pr-4 text-right">Qty</th>
-                  <th className="py-3 pr-4 text-right">Unit Price</th>
+                  <th className="py-3 pr-4 text-right">Final Unit Price</th>
                   <th className="py-3 text-right">Subtotal</th>
                 </tr>
               </thead>
@@ -179,7 +197,7 @@ export default async function InvoicesPage({
                     <td className="py-3 pr-4 font-medium">{item.itemName}</td>
                     <td className="py-3 pr-4 text-right text-slate-600">{item.quantity}</td>
                     <td className="py-3 pr-4 text-right text-slate-600">
-                      {formatCurrency(item.unitPrice)}
+                      {formatCurrency(item.finalUnitPrice)}
                     </td>
                     <td className="py-3 text-right font-medium">
                       {formatCurrency(item.subtotal)}
@@ -222,7 +240,7 @@ export default async function InvoicesPage({
                   <th className="py-3 pr-4">Customer</th>
                   <th className="py-3 pr-4">Issue Date</th>
                   <th className="py-3 pr-4">Due Date</th>
-                  <th className="py-3 pr-4">Payment Term</th>
+                  <th className="py-3 pr-4">Payment Terms</th>
                   <th className="py-3 pr-4 text-right">Total</th>
                   {activeTab === "done" && <th className="py-3 pr-4 text-right">Paid</th>}
                   <th className="py-3 pr-4">Status</th>
@@ -274,11 +292,11 @@ export default async function InvoicesPage({
                         )}
                         <Link
                           href={`/invoices/${invoice.id}/print`}
-                          title="View / Print Invoice"
+                          title="Cetak Invoice"
                           className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-medium text-brand"
                         >
                           <Printer aria-hidden="true" className="h-4 w-4" />
-                          View / Print
+                          Cetak
                         </Link>
                       </div>
                     </td>

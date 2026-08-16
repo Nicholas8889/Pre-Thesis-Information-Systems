@@ -7,9 +7,9 @@ export function parseOptionalInquiryPrice(value: unknown) {
 }
 
 export function canConvertCustomerInquiryItems(
-  items: Array<{ productId: string | null; agreedPrice: number | null }>
+  items: Array<{ productId: string | null; agreedUnitPrice: number | null }>
 ) {
-  return items.length > 0 && items.every((item) => item.productId && item.agreedPrice !== null);
+  return items.length > 0 && items.every((item) => item.productId && item.agreedUnitPrice !== null);
 }
 
 export function formatCustomerInquiryStatus(status: string) {
@@ -17,7 +17,7 @@ export function formatCustomerInquiryStatus(status: string) {
     Open: "Open",
     Closed: "Closed",
     Cancelled: "Cancelled",
-    ConvertedToPO: "Converted to PO",
+    ConvertedToCustomerPO: "Converted to Customer PO",
     ConvertedToSO: "Converted to SO",
     Done: "Done"
   };

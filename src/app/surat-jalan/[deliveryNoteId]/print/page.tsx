@@ -28,8 +28,8 @@ export default async function SuratJalanPrintPage({
   if (!deliveryNote) {
     notFound();
   }
-  const isPreOrder = deliveryNote.salesOrder?.transactionType === "PRE_ORDER";
-  const transactionLabel = isPreOrder ? "Pre Order" : "Sales Order";
+  const isCustomerPo = deliveryNote.salesOrder?.source === "CUSTOMER_PO";
+  const orderLabel = isCustomerPo ? "Customer PO" : "Sales Order";
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -41,7 +41,7 @@ export default async function SuratJalanPrintPage({
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
           Back to Surat Jalan
         </Link>
-        <PrintButton label="Print Surat Jalan" />
+        <PrintButton />
       </div>
 
       <article className="print-page rounded-md border border-slate-300 bg-white p-6 text-slate-900 shadow-soft sm:p-8">
@@ -57,7 +57,7 @@ export default async function SuratJalanPrintPage({
               </p>
             </div>
             <div className="text-left sm:text-right">
-              <h1 className="text-3xl font-bold tracking-normal">SURAT JALAN</h1>
+              <h1 className="text-3xl font-bold tracking-normal">SURAT JALAN / Delivery Note</h1>
               <p className="mt-2 text-sm font-semibold">
                 No. {deliveryNote.deliveryNoteNumber}
               </p>
@@ -90,25 +90,33 @@ export default async function SuratJalanPrintPage({
               label="Sales Order"
               value={deliveryNote.salesOrder?.orderNumber ?? "-"}
             />
-            {isPreOrder && (
+            {isCustomerPo && (
               <InfoRow
-                label="PO ID"
-                value={deliveryNote.salesOrder?.poNumber ?? "-"}
+                label="Customer PO Number"
+                value={deliveryNote.salesOrder?.customerPoNumber ?? "-"}
               />
             )}
-            <InfoRow label="Transaction Type" value={transactionLabel} />
-            {isPreOrder && deliveryNote.salesOrder?.requiredDate && (
+            <InfoRow label="Order Source" value={orderLabel} />
+            {isCustomerPo && deliveryNote.salesOrder?.requiredDate && (
               <InfoRow
                 label="Required Date"
                 value={formatDate(deliveryNote.salesOrder.requiredDate)}
               />
             )}
-            {isPreOrder && (
+            {isCustomerPo && (
               <InfoRow
-                label="PO Document"
-                value={deliveryNote.salesOrder?.poDocumentName ?? "-"}
+                label="Customer PO Document"
+                value={deliveryNote.salesOrder?.customerPoDocumentName ?? "-"}
               />
             )}
+            <InfoRow
+              label="Driver / Pengemudi"
+              value={deliveryNote.driverName ?? "Not recorded"}
+            />
+            <InfoRow
+              label="Vehicle Plate / Nomor Plat"
+              value={deliveryNote.vehiclePlateNumber ?? "Not recorded"}
+            />
           </div>
         </section>
 
@@ -173,14 +181,26 @@ export default async function SuratJalanPrintPage({
 
           <div className="space-y-2 text-sm">
             <InfoRow label="Receiver" value={deliveryNote.receiverName ?? "-"} />
-            <InfoRow label="Delivered by" value={deliveryNote.senderName ?? "-"} />
+            <InfoRow label="Sender" value={deliveryNote.senderName ?? "-"} />
+            <InfoRow
+              label="Delivered by"
+              value={deliveryNote.driverName ?? "Not recorded"}
+            />
+            <InfoRow
+              label="Vehicle Plate"
+              value={deliveryNote.vehiclePlateNumber ?? "Not recorded"}
+            />
             <InfoRow label="Authorized by" value={deliveryNote.authorizedBy ?? "-"} />
           </div>
         </section>
 
-        <footer className="mt-12 grid gap-8 text-center text-sm md:grid-cols-3">
+        <footer className="mt-12 grid gap-8 text-center text-sm md:grid-cols-4">
           <Signature label="Received by" name={deliveryNote.receiverName ?? ""} />
-          <Signature label="Delivered by" name={deliveryNote.senderName ?? ""} />
+          <Signature label="Prepared / Sent by" name={deliveryNote.senderName ?? ""} />
+          <Signature
+            label="Delivered by"
+            name={deliveryNote.driverName ?? "Not recorded"}
+          />
           <Signature label="Authorized by" name={deliveryNote.authorizedBy ?? ""} />
         </footer>
       </article>

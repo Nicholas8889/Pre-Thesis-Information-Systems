@@ -2,7 +2,7 @@
 
 import { Printer } from "lucide-react";
 
-export function PrintButton({ label = "Print Invoice" }: { label?: string }) {
+export function PrintButton({ label = "Cetak" }: { label?: string }) {
   return (
     <button
       type="button"

@@ -1,15 +1,24 @@
 import { PrismaClient } from "@prisma/client";
 import { DEMO_PASSWORD, DEMO_USERNAME, hashPassword } from "../src/lib/auth";
+import {
+  DELIVERY_DRIVER_OPTIONS,
+  DELIVERY_VEHICLE_PLATE_OPTIONS
+} from "../src/lib/delivery-options";
+import { getCustomerPaymentBehaviour } from "../src/lib/customer-intelligence";
+import { getCurrentMonthAverageSoldPrice } from "../src/lib/product-insights";
+import { buildOrderTaxSnapshot } from "../src/lib/tax";
 
 const prisma = new PrismaClient();
 
 async function main() {
   await prisma.auditTrail.deleteMany();
-  await prisma.customerProductFollowUp.deleteMany();
-  await prisma.followUp.deleteMany();
+  await prisma.customerOutreach.deleteMany();
+  await prisma.collectionTask.deleteMany();
   await prisma.deliveryNote.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.invoice.deleteMany();
+  await prisma.customerInquiryItem.deleteMany();
+  await prisma.customerInquiry.deleteMany();
   await prisma.salesOrderItem.deleteMany();
   await prisma.salesOrder.deleteMany();
   await prisma.product.deleteMany();
@@ -48,19 +57,34 @@ async function main() {
 
   await prisma.product.createMany({
     data: [
-      { productName: "Product Package A", basePrice: 1200000, status: "Active" },
-      { productName: "Wholesale Package", basePrice: 800000, status: "Active" },
-      { productName: "Retail Stock Package", basePrice: 550000, status: "Active" },
-      { productName: "Corporate Supply Package", basePrice: 3200000, status: "Active" },
-      { productName: "Seasonal Stock", basePrice: 1850000, status: "Active" },
-      { productName: "Premium Material Set", basePrice: 1500000, status: "Active" },
-      { productName: "Standard Material Set", basePrice: 900000, status: "Active" },
-      { productName: "Custom Order Package", basePrice: 2500000, status: "Active" },
-      { productName: "Installation Service", basePrice: 750000, status: "Active" },
-      { productName: "Delivery Service", basePrice: 1800000, status: "Active" },
-      { productName: "Handling Fee", basePrice: 150000, status: "Active" }
+      { productName: "Product Package A", listPrice: 1200000, status: "Active" },
+      { productName: "Wholesale Package", listPrice: 800000, status: "Active" },
+      { productName: "Retail Stock Package", listPrice: 550000, status: "Active" },
+      { productName: "Corporate Supply Package", listPrice: 3200000, status: "Active" },
+      { productName: "Seasonal Stock", listPrice: 1850000, status: "Active" },
+      { productName: "Premium Material Set", listPrice: 1500000, status: "Active" },
+      { productName: "Standard Material Set", listPrice: 900000, status: "Active" },
+      { productName: "Custom Order Package", listPrice: 2500000, status: "Active" },
+      { productName: "Installation Service", listPrice: 750000, status: "Active" },
+      { productName: "Delivery Service", listPrice: 1800000, status: "Active" },
+      { productName: "Handling Fee", listPrice: 150000, status: "Active" }
     ]
   });
+
+  const productIdByName = new Map(
+    (
+      await prisma.product.findMany({
+        select: { id: true, productName: true }
+      })
+    ).map((product) => [product.productName, product.id])
+  );
+  const getProductId = (productName: string) => {
+    const productId = productIdByName.get(productName);
+    if (!productId) {
+      throw new Error(`Seed product not found: ${productName}`);
+    }
+    return productId;
+  };
 
   const customers = await Promise.all([
     prisma.customer.create({
@@ -70,7 +94,8 @@ async function main() {
         phone: "0812-1000-1100",
         email: "andi@sinarmaju.example",
         address: "Jl. Merdeka No. 12, Bandung",
-        customerType: "Retail",
+        npwp: "0123456789012345",
+        customerSegment: "Retail",
         status: "Active",
         notes: "Long-term customer with regular monthly orders."
       }
@@ -82,7 +107,7 @@ async function main() {
         phone: "0813-2000-2200",
         email: "maya@bintangniaga.example",
         address: "Jl. Cendana No. 7, Jakarta",
-        customerType: "Wholesale",
+        customerSegment: "Wholesale",
         status: "Active",
         notes: "Usually pays by bank transfer."
       }
@@ -94,7 +119,7 @@ async function main() {
         phone: "0815-3000-3300",
         email: "rizky@tokoharapan.example",
         address: "Jl. Diponegoro No. 21, Semarang",
-        customerType: "Retail",
+        customerSegment: "Retail",
         status: "Active",
         notes: "Needs reminder before due date."
       }
@@ -106,7 +131,8 @@ async function main() {
         phone: "0817-4000-4400",
         email: "dewi@nusantarajaya.example",
         address: "Jl. Veteran No. 9, Surabaya",
-        customerType: "Corporate",
+        npwp: "9876543210987654",
+        customerSegment: "Corporate",
         status: "Active",
         notes: "Requests formal invoice copies."
       }
@@ -118,15 +144,32 @@ async function main() {
         phone: "0819-5000-5500",
         email: "budi@makmurbersama.example",
         address: "Jl. Sudirman No. 31, Yogyakarta",
-        customerType: "Wholesale",
+        customerSegment: "Wholesale",
         status: "Inactive",
         notes: "Inactive until next seasonal order."
+      }
+    }),
+    prisma.customer.create({
+      data: {
+        name: "Nadia Permata",
+        companyName: "PT Prospek Baru",
+        phone: "0821-6000-6600",
+        email: "nadia@prospekbaru.example",
+        address: "Jl. Pemuda No. 18, Bogor",
+        customerSegment: "Corporate",
+        status: "Active",
+        notes: "No eligible order history; demonstrates the No Payment History state."
       }
     })
   ]);
 
-  const [sinarMaju, bintangNiaga, tokoHarapan, nusantaraJaya, makmurBersama] =
-    customers;
+  const [
+    sinarMaju,
+    bintangNiaga,
+    tokoHarapan,
+    nusantaraJaya,
+    makmurBersama
+  ] = customers;
 
   const so001 = await prisma.salesOrder.create({
     data: {
@@ -136,12 +179,16 @@ async function main() {
       status: "Invoiced",
       subtotal: 5400000,
       total: 5400000,
-      paymentTermType: "DEBIT",
+      ...buildOrderTaxSnapshot({
+        totalAmount: 5400000,
+        customerNpwp: sinarMaju.npwp
+      }),
+      paymentTermType: "IMMEDIATE",
       creditTermMonths: null,
       items: {
         create: [
-          { itemName: "Product Package A", quantity: 3, basePrice: 1200000, unitPrice: 1200000, subtotal: 3600000 },
-          { itemName: "Delivery Service", quantity: 1, basePrice: 1800000, unitPrice: 1800000, subtotal: 1800000 }
+          { productId: getProductId("Product Package A"), itemName: "Product Package A", quantity: 3, baseUnitPrice: 1200000, finalUnitPrice: 1200000, subtotal: 3600000 },
+          { productId: getProductId("Delivery Service"), itemName: "Delivery Service", quantity: 1, baseUnitPrice: 1800000, finalUnitPrice: 1800000, subtotal: 1800000 }
         ]
       }
     }
@@ -155,10 +202,14 @@ async function main() {
       status: "Invoiced",
       subtotal: 3200000,
       total: 3200000,
+      ...buildOrderTaxSnapshot({
+        totalAmount: 3200000,
+        customerNpwp: bintangNiaga.npwp
+      }),
       paymentTermType: "CREDIT",
       creditTermMonths: 1,
       items: {
-        create: [{ itemName: "Wholesale Package", quantity: 4, basePrice: 800000, unitPrice: 800000, subtotal: 3200000 }]
+        create: [{ productId: getProductId("Wholesale Package"), itemName: "Wholesale Package", quantity: 4, baseUnitPrice: 800000, finalUnitPrice: 800000, subtotal: 3200000 }]
       }
     }
   });
@@ -171,10 +222,14 @@ async function main() {
       status: "Invoiced",
       subtotal: 2750000,
       total: 2750000,
+      ...buildOrderTaxSnapshot({
+        totalAmount: 2750000,
+        customerNpwp: tokoHarapan.npwp
+      }),
       paymentTermType: "CREDIT",
       creditTermMonths: 3,
       items: {
-        create: [{ itemName: "Retail Stock Package", quantity: 5, basePrice: 550000, unitPrice: 550000, subtotal: 2750000 }]
+        create: [{ productId: getProductId("Retail Stock Package"), itemName: "Retail Stock Package", quantity: 5, baseUnitPrice: 550000, finalUnitPrice: 550000, subtotal: 2750000 }]
       }
     }
   });
@@ -187,12 +242,16 @@ async function main() {
       status: "Invoiced",
       subtotal: 7900000,
       total: 7900000,
+      ...buildOrderTaxSnapshot({
+        totalAmount: 7900000,
+        customerNpwp: nusantaraJaya.npwp
+      }),
       paymentTermType: "CREDIT",
       creditTermMonths: 1,
       items: {
         create: [
-          { itemName: "Corporate Supply Package", quantity: 2, basePrice: 3200000, unitPrice: 3200000, subtotal: 6400000 },
-          { itemName: "Handling Fee", quantity: 1, basePrice: 1500000, unitPrice: 1500000, subtotal: 1500000 }
+          { productId: getProductId("Corporate Supply Package"), itemName: "Corporate Supply Package", quantity: 2, baseUnitPrice: 3200000, finalUnitPrice: 3200000, subtotal: 6400000 },
+          { productId: getProductId("Handling Fee"), itemName: "Handling Fee", quantity: 1, baseUnitPrice: 1500000, finalUnitPrice: 1500000, subtotal: 1500000 }
         ]
       }
     }
@@ -206,13 +265,74 @@ async function main() {
       status: "Invoiced",
       subtotal: 1850000,
       total: 1850000,
-      paymentTermType: "DEBIT",
+      ...buildOrderTaxSnapshot({
+        totalAmount: 1850000,
+        customerNpwp: makmurBersama.npwp
+      }),
+      paymentTermType: "IMMEDIATE",
       creditTermMonths: null,
       items: {
-        create: [{ itemName: "Seasonal Stock", quantity: 1, basePrice: 1850000, unitPrice: 1850000, subtotal: 1850000 }]
+        create: [{ productId: getProductId("Seasonal Stock"), itemName: "Seasonal Stock", quantity: 1, baseUnitPrice: 1850000, finalUnitPrice: 1850000, subtotal: 1850000 }]
       }
     }
   });
+
+  await Promise.all([
+    prisma.salesOrder.create({
+      data: {
+        orderNumber: "SO-DEMO-MIX-001",
+        customerId: nusantaraJaya.id,
+        orderDate: getRollingDemoOrderDate(1),
+        status: "Confirmed",
+        subtotal: 1500000,
+        total: 1500000,
+        ...buildOrderTaxSnapshot({
+          totalAmount: 1500000,
+          customerNpwp: nusantaraJaya.npwp
+        }),
+        paymentTermType: "IMMEDIATE",
+        creditTermMonths: null,
+        notes: "Payment-behaviour demo: immediate-payment order.",
+        items: {
+          create: {
+            productId: getProductId("Premium Material Set"),
+            itemName: "Premium Material Set",
+            quantity: 1,
+            baseUnitPrice: 1500000,
+            finalUnitPrice: 1500000,
+            subtotal: 1500000
+          }
+        }
+      }
+    }),
+    prisma.salesOrder.create({
+      data: {
+        orderNumber: "SO-DEMO-MIX-002",
+        customerId: nusantaraJaya.id,
+        orderDate: getRollingDemoOrderDate(2),
+        status: "Confirmed",
+        subtotal: 1800000,
+        total: 1800000,
+        ...buildOrderTaxSnapshot({
+          totalAmount: 1800000,
+          customerNpwp: nusantaraJaya.npwp
+        }),
+        paymentTermType: "CREDIT",
+        creditTermMonths: 3,
+        notes: "Payment-behaviour demo: long-term-credit order.",
+        items: {
+          create: {
+            productId: getProductId("Delivery Service"),
+            itemName: "Delivery Service",
+            quantity: 1,
+            baseUnitPrice: 1800000,
+            finalUnitPrice: 1800000,
+            subtotal: 1800000
+          }
+        }
+      }
+    })
+  ]);
 
   const inv001 = await prisma.invoice.create({
     data: {
@@ -222,9 +342,14 @@ async function main() {
       issueDate: new Date("2026-05-20"),
       dueDate: new Date("2026-05-20"),
       totalAmount: 5400000,
+      customerNpwpSnapshot: so001.customerNpwpSnapshot,
+      ppnApplied: so001.ppnApplied,
+      ppnRateBasisPoints: so001.ppnRateBasisPoints,
+      ppnAmount: so001.ppnAmount,
+      netSalesAmount: so001.netSalesAmount,
       paidAmount: 5400000,
       remainingAmount: 0,
-      paymentTermType: "DEBIT",
+      paymentTermType: "IMMEDIATE",
       creditTermMonths: null,
       status: "Paid"
     }
@@ -238,6 +363,11 @@ async function main() {
       issueDate: new Date("2026-05-28"),
       dueDate: new Date("2026-08-28"),
       totalAmount: 2750000,
+      customerNpwpSnapshot: so003.customerNpwpSnapshot,
+      ppnApplied: so003.ppnApplied,
+      ppnRateBasisPoints: so003.ppnRateBasisPoints,
+      ppnAmount: so003.ppnAmount,
+      netSalesAmount: so003.netSalesAmount,
       paidAmount: 1000000,
       remainingAmount: 1750000,
       paymentTermType: "CREDIT",
@@ -254,6 +384,11 @@ async function main() {
       issueDate: new Date("2026-04-18"),
       dueDate: new Date("2026-05-18"),
       totalAmount: 7900000,
+      customerNpwpSnapshot: so004.customerNpwpSnapshot,
+      ppnApplied: so004.ppnApplied,
+      ppnRateBasisPoints: so004.ppnRateBasisPoints,
+      ppnAmount: so004.ppnAmount,
+      netSalesAmount: so004.netSalesAmount,
       paidAmount: 0,
       remainingAmount: 7900000,
       paymentTermType: "CREDIT",
@@ -270,6 +405,11 @@ async function main() {
       issueDate: new Date("2026-06-04"),
       dueDate: new Date("2026-07-04"),
       totalAmount: 3200000,
+      customerNpwpSnapshot: so002.customerNpwpSnapshot,
+      ppnApplied: so002.ppnApplied,
+      ppnRateBasisPoints: so002.ppnRateBasisPoints,
+      ppnAmount: so002.ppnAmount,
+      netSalesAmount: so002.netSalesAmount,
       paidAmount: 0,
       remainingAmount: 3200000,
       paymentTermType: "CREDIT",
@@ -286,9 +426,14 @@ async function main() {
       issueDate: new Date("2026-05-10"),
       dueDate: new Date("2026-05-10"),
       totalAmount: 1850000,
+      customerNpwpSnapshot: so005.customerNpwpSnapshot,
+      ppnApplied: so005.ppnApplied,
+      ppnRateBasisPoints: so005.ppnRateBasisPoints,
+      ppnAmount: so005.ppnAmount,
+      netSalesAmount: so005.netSalesAmount,
       paidAmount: 0,
       remainingAmount: 1850000,
-      paymentTermType: "DEBIT",
+      paymentTermType: "IMMEDIATE",
       creditTermMonths: null,
       status: "Overdue"
     }
@@ -328,6 +473,8 @@ async function main() {
       notes: "Delivery note generated after full payment.",
       receiverName: "Andi Saputra",
       senderName: "Admin CV Tajuk",
+      driverName: DELIVERY_DRIVER_OPTIONS[0],
+      vehiclePlateNumber: DELIVERY_VEHICLE_PLATE_OPTIONS[0],
       authorizedBy: "Admin Demo",
       items: {
         create: [
@@ -364,6 +511,8 @@ async function main() {
       notes: "Credit transaction. Delivery allowed before full payment for thesis demo flow.",
       receiverName: "Rizky Pratama",
       senderName: "Admin CV Tajuk",
+      driverName: DELIVERY_DRIVER_OPTIONS[1],
+      vehiclePlateNumber: DELIVERY_VEHICLE_PLATE_OPTIONS[1],
       authorizedBy: "Admin Demo",
       items: {
         create: [
@@ -379,31 +528,31 @@ async function main() {
     }
   });
 
-  await prisma.followUp.create({
+  await prisma.collectionTask.create({
     data: {
       customerId: nusantaraJaya.id,
       invoiceId: inv003.id,
-      followUpDate: new Date("2026-06-10"),
+      scheduledDate: new Date("2026-06-10"),
       status: "Planned",
       notes: "Call finance team about overdue invoice."
     }
   });
 
-  await prisma.followUp.create({
+  await prisma.collectionTask.create({
     data: {
       customerId: tokoHarapan.id,
       invoiceId: inv002.id,
-      followUpDate: new Date("2026-06-12"),
+      scheduledDate: new Date("2026-06-12"),
       status: "Planned",
       notes: "Confirm remaining payment schedule."
     }
   });
 
-  await prisma.followUp.create({
+  await prisma.collectionTask.create({
     data: {
       customerId: makmurBersama.id,
       invoiceId: inv005.id,
-      followUpDate: new Date("2026-06-04"),
+      scheduledDate: new Date("2026-06-04"),
       status: "Done",
       notes: "Customer promised payment next week."
     }
@@ -419,7 +568,7 @@ async function main() {
         moduleName: "Sales Orders",
         entityType: "SALES_ORDER",
         entityId: so001.id,
-        transactionCode: so001.orderNumber,
+        recordReference: so001.orderNumber,
         action: "CREATED",
         changeSummary: `Admin Demo created Sales Order ${so001.orderNumber}`,
         newValue: JSON.stringify({
@@ -436,7 +585,7 @@ async function main() {
         moduleName: "Customers",
         entityType: "CUSTOMER",
         entityId: sinarMaju.id,
-        transactionCode: sinarMaju.companyName,
+        recordReference: sinarMaju.companyName,
         action: "UPDATED",
         changeSummary: "Sales Demo updated customer data for PT Sinar Maju",
         oldValue: JSON.stringify({ notes: "Existing demo customer" }),
@@ -450,7 +599,7 @@ async function main() {
         moduleName: "Invoices",
         entityType: "INVOICE",
         entityId: inv003.id,
-        transactionCode: inv003.invoiceNumber,
+        recordReference: inv003.invoiceNumber,
         action: "STATUS_CHANGED",
         changeSummary: `Manager Demo reviewed invoice ${inv003.invoiceNumber} status`,
         oldValue: JSON.stringify({ status: "Unpaid" }),
@@ -459,17 +608,25 @@ async function main() {
     ]
   });
 
-  await createGeneratedDemoData({ adminUser, salesUser, managerUser });
+  await createGeneratedDemoData({
+    adminUser,
+    salesUser,
+    managerUser,
+    productIdByName
+  });
+  await verifySeedDemoData();
 }
 
 async function createGeneratedDemoData({
   adminUser,
   salesUser,
-  managerUser
+  managerUser,
+  productIdByName
 }: {
   adminUser: { id: string; username: string; displayName: string };
   salesUser: { id: string; username: string; displayName: string };
   managerUser: { id: string; username: string; displayName: string };
+  productIdByName: Map<string, string>;
 }) {
   const firstNames = [
     "Agus", "Ayu", "Bayu", "Citra", "Dimas", "Eka", "Farhan", "Gita", "Hendra", "Indah",
@@ -482,8 +639,8 @@ async function createGeneratedDemoData({
     "Mandiri", "Mitra", "Mulya", "Prima", "Sejahtera", "Sentosa", "Sukses", "Terang", "Utama", "Wijaya"
   ];
   const cities = ["Jakarta", "Bandung", "Surabaya", "Semarang", "Yogyakarta", "Malang", "Solo", "Bekasi"];
-  const customerTypes = ["Retail", "Wholesale", "Corporate"];
-  const products = [
+  const customerSegments = ["Retail", "Wholesale", "Corporate"];
+  const productNames = [
     "Product Package A",
     "Wholesale Package",
     "Retail Stock Package",
@@ -496,6 +653,13 @@ async function createGeneratedDemoData({
     "Delivery Service"
   ];
   const auditActors = [adminUser, salesUser, managerUser];
+  const getProductId = (productName: string) => {
+    const productId = productIdByName.get(productName);
+    if (!productId) {
+      throw new Error(`Generated seed product not found: ${productName}`);
+    }
+    return productId;
+  };
 
   for (let index = 0; index < 100; index += 1) {
     const sequence = index + 6;
@@ -512,23 +676,28 @@ async function createGeneratedDemoData({
         phone: `08${String(1200000000 + index).padStart(10, "0")}`,
         email: `customer${String(index + 1).padStart(3, "0")}@demo.example`,
         address: `Jl. Demo Revenue No. ${index + 1}, ${city}`,
-        customerType: customerTypes[index % customerTypes.length],
+        npwp:
+          index % 4 === 0
+            ? `9${String(index + 1).padStart(15, "0")}`
+            : null,
+        customerSegment: customerSegments[index % customerSegments.length],
         status: index % 15 === 0 ? "Inactive" : "Active",
         notes: `Generated demonstration customer ${index + 1} for table search, sorting, and filtering.`,
         createdAt
       }
     });
 
-    const orderDate = new Date(2025, 9, 1 + index * 2);
+    const orderDate = getRollingDemoOrderDate(index);
     const isPendingApproval = index % 20 === 0;
     const isConfirmedOnly = !isPendingApproval && index % 17 === 0;
-    const paymentTermType = index % 2 === 0 ? "CREDIT" as const : "DEBIT" as const;
+    const paymentTermType = index % 2 === 0 ? "CREDIT" as const : "IMMEDIATE" as const;
     const creditTermMonths = paymentTermType === "CREDIT" ? (index % 3) + 1 : null;
     const quantity = (index % 12) + 1;
-    const unitPrice = 250000 + (index % 8) * 125000;
+    const finalUnitPrice = 250000 + (index % 8) * 125000;
     const secondQuantity = index % 3 === 0 ? 1 : 0;
     const secondUnitPrice = 150000;
-    const total = quantity * unitPrice + secondQuantity * secondUnitPrice;
+    const total = quantity * finalUnitPrice + secondQuantity * secondUnitPrice;
+    const primaryProductName = productNames[index % productNames.length];
     const salesOrder = await prisma.salesOrder.create({
       data: {
         orderNumber: `SO-2026-${paddedSequence}`,
@@ -537,6 +706,10 @@ async function createGeneratedDemoData({
         status: isPendingApproval ? "Draft" : isConfirmedOnly ? "Confirmed" : "Invoiced",
         subtotal: total,
         total,
+        ...buildOrderTaxSnapshot({
+          totalAmount: total,
+          customerNpwp: customer.npwp
+        }),
         paymentTermType,
         creditTermMonths,
         notes: `Generated Sales Order ${paddedSequence}`,
@@ -550,18 +723,20 @@ async function createGeneratedDemoData({
         items: {
           create: [
             {
-              itemName: products[index % products.length],
+              productId: getProductId(primaryProductName),
+              itemName: primaryProductName,
               quantity,
-              basePrice: unitPrice,
-              unitPrice,
-              subtotal: quantity * unitPrice
+              baseUnitPrice: finalUnitPrice,
+              finalUnitPrice,
+              subtotal: quantity * finalUnitPrice
             },
             ...(secondQuantity > 0
               ? [{
+                  productId: getProductId("Handling Fee"),
                   itemName: "Handling Fee",
                   quantity: secondQuantity,
-                  basePrice: secondUnitPrice,
-                  unitPrice: secondUnitPrice,
+                  baseUnitPrice: secondUnitPrice,
+                  finalUnitPrice: secondUnitPrice,
                   subtotal: secondQuantity * secondUnitPrice
                 }]
               : [])
@@ -589,6 +764,11 @@ async function createGeneratedDemoData({
           issueDate,
           dueDate,
           totalAmount: total,
+          customerNpwpSnapshot: salesOrder.customerNpwpSnapshot,
+          ppnApplied: salesOrder.ppnApplied,
+          ppnRateBasisPoints: salesOrder.ppnRateBasisPoints,
+          ppnAmount: salesOrder.ppnAmount,
+          netSalesAmount: salesOrder.netSalesAmount,
           paidAmount,
           remainingAmount: total - paidAmount,
           paymentTermType,
@@ -629,11 +809,17 @@ async function createGeneratedDemoData({
             notes: "Generated delivery document.",
             receiverName: customer.name,
             senderName: "Admin CV Tajuk",
+            driverName:
+              DELIVERY_DRIVER_OPTIONS[index % DELIVERY_DRIVER_OPTIONS.length],
+            vehiclePlateNumber:
+              DELIVERY_VEHICLE_PLATE_OPTIONS[
+                index % DELIVERY_VEHICLE_PLATE_OPTIONS.length
+              ],
             authorizedBy: adminUser.displayName,
             items: {
               create: [{
                 productCode: `DEMO-${paddedSequence}`,
-                itemName: products[index % products.length],
+                itemName: primaryProductName,
                 quantity,
                 unit: "PCS",
                 description: "Generated delivery item."
@@ -644,13 +830,13 @@ async function createGeneratedDemoData({
       }
 
       if (paymentTermType === "CREDIT" && invoiceStatus !== "Paid") {
-        await prisma.followUp.create({
+        await prisma.collectionTask.create({
           data: {
             customerId: customer.id,
             invoiceId: invoice.id,
-            followUpDate: dueDate,
+            scheduledDate: dueDate,
             status: index % 5 === 0 ? "Done" : "Planned",
-            notes: `Generated Billing follow-up for INV-2026-${paddedSequence}.`
+            notes: `Generated collection task for INV-2026-${paddedSequence}.`
           }
         });
       }
@@ -658,7 +844,7 @@ async function createGeneratedDemoData({
 
     if (index % 2 === 0) {
       const contactDate = new Date(2026, 4, (index % 28) + 1);
-      await prisma.customerProductFollowUp.create({
+      await prisma.customerOutreach.create({
         data: {
           customerId: customer.id,
           contactDate,
@@ -677,12 +863,174 @@ async function createGeneratedDemoData({
         moduleName: index % 2 === 0 ? "Customers" : "Sales Orders",
         entityType: index % 2 === 0 ? "CUSTOMER" : "SALES_ORDER",
         entityId: index % 2 === 0 ? customer.id : salesOrder.id,
-        transactionCode: index % 2 === 0 ? customer.companyName : salesOrder.orderNumber,
+        recordReference: index % 2 === 0 ? customer.companyName : salesOrder.orderNumber,
         action: index % 4 === 0 ? "CREATED" : index % 4 === 1 ? "UPDATED" : index % 4 === 2 ? "REVIEWED" : "STATUS_CHANGED",
         changeSummary: `Generated audit activity ${index + 1} for demonstration data.`,
         newValue: JSON.stringify({ generated: true, sequence: index + 1 })
       }
     });
+  }
+}
+
+function getRollingDemoOrderDate(index: number, now = new Date()) {
+  const orderDate = new Date(now);
+  orderDate.setHours(12, 0, 0, 0);
+  orderDate.setDate(
+    Math.min((index % 20) + 1, Math.max(1, orderDate.getDate()))
+  );
+  orderDate.setMonth(orderDate.getMonth() - (index % 12));
+  return orderDate;
+}
+
+async function verifySeedDemoData() {
+  const [customers, products, orders, invoices, deliveryNotes] =
+    await Promise.all([
+      prisma.customer.findMany({
+        select: {
+          salesOrders: {
+            select: {
+              orderDate: true,
+              status: true,
+              paymentTermType: true,
+              creditTermMonths: true
+            }
+          }
+        }
+      }),
+      prisma.product.findMany({
+        select: {
+          id: true,
+          salesOrderItems: {
+            select: {
+              productId: true,
+              quantity: true,
+              subtotal: true,
+              salesOrder: {
+                select: { orderDate: true, status: true }
+              }
+            }
+          }
+        }
+      }),
+      prisma.salesOrder.findMany({
+        select: {
+          id: true,
+          total: true,
+          customerNpwpSnapshot: true,
+          ppnApplied: true,
+          ppnRateBasisPoints: true,
+          ppnAmount: true,
+          netSalesAmount: true
+        }
+      }),
+      prisma.invoice.findMany({
+        select: {
+          totalAmount: true,
+          customerNpwpSnapshot: true,
+          ppnApplied: true,
+          ppnRateBasisPoints: true,
+          ppnAmount: true,
+          netSalesAmount: true,
+          salesOrder: {
+            select: {
+              customerNpwpSnapshot: true,
+              ppnApplied: true,
+              ppnRateBasisPoints: true,
+              ppnAmount: true,
+              netSalesAmount: true
+            }
+          }
+        }
+      }),
+      prisma.deliveryNote.findMany({
+        select: { driverName: true, vehiclePlateNumber: true }
+      })
+    ]);
+
+  const behaviours = new Set(
+    customers.map(
+      (customer) => getCustomerPaymentBehaviour(customer).behaviour
+    )
+  );
+  for (const expectedBehaviour of [
+    "Immediate Payment",
+    "Short-Term Credit",
+    "Long-Term Credit",
+    "Mixed",
+    "No Payment History"
+  ] as const) {
+    assertSeed(
+      behaviours.has(expectedBehaviour),
+      `Missing payment-behaviour demo: ${expectedBehaviour}`
+    );
+  }
+
+  assertSeed(
+    products.some(
+      (product) =>
+        getCurrentMonthAverageSoldPrice(
+          product.id,
+          product.salesOrderItems
+        ).averageSoldPrice !== null
+    ),
+    "No product has an eligible current-month average sold price"
+  );
+
+  assertSeed(
+    orders.some((order) => order.ppnApplied) &&
+      orders.some((order) => !order.ppnApplied),
+    "Taxed and non-taxed order demos are both required"
+  );
+  for (const order of orders) {
+    assertSeed(
+      order.netSalesAmount + order.ppnAmount === order.total,
+      `Order ${order.id} does not reconcile Net Sales + PPN = Total`
+    );
+    assertSeed(
+      order.ppnApplied === (order.customerNpwpSnapshot !== null),
+      `Order ${order.id} has an inconsistent NPWP/PPN snapshot`
+    );
+  }
+
+  for (const invoice of invoices) {
+    assertSeed(
+      invoice.netSalesAmount + invoice.ppnAmount === invoice.totalAmount,
+      "An invoice does not reconcile Net Sales + PPN = Total"
+    );
+    assertSeed(
+      invoice.customerNpwpSnapshot ===
+        invoice.salesOrder.customerNpwpSnapshot &&
+        invoice.ppnApplied === invoice.salesOrder.ppnApplied &&
+        invoice.ppnRateBasisPoints ===
+          invoice.salesOrder.ppnRateBasisPoints &&
+        invoice.ppnAmount === invoice.salesOrder.ppnAmount &&
+        invoice.netSalesAmount === invoice.salesOrder.netSalesAmount,
+      "An invoice tax snapshot differs from its Sales Order"
+    );
+  }
+
+  const allowedDrivers = new Set<string>(DELIVERY_DRIVER_OPTIONS);
+  const allowedVehiclePlates = new Set<string>(
+    DELIVERY_VEHICLE_PLATE_OPTIONS
+  );
+  for (const deliveryNote of deliveryNotes) {
+    assertSeed(
+      allowedDrivers.has(deliveryNote.driverName ?? "") &&
+        allowedVehiclePlates.has(deliveryNote.vehiclePlateNumber ?? ""),
+      "A seeded Surat Jalan has a missing or invalid delivery assignment"
+    );
+  }
+
+  console.log(
+    `Verified demo intelligence: ${behaviours.size} payment behaviours, ` +
+      `${orders.filter((order) => order.ppnApplied).length} taxed orders, ` +
+      `${deliveryNotes.length} assigned Surat Jalan records.`
+  );
+}
+
+function assertSeed(condition: boolean, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(`Seed verification failed: ${message}`);
   }
 }
 

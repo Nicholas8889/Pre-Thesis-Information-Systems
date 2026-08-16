@@ -1,6 +1,7 @@
 import Link from "next/link";
-import type { Product } from "@prisma/client";
+import type { Prisma, Product } from "@prisma/client";
 import {
+  ArrowUpDown,
   CheckCircle2,
   Eye,
   Package,
@@ -20,6 +21,11 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
+import {
+  getCurrentMonthAverageSoldPrice,
+  getJakartaCurrentMonthWindow,
+  PRODUCT_AVERAGE_ELIGIBLE_STATUSES
+} from "@/lib/product-insights";
 import { getSearchMessage } from "@/lib/workflow";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -37,7 +43,32 @@ export default async function ProductsPage({
   const mode = getFirst(params.mode);
   const viewId = getFirst(params.view);
   const editId = getFirst(params.edit);
+  const averagePriceSort = getAveragePriceSort(getFirst(params.averagePrice));
   const { success, error } = getSearchMessage(params);
+  const now = new Date();
+  const currentMonth = getJakartaCurrentMonthWindow(now);
+  const currentMonthSalesItems = {
+    where: {
+      salesOrder: {
+        orderDate: {
+          gte: currentMonth.monthStart,
+          lt: currentMonth.nextMonthStart
+        },
+        status: { in: [...PRODUCT_AVERAGE_ELIGIBLE_STATUSES] }
+      }
+    },
+    select: {
+      productId: true,
+      quantity: true,
+      subtotal: true,
+      salesOrder: {
+        select: {
+          orderDate: true,
+          status: true
+        }
+      }
+    }
+  } satisfies Prisma.SalesOrderItemFindManyArgs;
 
   const products = await prisma.product.findMany({
     where: query
@@ -48,21 +79,55 @@ export default async function ProductsPage({
           ]
         }
       : undefined,
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
+    include: { salesOrderItems: currentMonthSalesItems }
   });
+  const productsWithAverages = products.map((product) => ({
+    ...product,
+    average: getCurrentMonthAverageSoldPrice(
+      product.id,
+      product.salesOrderItems,
+      now
+    )
+  }));
+  const sortedProducts = averagePriceSort
+    ? [...productsWithAverages].sort((left, right) => {
+        const leftAverage = left.average.averageSoldPrice;
+        const rightAverage = right.average.averageSoldPrice;
+        if (leftAverage === null && rightAverage === null) {
+          return left.productName.localeCompare(right.productName);
+        }
+        if (leftAverage === null) return 1;
+        if (rightAverage === null) return -1;
+        const difference = leftAverage - rightAverage;
+        return averagePriceSort === "asc" ? difference : -difference;
+      })
+    : productsWithAverages;
 
   const selectedProduct = viewId
-    ? await prisma.product.findUnique({ where: { id: viewId } })
+    ? products.find((product) => product.id === viewId) ??
+      await prisma.product.findUnique({
+        where: { id: viewId },
+        include: { salesOrderItems: currentMonthSalesItems }
+      })
+    : null;
+  const selectedProductAverage = selectedProduct
+    ? getCurrentMonthAverageSoldPrice(
+        selectedProduct.id,
+        selectedProduct.salesOrderItems,
+        now
+      )
     : null;
   const productToEdit = editId
-    ? await prisma.product.findUnique({ where: { id: editId } })
+    ? products.find((product) => product.id === editId) ??
+      await prisma.product.findUnique({ where: { id: editId } })
     : null;
 
   return (
     <>
       <PageHeader
         title="Products"
-        description="Manage product master data, base prices, and availability status."
+        description="Manage product master data, prices, and availability status."
         action={
           <Link
             href="/products?mode=add"
@@ -95,7 +160,7 @@ export default async function ProductsPage({
               <div>
                 <h2 className="text-lg font-semibold">{selectedProduct.productName}</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  {formatCurrency(selectedProduct.basePrice)}
+                  {formatCurrency(selectedProduct.listPrice)}
                 </p>
               </div>
             </div>
@@ -126,8 +191,13 @@ export default async function ProductsPage({
             </div>
           </div>
 
-          <div className="grid gap-4 text-sm md:grid-cols-3">
-            <Detail label="Base Price" value={formatCurrency(selectedProduct.basePrice)} />
+          <div className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
+            <Detail label="List Price" value={formatCurrency(selectedProduct.listPrice)} />
+            <Detail
+              label="Average Sold Price - This Month"
+              value={formatAverageSoldPrice(selectedProductAverage?.averageSoldPrice ?? null)}
+              description={`${selectedProductAverage?.eligibleQuantity ?? 0} eligible unit(s) · ${selectedProductAverage?.monthLabel ?? currentMonth.monthLabel}`}
+            />
             <Detail label="Created" value={formatDateTime(selectedProduct.createdAt)} />
             <Detail label="Last Updated" value={formatDateTime(selectedProduct.updatedAt)} />
           </div>
@@ -163,6 +233,9 @@ export default async function ProductsPage({
             placeholder="Search product"
             defaultValue={query}
           />
+          {averagePriceSort && (
+            <input type="hidden" name="averagePrice" value={averagePriceSort} />
+          )}
         </form>
 
         {products.length === 0 ? (
@@ -173,18 +246,39 @@ export default async function ProductsPage({
               <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="py-3 pr-4">Product Name</th>
-                  <th className="py-3 pr-4 text-right">Base Price</th>
+                  <th className="py-3 pr-4 text-right">List Price</th>
+                  <th className="py-3 pr-4 text-right">
+                    <Link
+                      href={getAveragePriceSortHref(
+                        query,
+                        averagePriceSort === "desc" ? "asc" : "desc"
+                      )}
+                      className="inline-flex items-center justify-end gap-1 font-semibold text-slate-500 hover:text-brand"
+                    >
+                      Avg. Sold Price (This Month)
+                      <ArrowUpDown aria-hidden="true" className="h-3.5 w-3.5" />
+                    </Link>
+                  </th>
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4">Notes</th>
                   <th className="py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
-                {products.map((product) => (
+                {sortedProducts.map((product) => (
                   <tr key={product.id} className="transition hover:bg-slate-50">
                     <td className="py-3 pr-4 font-medium">{product.productName}</td>
                     <td className="py-3 pr-4 text-right font-medium">
-                      {formatCurrency(product.basePrice)}
+                      {formatCurrency(product.listPrice)}
+                    </td>
+                    <td className="py-3 pr-4 text-right font-medium">
+                      {product.average.averageSoldPrice === null ? (
+                        <span className="text-xs font-normal text-slate-500">
+                          No sales this month
+                        </span>
+                      ) : (
+                        formatCurrency(product.average.averageSoldPrice)
+                      )}
                     </td>
                     <td className="py-3 pr-4">
                       <StatusBadge status={product.status} />
@@ -233,10 +327,10 @@ function ProductForm({ product }: { product?: Product }) {
           required
         />
         <FormField
-          label="Base Price"
-          name="basePrice"
+          label="List Price"
+          name="listPrice"
           type="number"
-          defaultValue={product?.basePrice}
+          defaultValue={product?.listPrice}
           min="0"
           required
         />
@@ -306,15 +400,41 @@ function FormField({
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({
+  label,
+  value,
+  description
+}: {
+  label: string;
+  value: string;
+  description?: string;
+}) {
   return (
     <div>
       <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
       <p className="mt-1 text-sm font-medium text-ink">{value}</p>
+      {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
     </div>
   );
 }
 
 function getFirst(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function getAveragePriceSort(value: string | undefined) {
+  return value === "asc" || value === "desc" ? value : null;
+}
+
+function getAveragePriceSortHref(
+  query: string | undefined,
+  direction: "asc" | "desc"
+) {
+  const params = new URLSearchParams({ averagePrice: direction });
+  if (query) params.set("q", query);
+  return `/products?${params.toString()}`;
+}
+
+function formatAverageSoldPrice(value: number | null) {
+  return value === null ? "No sales this month" : formatCurrency(value);
 }

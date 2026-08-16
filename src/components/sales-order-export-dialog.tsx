@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, Download, X } from "lucide-react";
+import { CalendarDays, FileSpreadsheet, X } from "lucide-react";
 
 export function SalesOrderExportDialog({
-  transactionType = "SALES_ORDER"
+  source = "DIRECT"
 }: {
-  transactionType?: "SALES_ORDER" | "PRE_ORDER";
+  source?: "DIRECT" | "CUSTOMER_PO";
 }) {
-  const isPreOrder = transactionType === "PRE_ORDER";
-  const label = isPreOrder ? "Pre Order" : "Sales Order";
+  const isCustomerPo = source === "CUSTOMER_PO";
+  const label = isCustomerPo ? "Customer PO" : "Sales Order";
   const today = toDateInputValue(new Date());
   const firstDay = toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [isOpen, setIsOpen] = useState(false);
@@ -34,7 +34,7 @@ export function SalesOrderExportDialog({
 
     try {
       const response = await fetch(
-        `/api/sales-orders/export?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&transactionType=${transactionType}`
+        `/api/sales-orders/export?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&source=${source}`
       );
 
       if (!response.ok) {
@@ -44,7 +44,7 @@ export function SalesOrderExportDialog({
 
       const blob = await response.blob();
       const contentDisposition = response.headers.get("content-disposition") ?? "";
-      const fileName = contentDisposition.match(/filename="([^"]+)"/)?.[1] ?? `${isPreOrder ? "pre-orders" : "sales-orders"}-${startDate}-${endDate}.xlsx`;
+      const fileName = contentDisposition.match(/filename="([^"]+)"/)?.[1] ?? `${isCustomerPo ? "customer-purchase-orders" : "sales-orders"}-${startDate}-${endDate}.xlsx`;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -68,8 +68,8 @@ export function SalesOrderExportDialog({
         onClick={() => setIsOpen(true)}
         className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-brand"
       >
-        <Download aria-hidden="true" className="h-4 w-4" />
-        Download {label} Data
+        <FileSpreadsheet aria-hidden="true" className="h-4 w-4" />
+        Ekspor Excel {label}
       </button>
 
       {isOpen && (
@@ -86,7 +86,7 @@ export function SalesOrderExportDialog({
             <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
               <div>
                 <h2 id="sales-order-export-title" className="text-lg font-semibold text-ink">
-                  Download {label} Data
+                  Ekspor Excel {label}
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
                   Choose the {label} date range to include in the Excel file.
@@ -159,8 +159,8 @@ export function SalesOrderExportDialog({
                 disabled={isDownloading}
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Download aria-hidden="true" className="h-4 w-4" />
-                {isDownloading ? "Preparing Excel..." : "Download Excel"}
+                <FileSpreadsheet aria-hidden="true" className="h-4 w-4" />
+                {isDownloading ? "Menyiapkan Excel..." : "Ekspor Excel"}
               </button>
             </div>
           </section>

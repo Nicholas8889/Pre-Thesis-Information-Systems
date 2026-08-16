@@ -1,0 +1,311 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3600" height="2200" viewBox="0 0 3600 2200">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#111827"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="9" dy="9" stdDeviation="0" flood-color="#93c5fd" flood-opacity="0.9"/>
+    </filter>
+    <filter id="storeShadow" x="-10%" y="-20%" width="130%" height="160%">
+      <feDropShadow dx="14" dy="-14" stdDeviation="0" flood-color="#dbeafe" flood-opacity="1"/>
+    </filter>
+    <style>
+      .title { font: 700 42px Arial, sans-serif; fill: #111827; }
+      .subtitle { font: 400 22px Arial, sans-serif; fill: #475569; }
+      .entity { fill: #bfdbfe; stroke: #2563eb; stroke-width: 2.5; filter: url(#shadow); }
+      .entity-title { font: 700 22px Arial, sans-serif; fill: #1f2937; text-anchor: middle; }
+      .entity-sub { font: 400 17px Arial, sans-serif; fill: #374151; text-anchor: middle; }
+      .process { fill: #bfdbfe; stroke: #2563eb; stroke-width: 2.5; }
+      .process-head { fill: #0ea5e9; opacity: 0.85; }
+      .process-num { font: 700 22px Arial, sans-serif; fill: #fff; text-anchor: middle; }
+      .process-title { font: 700 21px Arial, sans-serif; fill: #1f2937; text-anchor: middle; }
+      .process-sub { font: 400 16px Arial, sans-serif; fill: #374151; text-anchor: middle; }
+      .store { fill: #dbeafe; stroke: #111827; stroke-width: 2.5; filter: url(#storeShadow); }
+      .store-id { fill: #0ea5e9; stroke: #111827; stroke-width: 2.5; }
+      .store-text { font: 700 20px Arial, sans-serif; fill: #1f2937; }
+      .store-sub { font: 400 15px Arial, sans-serif; fill: #475569; }
+      .store-code { font: 700 19px Arial, sans-serif; fill: #fff; text-anchor: middle; }
+      .flow { fill: none; stroke: #111827; stroke-width: 3; marker-end: url(#arrow); }
+      .flow-dashed { fill: none; stroke: #475569; stroke-width: 2.7; stroke-dasharray: 12 10; marker-end: url(#arrow); }
+      .flow-label { font: 400 17px Arial, sans-serif; fill: #1f2937; }
+      .small-label { font: 400 15px Arial, sans-serif; fill: #1f2937; }
+      .legend { font: 400 17px Arial, sans-serif; fill: #334155; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="3600" height="2200" fill="#ffffff"/>
+  <text class="title" x="1800" y="70" text-anchor="middle">Level 0 Data Flow Diagram</text>
+  <text class="subtitle" x="1800" y="110" text-anchor="middle">CV Tajuk Revenue Cycle Information System</text>
+
+  <!-- External entities -->
+  <rect class="entity" x="90" y="220" width="300" height="125"/>
+  <text class="entity-title" x="240" y="273">Customer</text>
+  <text class="entity-sub" x="240" y="312">No direct app login</text>
+
+  <rect class="entity" x="520" y="220" width="300" height="125"/>
+  <text class="entity-title" x="670" y="273">Staff Sales</text>
+  <text class="entity-sub" x="670" y="312">External Entity</text>
+
+  <rect class="entity" x="950" y="220" width="300" height="125"/>
+  <text class="entity-title" x="1100" y="273">Staff Admin</text>
+  <text class="entity-sub" x="1100" y="312">External Entity</text>
+
+  <rect class="entity" x="1360" y="170" width="300" height="125"/>
+  <text class="entity-title" x="1510" y="223">Administrator</text>
+  <text class="entity-sub" x="1510" y="262">External Entity</text>
+
+  <rect class="entity" x="3020" y="220" width="300" height="125"/>
+  <text class="entity-title" x="3170" y="273">General Manager</text>
+  <text class="entity-sub" x="3170" y="312">External Entity</text>
+
+  <!-- Processes -->
+  <rect class="process" x="1360" y="410" width="290" height="220" rx="24"/>
+  <rect class="process-head" x="1360" y="410" width="290" height="56"/>
+  <text class="process-num" x="1505" y="447">1.0</text>
+  <text class="process-title" x="1505" y="527">Mengelola</text>
+  <text class="process-title" x="1505" y="560">Pengguna</text>
+  <text class="process-sub" x="1505" y="600">Hak akses dan role</text>
+
+  <rect class="process" x="280" y="700" width="290" height="220" rx="24"/>
+  <rect class="process-head" x="280" y="700" width="290" height="56"/>
+  <text class="process-num" x="425" y="737">2.0</text>
+  <text class="process-title" x="425" y="817">Mengelola Data</text>
+  <text class="process-title" x="425" y="850">Customer/Product</text>
+  <text class="process-sub" x="425" y="890">Master data</text>
+
+  <rect class="process" x="710" y="700" width="290" height="220" rx="24"/>
+  <rect class="process-head" x="710" y="700" width="290" height="56"/>
+  <text class="process-num" x="855" y="737">3.0</text>
+  <text class="process-title" x="855" y="817">Mengelola</text>
+  <text class="process-title" x="855" y="850">Customer Inquiry</text>
+  <text class="process-sub" x="855" y="890">Permintaan customer</text>
+
+  <rect class="process" x="1140" y="700" width="290" height="220" rx="24"/>
+  <rect class="process-head" x="1140" y="700" width="290" height="56"/>
+  <text class="process-num" x="1285" y="737">4.0</text>
+  <text class="process-title" x="1285" y="817">Memproses</text>
+  <text class="process-title" x="1285" y="850">Sales Order</text>
+  <text class="process-sub" x="1285" y="890">Sales Order / PO</text>
+
+  <rect class="process" x="1570" y="700" width="290" height="220" rx="24"/>
+  <rect class="process-head" x="1570" y="700" width="290" height="56"/>
+  <text class="process-num" x="1715" y="737">5.0</text>
+  <text class="process-title" x="1715" y="817">Mengelola Invoice</text>
+  <text class="process-title" x="1715" y="850">dan Surat Jalan</text>
+  <text class="process-sub" x="1715" y="890">Collections dan delivery</text>
+
+  <rect class="process" x="2000" y="700" width="290" height="220" rx="24"/>
+  <rect class="process-head" x="2000" y="700" width="290" height="56"/>
+  <text class="process-num" x="2145" y="737">6.0</text>
+  <text class="process-title" x="2145" y="817">Mencatat</text>
+  <text class="process-title" x="2145" y="850">Payment</text>
+  <text class="process-sub" x="2145" y="890">Penerimaan pembayaran</text>
+
+  <rect class="process" x="2430" y="700" width="290" height="220" rx="24"/>
+  <rect class="process-head" x="2430" y="700" width="290" height="56"/>
+  <text class="process-num" x="2575" y="737">7.0</text>
+  <text class="process-title" x="2575" y="817">Receivables &amp;</text>
+  <text class="process-title" x="2575" y="850">Collections</text>
+  <text class="process-sub" x="2575" y="890">Customer Outreach</text>
+
+  <rect class="process" x="3020" y="700" width="290" height="220" rx="24"/>
+  <rect class="process-head" x="3020" y="700" width="290" height="56"/>
+  <text class="process-num" x="3165" y="737">8.0</text>
+  <text class="process-title" x="3165" y="817">Dashboard</text>
+  <text class="process-title" x="3165" y="850">dan Laporan</text>
+  <text class="process-sub" x="3165" y="890">Monitoring transaksi</text>
+
+  <!-- Data stores -->
+  <rect class="store" x="1360" y="1050" width="270" height="82"/>
+  <rect class="store-id" x="1360" y="1050" width="72" height="82"/>
+  <text class="store-code" x="1396" y="1099">D1</text>
+  <text class="store-text" x="1456" y="1088">User</text>
+  <text class="store-sub" x="1456" y="1115">Akun dan role</text>
+
+  <rect class="store" x="190" y="1230" width="270" height="82"/>
+  <rect class="store-id" x="190" y="1230" width="72" height="82"/>
+  <text class="store-code" x="226" y="1279">D2</text>
+  <text class="store-text" x="286" y="1268">Customer</text>
+  <text class="store-sub" x="286" y="1295">Profil customer</text>
+
+  <rect class="store" x="500" y="1230" width="270" height="82"/>
+  <rect class="store-id" x="500" y="1230" width="72" height="82"/>
+  <text class="store-code" x="536" y="1279">D3</text>
+  <text class="store-text" x="596" y="1268">Product</text>
+  <text class="store-sub" x="596" y="1295">Data produk</text>
+
+  <rect class="store" x="800" y="1230" width="330" height="82"/>
+  <rect class="store-id" x="800" y="1230" width="72" height="82"/>
+  <text class="store-code" x="836" y="1279">D4</text>
+  <text class="store-text" x="896" y="1268">Customer Inquiry</text>
+  <text class="store-sub" x="896" y="1295">Permintaan customer</text>
+
+  <rect class="store" x="1140" y="1230" width="285" height="82"/>
+  <rect class="store-id" x="1140" y="1230" width="72" height="82"/>
+  <text class="store-code" x="1176" y="1279">D5</text>
+  <text class="store-text" x="1236" y="1268">Sales Order</text>
+  <text class="store-sub" x="1236" y="1295">Order dan PO</text>
+
+  <rect class="store" x="1510" y="1230" width="270" height="82"/>
+  <rect class="store-id" x="1510" y="1230" width="72" height="82"/>
+  <text class="store-code" x="1546" y="1279">D6</text>
+  <text class="store-text" x="1606" y="1268">Invoice</text>
+  <text class="store-sub" x="1606" y="1295">Tagihan</text>
+
+  <rect class="store" x="1810" y="1230" width="295" height="82"/>
+  <rect class="store-id" x="1810" y="1230" width="72" height="82"/>
+  <text class="store-code" x="1846" y="1279">D8</text>
+  <text class="store-text" x="1906" y="1268">Surat Jalan</text>
+  <text class="store-sub" x="1906" y="1295">Delivery data</text>
+
+  <rect class="store" x="1570" y="1450" width="295" height="82"/>
+  <rect class="store-id" x="1570" y="1450" width="72" height="82"/>
+  <text class="store-code" x="1606" y="1499">D11</text>
+  <text class="store-text" x="1666" y="1488">PO Document</text>
+  <text class="store-sub" x="1666" y="1515">File pendukung</text>
+
+  <rect class="store" x="2160" y="1230" width="270" height="82"/>
+  <rect class="store-id" x="2160" y="1230" width="72" height="82"/>
+  <text class="store-code" x="2196" y="1279">D7</text>
+  <text class="store-text" x="2256" y="1268">Payment</text>
+  <text class="store-sub" x="2256" y="1295">Pembayaran</text>
+
+  <rect class="store" x="2490" y="1230" width="340" height="82"/>
+  <rect class="store-id" x="2490" y="1230" width="72" height="82"/>
+  <text class="store-code" x="2526" y="1279">D9</text>
+  <text class="store-text" x="2586" y="1268">Receivables / Collections</text>
+  <text class="store-sub" x="2586" y="1295">Customer Outreach records</text>
+
+  <rect class="store" x="3000" y="1450" width="300" height="82"/>
+  <rect class="store-id" x="3000" y="1450" width="72" height="82"/>
+  <text class="store-code" x="3036" y="1499">D10</text>
+  <text class="store-text" x="3096" y="1488">Audit Trail</text>
+  <text class="store-sub" x="3096" y="1515">Riwayat aktivitas</text>
+
+  <!-- External entity flows -->
+  <path class="flow" d="M240 345 V510 H855 V700"/>
+  <text class="flow-label" x="335" y="492">customer request data</text>
+
+  <path class="flow" d="M1570 810 V1010 H150 V370 H240 V345"/>
+  <text class="flow-label" x="430" y="992">invoice, surat jalan, payment information</text>
+
+  <path class="flow" d="M670 345 V545 H855 V700"/>
+  <text class="flow-label" x="690" y="528">inquiry/order input</text>
+
+  <path class="flow" d="M3020 850 V1040 H180 V565 H670 V345"/>
+  <text class="flow-label" x="780" y="1022">dashboard and order status</text>
+
+  <path class="flow" d="M1100 345 V580 H1715 V700"/>
+  <text class="flow-label" x="1185" y="562">collections, delivery, and payment input</text>
+
+  <path class="flow" d="M2430 830 V1080 H210 V610 H1100 V345"/>
+  <text class="flow-label" x="730" y="1062">receivable and customer outreach information</text>
+
+  <path class="flow" d="M1510 295 V410"/>
+  <text class="flow-label" x="1530" y="360">account and role data</text>
+
+  <path class="flow" d="M1360 530 H1320 V260 H1360"/>
+  <text class="small-label" x="1150" y="260">access status and audit info</text>
+
+  <path class="flow" d="M3170 345 V700"/>
+  <text class="flow-label" x="3190" y="520">report filter</text>
+
+  <path class="flow" d="M3020 780 H2960 V330 H3020"/>
+  <text class="flow-label" x="2790" y="420">dashboard and report</text>
+
+  <path class="flow" d="M3020 280 H1285 V700"/>
+  <text class="flow-label" x="2070" y="262">approval decision</text>
+
+  <!-- Process-to-process flows -->
+  <path class="flow" d="M1650 520 H1760 V640 H425 V700"/>
+  <text class="flow-label" x="720" y="622">access status</text>
+
+  <path class="flow" d="M570 810 H710"/>
+  <text class="flow-label" x="590" y="792">master reference data</text>
+
+  <path class="flow" d="M1000 810 H1140"/>
+  <text class="flow-label" x="1020" y="792">conversion data</text>
+
+  <path class="flow" d="M1430 810 H1570"/>
+  <text class="flow-label" x="1450" y="792">eligible order data</text>
+
+  <path class="flow" d="M1860 810 H2000"/>
+  <text class="flow-label" x="1880" y="792">invoice data</text>
+
+  <path class="flow" d="M2290 810 H2430"/>
+  <text class="flow-label" x="2310" y="792">payment status</text>
+
+  <path class="flow" d="M2720 810 H3020"/>
+  <text class="flow-label" x="2800" y="792">receivable summary</text>
+
+  <!-- Process-to-data-store flows -->
+  <path class="flow" d="M1505 630 V1050"/>
+  <text class="flow-label" x="1525" y="850">read/write user data</text>
+
+  <path class="flow" d="M365 920 V1230"/>
+  <text class="flow-label" x="385" y="1075">read/write customer data</text>
+
+  <path class="flow" d="M485 920 V1170 H635 V1230"/>
+  <text class="flow-label" x="540" y="1150">read/write product data</text>
+
+  <path class="flow" d="M855 920 V1230"/>
+  <text class="flow-label" x="875" y="1080">read/write inquiry data</text>
+
+  <path class="flow" d="M1285 920 V1230"/>
+  <text class="flow-label" x="1305" y="1080">read/write order data</text>
+
+  <path class="flow" d="M1650 920 V1230"/>
+  <text class="flow-label" x="1670" y="1080">read/write invoice data</text>
+
+  <path class="flow" d="M1775 920 V1185 H1958 V1230"/>
+  <text class="flow-label" x="1830" y="1165">read/write surat jalan data</text>
+
+  <path class="flow" d="M1715 920 V1450"/>
+  <text class="flow-label" x="1735" y="1385">store/read PO document</text>
+
+  <path class="flow" d="M2145 920 V1165 H2295 V1230"/>
+  <text class="flow-label" x="2165" y="1080">write payment data</text>
+
+  <path class="flow" d="M2575 920 V1230"/>
+  <text class="flow-label" x="2595" y="1080">read/write customer outreach data</text>
+
+  <!-- Dashboard/reporting reads -->
+  <path class="flow-dashed" d="M325 1312 V1720 H3165 V920"/>
+  <text class="flow-label" x="700" y="1700">master data for dashboard</text>
+
+  <path class="flow-dashed" d="M875 1312 V1680 H3128 V920"/>
+  <text class="flow-label" x="1180" y="1660">inquiry and order data for dashboard</text>
+
+  <path class="flow-dashed" d="M1645 1312 V1640 H3092 V920"/>
+  <text class="flow-label" x="1900" y="1620">invoice, delivery, and payment data for dashboard</text>
+
+  <path class="flow-dashed" d="M2560 1312 V1600 H3056 V920"/>
+  <text class="flow-label" x="2620" y="1580">receivable data for dashboard</text>
+
+  <path class="flow-dashed" d="M3150 1450 V920"/>
+  <text class="flow-label" x="3170" y="1210">audit trail data</text>
+
+  <!-- Audit trail flows -->
+  <path class="flow" d="M1450 630 V1880 H3000 V1491"/>
+  <text class="flow-label" x="1500" y="1860">account audit event</text>
+
+  <path class="flow" d="M425 920 V1915 H3015 V1491"/>
+  <text class="flow-label" x="700" y="1895">master data audit event</text>
+
+  <path class="flow" d="M1050 810 V1950 H3030 V1491"/>
+  <text class="flow-label" x="1260" y="1930">inquiry/order audit event</text>
+
+  <path class="flow" d="M1860 870 V1985 H3045 V1491"/>
+  <text class="flow-label" x="2060" y="1965">collections and delivery audit event</text>
+
+  <path class="flow" d="M2290 870 V2020 H3060 V1491"/>
+  <text class="flow-label" x="2440" y="2000">payment audit event</text>
+
+  <path class="flow" d="M2720 870 V2055 H3075 V1491"/>
+  <text class="flow-label" x="2820" y="2035">customer outreach audit event</text>
+
+  <!-- Legend -->
+  <rect x="90" y="2070" width="1180" height="76" fill="#f8fafc" stroke="#cbd5e1" rx="8"/>
+  <text class="legend" x="120" y="2098">Legend: shaded blue box = external entity; rounded blue process = process; open-ended blue store = data store.</text>
+  <text class="legend" x="120" y="2125">Lines use orthogonal routing with wider spacing. Dashed arrows indicate dashboard/reporting reads from data stores.</text>
+</svg>

@@ -20,6 +20,8 @@ import { syncOverdueInvoices } from "@/lib/workflow";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
 import { canDeleteOngoingSalesOrder } from "@/lib/sales-order-deletion";
+import { formatNpwp } from "@/lib/npwp";
+import { formatPpnRate } from "@/lib/tax";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,7 @@ type DetailInvoice = {
   totalAmount: number;
   paidAmount: number;
   remainingAmount: number;
-  paymentTermType: "DEBIT" | "CREDIT";
+  paymentTermType: "IMMEDIATE" | "CREDIT";
   creditTermMonths: number | null;
   status: string;
 };
@@ -59,7 +61,7 @@ export default async function SalesOrderDetailPage({
       invoice: {
         include: {
           payments: { orderBy: { paymentDate: "desc" } },
-          followUps: { orderBy: { followUpDate: "asc" } },
+          collectionTasks: { orderBy: { scheduledDate: "asc" } },
           deliveryNotes: {
             orderBy: { deliveryDate: "desc" },
             include: { items: true }
@@ -80,9 +82,9 @@ export default async function SalesOrderDetailPage({
     notFound();
   }
 
-  const isPreOrder = salesOrder.transactionType === "PRE_ORDER";
-  const transactionLabel = isPreOrder ? "Pre Order" : "Sales Order";
-  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
+  const isCustomerPo = salesOrder.source === "CUSTOMER_PO";
+  const orderLabel = isCustomerPo ? "Customer PO" : "Sales Order";
+  const basePath = isCustomerPo ? "/customer-purchase-orders" : "/sales-orders";
 
   const invoice = salesOrder.invoice;
   const payments = invoice?.payments ?? [];
@@ -91,7 +93,7 @@ export default async function SalesOrderDetailPage({
       [...salesOrder.deliveryNotes, ...(invoice?.deliveryNotes ?? [])].map((note) => [note.id, note])
     ).values()
   );
-  const followUps = invoice?.followUps ?? [];
+  const collectionTasks = invoice?.collectionTasks ?? [];
   const paidAmount = invoice ? calculateTotalPaidFromPayments(payments) : 0;
   const remainingAmount = invoice?.remainingAmount ?? salesOrder.total;
   const latestPaymentMethod = payments[0]?.paymentMethod
@@ -106,7 +108,7 @@ export default async function SalesOrderDetailPage({
     paymentCount: payments.length,
     deliveryNoteCount: deliveryNotes.length,
     remainingAmount,
-    followUpCount: followUps.length
+    collectionTaskCount: collectionTasks.length
   });
   const isOngoingAndDeletable = canDeleteOngoingSalesOrder({
     salesOrderStatus: salesOrder.status,
@@ -118,20 +120,20 @@ export default async function SalesOrderDetailPage({
     (invoice ? 1 : 0) +
     payments.length +
     deliveryNotes.length +
-    followUps.length;
+    collectionTasks.length;
 
   return (
     <>
       <PageHeader
-        title={`${transactionLabel} Detail`}
-        description={`Full transaction progress from ${transactionLabel} to Invoice, Payment, Surat Jalan, Receivable, and Billing.`}
+        title={`${orderLabel} Detail`}
+        description={`Full order progress from ${orderLabel} to Invoice, Payment, Surat Jalan, Receivable, and Collections.`}
         action={
           <Link
             href={salesOrder.approvalStatus === "Pending" ? `${basePath}?tab=approval` : basePath}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-brand"
           >
             <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-            Back to {isPreOrder ? "Pre Orders" : "Sales Orders"}
+            Back to {isCustomerPo ? "Customer Purchase Orders" : "Sales Orders"}
           </Link>
         }
       />
@@ -139,11 +141,11 @@ export default async function SalesOrderDetailPage({
       <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
         <div className="flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase text-slate-400">{transactionLabel}</p>
+            <p className="text-sm font-semibold uppercase text-slate-400">{orderLabel}</p>
             <h1 className="mt-1 text-2xl font-semibold">{salesOrder.orderNumber}</h1>
             <p className="mt-1 text-sm text-slate-600">
               {salesOrder.customer.companyName} - {formatDate(salesOrder.orderDate)}
-              {isPreOrder && salesOrder.poNumber ? ` - PO ${salesOrder.poNumber}` : ""}
+              {isCustomerPo && salesOrder.customerPoNumber ? ` - PO ${salesOrder.customerPoNumber}` : ""}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -159,15 +161,15 @@ export default async function SalesOrderDetailPage({
         </div>
 
         <div className="mt-5 grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
-          <Summary label="Transaction Type" value={transactionLabel} />
-          {isPreOrder && <Summary label="PO ID" value={salesOrder.poNumber ?? "-"} />}
-          {isPreOrder && salesOrder.requiredDate && (
+          <Summary label="Order Source" value={orderLabel} />
+          {isCustomerPo && <Summary label="Customer PO Number" value={salesOrder.customerPoNumber ?? "-"} />}
+          {isCustomerPo && salesOrder.requiredDate && (
             <Summary label="Product Required Date" value={formatDate(salesOrder.requiredDate)} />
           )}
-          {isPreOrder && (
-            <Summary label="PO Document" value={salesOrder.poDocumentName ?? "Not uploaded"} />
+          {isCustomerPo && (
+            <Summary label="Customer PO Document" value={salesOrder.customerPoDocumentName ?? "Not uploaded"} />
           )}
-          <Summary label="Payment Term" value={getPaymentTermLabel(salesOrder)} />
+          <Summary label="Payment Terms" value={getPaymentTermLabel(salesOrder)} />
           <Summary
             label="Manager Approval"
             value={
@@ -178,23 +180,38 @@ export default async function SalesOrderDetailPage({
           />
           <Summary label="Latest Payment Method" value={latestPaymentMethod} />
           <Summary label="Sales Order Total" value={formatCurrency(salesOrder.total)} />
+          {salesOrder.customerNpwpSnapshot && (
+            <Summary
+              label="NPWP Snapshot"
+              value={formatNpwp(salesOrder.customerNpwpSnapshot) ?? "-"}
+            />
+          )}
+          <Summary
+            label={salesOrder.ppnApplied ? "Net Sales (Margin)" : "Net Sales"}
+            value={formatCurrency(salesOrder.netSalesAmount)}
+          />
+          {salesOrder.ppnApplied && (
+            <Summary
+              label={`PPN (${formatPpnRate(salesOrder.ppnRateBasisPoints)})`}
+              value={formatCurrency(salesOrder.ppnAmount)}
+            />
+          )}
           <Summary label="Paid Amount" value={formatCurrency(invoice?.paidAmount ?? paidAmount)} />
           <Summary label="Remaining Amount" value={formatCurrency(remainingAmount)} />
           <Summary label="Invoice" value={invoice?.invoiceNumber ?? "Not generated"} />
           <Summary label="Surat Jalan" value={`${deliveryNotes.length} record(s)`} />
           <Summary label="Payments" value={`${payments.length} record(s)`} />
-          <Summary label="Billing" value={`${followUps.length} record(s)`} />
+          <Summary label="Collections" value={`${collectionTasks.length} record(s)`} />
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
-          {isPreOrder && salesOrder.poDocumentStoredName && (
+          {isCustomerPo && salesOrder.customerPoDocumentStoredName && (
             <Link
-              href={`/api/pre-orders/${salesOrder.id}/document`}
-              target="_blank"
+              href={`/api/customer-purchase-orders/${salesOrder.id}/document`}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-4 text-sm font-semibold text-brand"
             >
               <FileText aria-hidden="true" className="h-4 w-4" />
-              Open PO Document
+              Unduh Customer PO Document
             </Link>
           )}
           {invoice ? (
@@ -204,7 +221,7 @@ export default async function SalesOrderDetailPage({
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-4 text-sm font-semibold text-brand"
               >
                 <Printer aria-hidden="true" className="h-4 w-4" />
-                Printable Invoice
+                Cetak Invoice
               </Link>
               {remainingAmount > 0 && (
                 canRecordPayment ? (
@@ -258,7 +275,7 @@ export default async function SalesOrderDetailPage({
                 salesOrderId={salesOrder.id}
                 orderNumber={salesOrder.orderNumber}
                 relatedRecordCount={relatedRecordCount}
-                transactionLabel={transactionLabel}
+                orderLabel={orderLabel}
               />
             ) : (
               <RestrictedAction message={getRestrictionMessage("DELETE_SALES_ORDER")}>
@@ -278,7 +295,7 @@ export default async function SalesOrderDetailPage({
             <Summary label="Contact Person" value={salesOrder.customer.name} />
             <Summary label="Phone" value={salesOrder.customer.phone} />
             <Summary label="Email" value={salesOrder.customer.email || "-"} />
-            <Summary label="Customer Type" value={salesOrder.customer.customerType} />
+            <Summary label="Customer Segment" value={salesOrder.customer.customerSegment} />
             <Summary label="Status" value={salesOrder.customer.status} />
             <Summary label="Address" value={salesOrder.customer.address} />
             <Summary label="Notes" value={salesOrder.customer.notes ?? "-"} />
@@ -286,7 +303,7 @@ export default async function SalesOrderDetailPage({
         </div>
 
         <div className="rounded-md border border-line bg-white p-5 shadow-soft">
-          <h2 className="text-lg font-semibold">{transactionLabel} Item Details</h2>
+          <h2 className="text-lg font-semibold">{orderLabel} Item Details</h2>
           <div className="mt-4 overflow-x-auto">
             <table>
               <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
@@ -294,10 +311,10 @@ export default async function SalesOrderDetailPage({
                   <th className="py-3 pr-4">Product Name</th>
                   <th className="py-3 pr-4 text-right">Qty</th>
                   <th className="py-3 pr-4">Unit</th>
-                  <th className="py-3 pr-4 text-right">Base Price</th>
+                  <th className="py-3 pr-4 text-right">Base Unit Price</th>
                   <th className="py-3 pr-4 text-right">Markup</th>
                   <th className="py-3 pr-4 text-right">Discount</th>
-                  <th className="py-3 pr-4 text-right">Unit Price</th>
+                  <th className="py-3 pr-4 text-right">Final Unit Price</th>
                   <th className="py-3 pr-4 text-right">Line Total</th>
                   <th className="py-3">Notes</th>
                 </tr>
@@ -309,7 +326,7 @@ export default async function SalesOrderDetailPage({
                     <td className="py-3 pr-4 text-right text-slate-600">{item.quantity}</td>
                     <td className="py-3 pr-4 text-slate-600">PCS</td>
                     <td className="py-3 pr-4 text-right text-slate-600">
-                      {formatCurrency(item.basePrice)}
+                      {formatCurrency(item.baseUnitPrice)}
                     </td>
                     <td className="py-3 pr-4 text-right text-slate-600">
                       {item.markupPercent ? `${item.markupPercent}%` : "-"}
@@ -318,7 +335,7 @@ export default async function SalesOrderDetailPage({
                       {item.discountPercent ? `${item.discountPercent}%` : "-"}
                     </td>
                     <td className="py-3 pr-4 text-right text-slate-600">
-                      {formatCurrency(item.unitPrice)}
+                      {formatCurrency(item.finalUnitPrice)}
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(item.subtotal)}
@@ -342,7 +359,7 @@ export default async function SalesOrderDetailPage({
         invoice={invoice}
         payments={payments}
         deliveryNotes={deliveryNotes}
-        followUps={followUps}
+        collectionTasks={collectionTasks}
         hasActiveReceivable={hasActiveReceivable}
         remainingAmount={remainingAmount}
         canCreateInvoice={canCreateInvoice}
@@ -358,7 +375,7 @@ function RelatedSections({
   invoice,
   payments,
   deliveryNotes,
-  followUps,
+  collectionTasks,
   hasActiveReceivable,
   remainingAmount,
   canCreateInvoice,
@@ -393,9 +410,9 @@ function RelatedSections({
       description: string | null;
     }>;
   }>;
-  followUps: Array<{
+  collectionTasks: Array<{
     id: string;
-    followUpDate: Date;
+    scheduledDate: Date;
     status: string;
     notes: string;
     createdAt: Date;
@@ -435,7 +452,7 @@ function RelatedSections({
             <Summary label="Paid Amount" value={formatCurrency(invoice.paidAmount)} />
             <Summary label="Remaining Amount" value={formatCurrency(invoice.remainingAmount)} />
             <Summary
-              label="Payment Term"
+              label="Payment Terms"
               value={getPaymentTermLabel({
                 paymentTermType: invoice.paymentTermType,
                 creditTermMonths: invoice.creditTermMonths
@@ -493,7 +510,7 @@ function RelatedSections({
               <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="py-3 pr-4">Payment Date</th>
-                  <th className="py-3 pr-4">Method</th>
+                  <th className="py-3 pr-4">Payment Method</th>
                   <th className="py-3 pr-4 text-right">Amount Paid</th>
                   <th className="py-3 pr-4">Note / Reference</th>
                   <th className="py-3">Created</th>
@@ -573,7 +590,7 @@ function RelatedSections({
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
                     >
                       <Printer aria-hidden="true" className="h-4 w-4" />
-                      Print
+                      Cetak
                     </Link>
                   </div>
                 </div>
@@ -643,39 +660,39 @@ function RelatedSections({
 
       <section className="rounded-md border border-line bg-white p-5 shadow-soft">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold">Billing</h2>
+          <h2 className="text-lg font-semibold">Collections</h2>
           {invoice && hasActiveReceivable && (
             <Link
-              href={`/billing?customerId=${invoice.customerId}&invoiceId=${invoice.id}`}
+              href={`/collections?customerId=${invoice.customerId}&invoiceId=${invoice.id}`}
               className="inline-flex h-9 items-center justify-center rounded-md border border-line px-3 text-sm font-semibold text-brand"
             >
-              Create Billing
+              Create Collection Task
             </Link>
           )}
         </div>
-        {followUps.length > 0 ? (
+        {collectionTasks.length > 0 ? (
           <div className="overflow-x-auto">
             <table>
               <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="py-3 pr-4">Billing Date</th>
-                  <th className="py-3 pr-4">Type / Method</th>
+                  <th className="py-3 pr-4">Scheduled Date</th>
+                  <th className="py-3 pr-4">Collection Type</th>
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4">Notes / Result</th>
-                  <th className="py-3">Next Billing Action</th>
+                  <th className="py-3">Next Collection Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
-                {followUps.map((followUp) => (
-                  <tr key={followUp.id} className="transition hover:bg-slate-50">
+                {collectionTasks.map((collectionTask) => (
+                  <tr key={collectionTask.id} className="transition hover:bg-slate-50">
                     <td className="py-3 pr-4 text-slate-600">
-                      {formatDate(followUp.followUpDate)}
+                      {formatDate(collectionTask.scheduledDate)}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">General Billing</td>
+                    <td className="py-3 pr-4 text-slate-600">General Collection</td>
                     <td className="py-3 pr-4">
-                      <StatusBadge status={followUp.status} />
+                      <StatusBadge status={collectionTask.status} />
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">{followUp.notes}</td>
+                    <td className="py-3 pr-4 text-slate-600">{collectionTask.notes}</td>
                     <td className="py-3 text-slate-600">-</td>
                   </tr>
                 ))}
@@ -683,7 +700,7 @@ function RelatedSections({
             </table>
           </div>
         ) : (
-          <EmptyState message="No billing activity has been recorded yet." />
+          <EmptyState message="No collection activity has been recorded yet." />
         )}
       </section>
     </div>

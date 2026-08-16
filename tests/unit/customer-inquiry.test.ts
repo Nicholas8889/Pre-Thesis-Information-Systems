@@ -13,13 +13,13 @@ describe("customer inquiry helpers", () => {
   });
 
   it("only allows conversion when every item is mapped and agreed", () => {
-    expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedPrice: 30000 }])).toBe(true);
-    expect(canConvertCustomerInquiryItems([{ productId: null, agreedPrice: 30000 }])).toBe(false);
-    expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedPrice: null }])).toBe(false);
+    expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedUnitPrice: 30000 }])).toBe(true);
+    expect(canConvertCustomerInquiryItems([{ productId: null, agreedUnitPrice: 30000 }])).toBe(false);
+    expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedUnitPrice: null }])).toBe(false);
   });
 
-  it("keeps PO and SO abbreviations intact in status labels", () => {
-    expect(formatCustomerInquiryStatus("ConvertedToPO")).toBe("Converted to PO");
+  it("uses explicit Customer PO and SO abbreviations in status labels", () => {
+    expect(formatCustomerInquiryStatus("ConvertedToCustomerPO")).toBe("Converted to Customer PO");
     expect(formatCustomerInquiryStatus("ConvertedToSO")).toBe("Converted to SO");
   });
 });

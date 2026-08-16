@@ -4,13 +4,13 @@ const moduleNames: Record<string, string> = {
   "/products": "Product",
   "/customer-inquiries": "Customer Inquiry",
   "/sales-orders": "Sales Order",
-  "/pre-orders": "Pre Order",
+  "/customer-purchase-orders": "Customer PO",
   "/invoices": "Invoice",
   "/payments": "Payment",
   "/surat-jalan": "Surat Jalan",
   "/receivables": "Receivable",
-  "/billing": "Billing",
-  "/follow-ups": "Follow Up",
+  "/collections": "Collections",
+  "/customer-outreach": "Customer Outreach",
   "/audit-trail": "Audit Trail",
   "/settings": "Account"
 };

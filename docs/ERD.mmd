@@ -1,6 +1,6 @@
 erDiagram
   USER {
-    String idUser PK
+    String id PK
     String username UK
     String passwordHash
     String displayName
@@ -11,7 +11,7 @@ erDiagram
   }
 
   AUDIT_TRAIL {
-    String idAuditTrail PK
+    String id PK
     String actorUserId
     String actorUsername
     String actorDisplayName
@@ -19,7 +19,7 @@ erDiagram
     String moduleName
     String entityType
     String entityId
-    String transactionCode
+    String recordReference
     String action
     String changeSummary
     String actionNote
@@ -29,13 +29,14 @@ erDiagram
   }
 
   CUSTOMER {
-    String idCustomer PK
+    String id PK
     String name
     String companyName
+    String npwp UK
     String phone
     String email
     String address
-    String customerType
+    String customerSegment
     CustomerStatus status
     String notes
     DateTime createdAt
@@ -43,29 +44,34 @@ erDiagram
   }
 
   PRODUCT {
-    String idProduct PK
+    String id PK
     String productName
     String notes
-    Int basePrice
+    Int listPrice
     ProductStatus status
     DateTime createdAt
     DateTime updatedAt
   }
 
   SALES_ORDER {
-    String idSalesOrder PK
+    String id PK
     String orderNumber UK
-    String poNumber UK
-    TransactionType transactionType
+    String customerPoNumber UK
+    SalesOrderSource source
     DateTime requiredDate
-    String poDocumentName
-    String poDocumentStoredName
-    String poDocumentMimeType
+    String customerPoDocumentName
+    String customerPoDocumentStoredName
+    String customerPoDocumentMimeType
     String customerId FK
     DateTime orderDate
     SalesOrderStatus status
     Int subtotal
     Int total
+    String customerNpwpSnapshot
+    Boolean ppnApplied
+    Int ppnRateBasisPoints
+    Int ppnAmount
+    Int netSalesAmount
     PaymentTermType paymentTermType
     Int creditTermMonths
     String notes
@@ -80,17 +86,20 @@ erDiagram
   }
 
   SALES_ORDER_ITEM {
-    String idSalesOrderItem PK
+    String id PK
     String salesOrderId FK
     String productId FK
     String itemName
     Int quantity
-    Int unitPrice
+    Int baseUnitPrice
+    Int markupPercent
+    Int discountPercent
+    Int finalUnitPrice
     Int subtotal
   }
 
   CUSTOMER_INQUIRY {
-    String idCustomerInquiry PK
+    String id PK
     String inquiryNumber UK
     String customerId FK
     DateTime inquiryDate
@@ -98,32 +107,37 @@ erDiagram
     CustomerInquiryStatus status
     String notes
     String statusNote
-    String salesOrderId FK UK
+    String salesOrderId FK, UK
     DateTime createdAt
     DateTime updatedAt
   }
 
   CUSTOMER_INQUIRY_ITEM {
-    String idCustomerInquiryItem PK
+    String id PK
     String customerInquiryId FK
     String productId FK
     String itemName
     Int quantity
-    Int requestedPrice
-    Int agreedPrice
+    Int requestedUnitPrice
+    Int agreedUnitPrice
     String notes
   }
 
   INVOICE {
-    String idInvoice PK
+    String id PK
     String invoiceNumber UK
-    String salesOrderId FK
+    String salesOrderId FK, UK
     String customerId FK
     DateTime issueDate
     DateTime dueDate
     Int totalAmount
     Int paidAmount
     Int remainingAmount
+    String customerNpwpSnapshot
+    Boolean ppnApplied
+    Int ppnRateBasisPoints
+    Int ppnAmount
+    Int netSalesAmount
     PaymentTermType paymentTermType
     Int creditTermMonths
     InvoiceStatus status
@@ -133,7 +147,7 @@ erDiagram
   }
 
   PAYMENT {
-    String idPayment PK
+    String id PK
     String invoiceId FK
     DateTime paymentDate
     Int amount
@@ -143,19 +157,19 @@ erDiagram
     DateTime updatedAt
   }
 
-  FOLLOW_UP {
-    String idFollowUp PK
+  COLLECTION_TASK {
+    String id PK
     String customerId FK
     String invoiceId FK
-    DateTime followUpDate
-    FollowUpStatus status
+    DateTime scheduledDate
+    CollectionTaskStatus status
     String notes
     DateTime createdAt
     DateTime updatedAt
   }
 
-  CUSTOMER_PRODUCT_FOLLOW_UP {
-    String idCustomerProductFollowUp PK
+  CUSTOMER_OUTREACH {
+    String id PK
     String customerId FK
     DateTime contactDate
     String notes
@@ -164,7 +178,7 @@ erDiagram
   }
 
   DELIVERY_NOTE {
-    String idDeliveryNote PK
+    String id PK
     String deliveryNoteNumber UK
     String invoiceId FK
     String salesOrderId FK
@@ -177,13 +191,15 @@ erDiagram
     String notes
     String receiverName
     String senderName
+    String driverName
+    String vehiclePlateNumber
     String authorizedBy
     DateTime createdAt
     DateTime updatedAt
   }
 
   DELIVERY_NOTE_ITEM {
-    String idDeliveryNoteItem PK
+    String id PK
     String deliveryNoteId FK
     String productCode
     String itemName
@@ -202,9 +218,9 @@ erDiagram
   SALES_ORDER ||--o| INVOICE : generates
   CUSTOMER ||--o{ INVOICE : receives
   INVOICE ||--o{ PAYMENT : has
-  CUSTOMER ||--o{ FOLLOW_UP : has_billing
-  INVOICE ||--o{ FOLLOW_UP : may_have
-  CUSTOMER ||--o{ CUSTOMER_PRODUCT_FOLLOW_UP : has_contact
+  CUSTOMER ||--o{ COLLECTION_TASK : has_collection
+  INVOICE ||--o{ COLLECTION_TASK : may_have
+  CUSTOMER ||--o{ CUSTOMER_OUTREACH : has_contact
   CUSTOMER ||--o{ DELIVERY_NOTE : receives
   SALES_ORDER ||--o{ DELIVERY_NOTE : may_support
   INVOICE ||--o{ DELIVERY_NOTE : may_support

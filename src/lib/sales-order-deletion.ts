@@ -22,7 +22,7 @@ export async function deleteSalesOrderProcess(
   });
 
   if (input.invoiceId) {
-    await tx.followUp.deleteMany({ where: { invoiceId: input.invoiceId } });
+    await tx.collectionTask.deleteMany({ where: { invoiceId: input.invoiceId } });
     await tx.payment.deleteMany({ where: { invoiceId: input.invoiceId } });
     await tx.invoice.delete({ where: { id: input.invoiceId } });
   }

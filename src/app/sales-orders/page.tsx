@@ -20,7 +20,19 @@ import { isDoneSalesOrder, isOngoingSalesOrder } from "@/lib/process-status";
 import { getSearchMessage } from "@/lib/workflow";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
-import { getCustomerCategory } from "@/lib/customer-intelligence";
+import {
+  getCustomerCategory,
+  getCustomerPaymentBehaviour,
+  getCustomerPaymentRisk,
+  getJakartaTrailingTwelveMonthWindow
+} from "@/lib/customer-intelligence";
+import { formatNpwp } from "@/lib/npwp";
+import {
+  getCurrentMonthAverageSoldPrice,
+  getJakartaCurrentMonthWindow,
+  PRODUCT_AVERAGE_ELIGIBLE_STATUSES
+} from "@/lib/product-insights";
+import { formatPpnRate, getConfiguredPpnRateBasisPoints } from "@/lib/tax";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -29,21 +41,21 @@ export default async function SalesOrdersPage({
 }: {
   searchParams?: Promise<SearchParams>;
 }) {
-  return OrderTransactionsPage({ searchParams, transactionType: "SALES_ORDER" });
+  return OrdersBySourcePage({ searchParams, source: "DIRECT" });
 }
 
-export async function OrderTransactionsPage({
+export async function OrdersBySourcePage({
   searchParams,
-  transactionType
+  source
 }: {
   searchParams?: Promise<SearchParams>;
-  transactionType: "SALES_ORDER" | "PRE_ORDER";
+  source: "DIRECT" | "CUSTOMER_PO";
 }) {
   const params = (await searchParams) ?? {};
-  const isPreOrder = transactionType === "PRE_ORDER";
-  const basePath = isPreOrder ? "/pre-orders" : "/sales-orders";
-  const singularLabel = isPreOrder ? "Pre Order" : "Sales Order";
-  const pluralLabel = isPreOrder ? "Pre Orders" : "Sales Orders";
+  const isCustomerPo = source === "CUSTOMER_PO";
+  const basePath = isCustomerPo ? "/customer-purchase-orders" : "/sales-orders";
+  const singularLabel = isCustomerPo ? "Customer PO" : "Sales Order";
+  const pluralLabel = isCustomerPo ? "Customer Purchase Orders" : "Sales Orders";
   const mode = getFirst(params.mode);
   const viewId = getFirst(params.view);
   const inquiryId = getFirst(params.inquiryId);
@@ -59,8 +71,12 @@ export async function OrderTransactionsPage({
       ? "approval"
       : normalizeProcessTab(params.tab);
   const { success, error } = getSearchMessage(params);
+  const now = new Date();
+  const ppnRateBasisPoints = getConfiguredPpnRateBasisPoints();
+  const customerHistoryWindow = getJakartaTrailingTwelveMonthWindow(now);
+  const currentMonth = getJakartaCurrentMonthWindow(now);
 
-  const [customerRecords, products, salesOrders] = await Promise.all([
+  const [customerRecords, productRecords, salesOrders] = await Promise.all([
     prisma.customer.findMany({
       where: { status: "Active" },
       orderBy: { companyName: "asc" },
@@ -68,17 +84,60 @@ export async function OrderTransactionsPage({
         id: true,
         companyName: true,
         name: true,
+        npwp: true,
         createdAt: true,
-        salesOrders: { select: { orderDate: true } }
+        salesOrders: {
+          where: {
+            orderDate: {
+              gte: customerHistoryWindow.observationStart,
+              lte: customerHistoryWindow.observationEnd
+            }
+          },
+          select: {
+            orderDate: true,
+            status: true,
+            paymentTermType: true,
+            creditTermMonths: true
+          }
+        },
+        invoices: {
+          select: {
+            dueDate: true,
+            remainingAmount: true,
+            status: true,
+            payments: { select: { paymentDate: true } }
+          }
+        }
       }
     }),
     prisma.product.findMany({
       where: { status: "Active" },
       orderBy: { productName: "asc" },
-      select: { id: true, productName: true, basePrice: true }
+      select: {
+        id: true,
+        productName: true,
+        listPrice: true,
+        salesOrderItems: {
+          where: {
+            salesOrder: {
+              orderDate: {
+                gte: currentMonth.monthStart,
+                lt: currentMonth.nextMonthStart
+              },
+              status: { in: [...PRODUCT_AVERAGE_ELIGIBLE_STATUSES] }
+            }
+          },
+          select: {
+            productId: true,
+            quantity: true,
+            subtotal: true,
+            salesOrder: { select: { orderDate: true, status: true } }
+          }
+        }
+      }
     }),
     prisma.salesOrder.findMany({
-      where: { transactionType },
+      where: { source },
       orderBy: { createdAt: "desc" },
       include: {
         customer: true,
@@ -88,17 +147,44 @@ export async function OrderTransactionsPage({
       }
     })
   ]);
-  const customers = customerRecords.map((customer) => ({
-    id: customer.id,
-    companyName: customer.companyName,
-    name: customer.name,
-    category: getCustomerCategory(customer).category
-  }));
+  const customers = customerRecords.map((customer) => {
+    const category = getCustomerCategory(customer, now);
+    const paymentBehaviour = getCustomerPaymentBehaviour(customer, now);
+
+    return {
+      id: customer.id,
+      companyName: customer.companyName,
+      name: customer.name,
+      category: category.category,
+      recommendedMarkup: category.markup,
+      paymentRisk: getCustomerPaymentRisk(customer, now),
+      paymentBehaviour: paymentBehaviour.behaviour,
+      paymentBehaviourEvidence: paymentBehaviour.evidence,
+      npwp: formatNpwp(customer.npwp),
+      ppnApplied: Boolean(customer.npwp)
+    };
+  });
+  const products = productRecords.map((product) => {
+    const average = getCurrentMonthAverageSoldPrice(
+      product.id,
+      product.salesOrderItems,
+      now
+    );
+
+    return {
+      id: product.id,
+      productName: product.productName,
+      listPrice: product.listPrice,
+      averageSoldPrice: average.averageSoldPrice,
+      averageEligibleQuantity: average.eligibleQuantity,
+      averageMonthLabel: average.monthLabel
+    };
+  });
   const conversionInquiry = inquiryId && mode === "create"
     ? await prisma.customerInquiry.findFirst({ where: { id: inquiryId, status: "Open" }, include: { items: true } })
     : null;
-  const inquiryItems = conversionInquiry?.items.every((item) => item.productId && item.agreedPrice !== null)
-    ? conversionInquiry.items.map((item) => ({ productId: item.productId!, itemName: item.itemName, quantity: item.quantity, basePrice: item.agreedPrice!, markupPercent: 0, discountPercent: 0 }))
+  const inquiryItems = conversionInquiry?.items.every((item) => item.productId && item.agreedUnitPrice !== null)
+    ? conversionInquiry.items.map((item) => ({ productId: item.productId!, itemName: item.itemName, quantity: item.quantity, baseUnitPrice: item.agreedUnitPrice!, markupPercent: 0, discountPercent: 0 }))
     : undefined;
 
   const ongoingSalesOrders = salesOrders.filter((order) =>
@@ -127,7 +213,7 @@ export async function OrderTransactionsPage({
   const selectedOrder =
     (activeTab === "ongoing" || activeTab === "approval") && viewId
       ? await prisma.salesOrder.findFirst({
-          where: { id: viewId, transactionType },
+          where: { id: viewId, source },
           include: { customer: true, invoice: true, items: true, deliveryNotes: true }
         })
       : null;
@@ -137,17 +223,17 @@ export async function OrderTransactionsPage({
       <PageHeader
         title={pluralLabel}
         description={
-          isPreOrder
-            ? "Monitor customer Pre Orders and their required dates before invoice, payment, and delivery."
+          isCustomerPo
+            ? "Monitor Customer Purchase Orders and their required dates before invoice, payment, and delivery."
             : "Start and monitor customer sales orders before invoice, payment, and delivery."
         }
         action={
           <div className="flex flex-wrap justify-end gap-2">
-            <SalesOrderExportDialog transactionType={transactionType} />
+            <SalesOrderExportDialog source={source} />
             {activeTab === "ongoing" && (
               canCreateSalesOrder ? (
                 <Link
-                  href={isPreOrder ? "/pre-orders?mode=create" : "/sales-orders?mode=choose"}
+                  href={isCustomerPo ? "/customer-purchase-orders?mode=create" : "/sales-orders?mode=choose"}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white"
                 >
                   <Plus aria-hidden="true" className="h-4 w-4" />
@@ -176,17 +262,17 @@ export async function OrderTransactionsPage({
         approvalCount={canViewApprovals ? approvalSalesOrders.length : undefined}
       />
 
-      {!isPreOrder && mode === "choose" && (
-        <TransactionTypeDialog />
+      {!isCustomerPo && mode === "choose" && (
+        <SalesOrderSourceDialog />
       )}
 
       {activeTab === "ongoing" && mode === "create" && (
         <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
           <h2 className="mb-2 text-lg font-semibold">Create {singularLabel}</h2>
           <p className="mb-4 text-sm leading-6 text-slate-600">
-            {isPreOrder
-              ? "Record the PO document and product required date. The system generates both a Sales Order ID and PO ID, then invoice, payment, delivery note, receivable, and billing continue through the same process as a normal Sales Order."
-              : "Start from Sales Order, then the system generates invoice and connects payment, delivery note, receivable, and billing. Orders created by Sales for customers with late-payment risk are submitted to a Manager first."}
+            {isCustomerPo
+              ? "Record the customer PO document and product required date. The system generates both a Sales Order Number and Customer PO Number, then invoice, payment, delivery note, receivable, and collection work continue through the same process as a direct Sales Order."
+              : "Start from a direct Sales Order, then the system generates an invoice and connects payment, delivery note, receivable, and collection work. Orders created by Sales for customers with late-payment risk are submitted to a Manager first."}
           </p>
           {customers.length === 0 ? (
             <EmptyState message={`Add an active customer before creating a ${singularLabel}.`} />
@@ -196,8 +282,9 @@ export async function OrderTransactionsPage({
             <SalesOrderForm
               customers={customers}
               products={products}
+              ppnRateBasisPoints={ppnRateBasisPoints}
               action={createSalesOrder}
-              transactionType={transactionType}
+              source={source}
               inquiryId={conversionInquiry?.id}
               initialCustomerId={conversionInquiry?.customerId}
               initialItems={inquiryItems}
@@ -215,33 +302,49 @@ export async function OrderTransactionsPage({
               <h2 className="text-lg font-semibold">{selectedOrder.orderNumber}</h2>
               <p className="mt-1 text-sm text-slate-600">
                 {selectedOrder.customer.companyName} - {formatDate(selectedOrder.orderDate)}
-                {isPreOrder && selectedOrder.poNumber ? ` - PO ${selectedOrder.poNumber}` : ""}
+                {isCustomerPo && selectedOrder.customerPoNumber ? ` - PO ${selectedOrder.customerPoNumber}` : ""}
               </p>
             </div>
             <StatusBadge status={selectedOrder.status} />
           </div>
 
           <div className="mb-4 grid gap-4 text-sm md:grid-cols-3">
-            <Detail label="Transaction Type" value={singularLabel} />
-            {isPreOrder && (
-              <Detail label="PO ID" value={selectedOrder.poNumber ?? "-"} />
+            <Detail label="Order Source" value={singularLabel} />
+            {isCustomerPo && (
+              <Detail label="Customer PO Number" value={selectedOrder.customerPoNumber ?? "-"} />
             )}
-            {isPreOrder && selectedOrder.requiredDate && (
+            {isCustomerPo && selectedOrder.requiredDate && (
               <Detail label="Product Required Date" value={formatDate(selectedOrder.requiredDate)} />
             )}
-            {isPreOrder && (
-              <Detail label="PO Document" value={selectedOrder.poDocumentName ?? "Not uploaded"} />
+            {isCustomerPo && (
+              <Detail label="Customer PO Document" value={selectedOrder.customerPoDocumentName ?? "Not uploaded"} />
             )}
             {activeTab === "approval" && (
               <Detail label="Approval Risk" value={selectedOrder.approvalRisk ?? "Payment risk"} />
             )}
             <Detail
-              label="Payment Term"
+              label="Payment Terms"
               value={getPaymentTermLabel({
                 paymentTermType: selectedOrder.paymentTermType,
                 creditTermMonths: selectedOrder.creditTermMonths
               })}
             />
+            {selectedOrder.customerNpwpSnapshot && (
+              <Detail
+                label="NPWP Snapshot"
+                value={formatNpwp(selectedOrder.customerNpwpSnapshot) ?? "-"}
+              />
+            )}
+            <Detail
+              label="Net Sales (Margin)"
+              value={formatCurrency(selectedOrder.netSalesAmount)}
+            />
+            {selectedOrder.ppnApplied && (
+              <Detail
+                label={`PPN (${formatPpnRate(selectedOrder.ppnRateBasisPoints)})`}
+                value={formatCurrency(selectedOrder.ppnAmount)}
+              />
+            )}
             <Detail
               label="Invoice Status"
               value={selectedOrder.invoice?.status ?? "No invoice"}
@@ -263,10 +366,10 @@ export async function OrderTransactionsPage({
                 <tr>
                   <th className="py-3 pr-4">Product Name</th>
                   <th className="py-3 pr-4 text-right">Qty</th>
-                  <th className="py-3 pr-4 text-right">Base Price</th>
+                  <th className="py-3 pr-4 text-right">Base Unit Price</th>
                   <th className="py-3 pr-4 text-right">Markup</th>
                   <th className="py-3 pr-4 text-right">Discount</th>
-                  <th className="py-3 pr-4 text-right">Unit Price</th>
+                  <th className="py-3 pr-4 text-right">Final Unit Price</th>
                   <th className="py-3 text-right">Subtotal</th>
                 </tr>
               </thead>
@@ -276,7 +379,7 @@ export async function OrderTransactionsPage({
                     <td className="py-3 pr-4 font-medium">{item.itemName}</td>
                     <td className="py-3 pr-4 text-right text-slate-600">{item.quantity}</td>
                     <td className="py-3 pr-4 text-right text-slate-600">
-                      {formatCurrency(item.basePrice)}
+                      {formatCurrency(item.baseUnitPrice)}
                     </td>
                     <td className="py-3 pr-4 text-right text-slate-600">
                       {item.markupPercent ? `${item.markupPercent}%` : "-"}
@@ -285,7 +388,7 @@ export async function OrderTransactionsPage({
                       {item.discountPercent ? `${item.discountPercent}%` : "-"}
                     </td>
                     <td className="py-3 pr-4 text-right text-slate-600">
-                      {formatCurrency(item.unitPrice)}
+                      {formatCurrency(item.finalUnitPrice)}
                     </td>
                     <td className="py-3 text-right font-medium">
                       {formatCurrency(item.subtotal)}
@@ -383,12 +486,12 @@ export async function OrderTransactionsPage({
               <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="py-3 pr-4">Order Number</th>
-                  {isPreOrder && <th className="py-3 pr-4">PO ID</th>}
+                  {isCustomerPo && <th className="py-3 pr-4">Customer PO Number</th>}
                   <th className="py-3 pr-4">Customer</th>
                   <th className="py-3 pr-4">Order Date</th>
-                  {isPreOrder && <th className="py-3 pr-4">Required Date</th>}
-                  {isPreOrder && <th className="py-3 pr-4">PO Document</th>}
-                  <th className="py-3 pr-4">Payment Term</th>
+                  {isCustomerPo && <th className="py-3 pr-4">Required Date</th>}
+                  {isCustomerPo && <th className="py-3 pr-4">Customer PO Document</th>}
+                  <th className="py-3 pr-4">Payment Terms</th>
                   <th className="py-3 pr-4">Status</th>
                   {activeTab === "approval" && <th className="py-3 pr-4">Payment Risk</th>}
                   <th className="py-3 pr-4">Invoice</th>
@@ -402,29 +505,28 @@ export async function OrderTransactionsPage({
                 {visibleSalesOrders.map((order) => (
                   <tr key={order.id} className="transition hover:bg-slate-50">
                     <td className="py-3 pr-4 font-medium">{order.orderNumber}</td>
-                    {isPreOrder && (
+                    {isCustomerPo && (
                       <td className="py-3 pr-4 font-medium text-slate-700">
-                        {order.poNumber ?? "-"}
+                        {order.customerPoNumber ?? "-"}
                       </td>
                     )}
                     <td className="py-3 pr-4 text-slate-600">{order.customer.companyName}</td>
                     <td className="py-3 pr-4 text-slate-600">{formatDate(order.orderDate)}</td>
-                    {isPreOrder && (
+                    {isCustomerPo && (
                       <td className="py-3 pr-4 font-medium text-slate-700">
                         {order.requiredDate ? formatDate(order.requiredDate) : "-"}
                       </td>
                     )}
-                    {isPreOrder && (
+                    {isCustomerPo && (
                       <td className="py-3 pr-4 text-slate-600">
-                        {order.poDocumentStoredName ? (
+                        {order.customerPoDocumentStoredName ? (
                           <Link
-                            href={`/api/pre-orders/${order.id}/document`}
-                            target="_blank"
-                            title="Open PO document"
+                            href={`/api/customer-purchase-orders/${order.id}/document`}
+                            title="Unduh customer PO document"
                             className="inline-flex items-center gap-2 font-semibold text-brand"
                           >
                             <FileText aria-hidden="true" className="h-4 w-4" />
-                            {order.poDocumentName ?? "Open document"}
+                            Unduh {order.customerPoDocumentName ?? "Customer PO document"}
                           </Link>
                         ) : "-"}
                       </td>
@@ -500,22 +602,22 @@ export async function OrderTransactionsPage({
   );
 }
 
-function TransactionTypeDialog() {
+function SalesOrderSourceDialog() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4">
       <section
         role="dialog"
         aria-modal="true"
-        aria-labelledby="transaction-type-title"
+        aria-labelledby="order-source-title"
         className="w-full max-w-2xl rounded-lg border border-line bg-white p-5 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 id="transaction-type-title" className="text-xl font-semibold text-ink">
-              Choose Transaction Type
+            <h2 id="order-source-title" className="text-xl font-semibold text-ink">
+              Choose Order Source
             </h2>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              Is this a normal Sales Order or a customer Pre Order (PO)?
+              Is this a direct Sales Order or an order received from a customer PO?
             </p>
           </div>
           <Link
@@ -533,19 +635,19 @@ function TransactionTypeDialog() {
             className="rounded-md border border-line p-5 transition hover:border-brand hover:bg-blue-50"
           >
             <ShoppingCart aria-hidden="true" className="h-7 w-7 text-brand" />
-            <h3 className="mt-3 font-semibold text-ink">Normal Sales Order</h3>
+            <h3 className="mt-3 font-semibold text-ink">Direct Sales Order</h3>
             <p className="mt-1 text-sm leading-6 text-slate-600">
               Uses an automatically generated Sales Order number.
             </p>
           </Link>
           <Link
-            href="/pre-orders?mode=create"
+            href="/customer-purchase-orders?mode=create"
             className="rounded-md border border-line p-5 transition hover:border-brand hover:bg-blue-50"
           >
             <ClipboardList aria-hidden="true" className="h-7 w-7 text-brand" />
-            <h3 className="mt-3 font-semibold text-ink">Pre Order (PO)</h3>
+            <h3 className="mt-3 font-semibold text-ink">Customer PO</h3>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              Generates a Sales Order ID and PO ID, then requires a product required date and customer document upload.
+              Generates a Sales Order Number and Customer PO Number, then requires a product required date and customer PO document upload.
             </p>
           </Link>
         </div>

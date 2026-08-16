@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { getPaymentTermLabel } from "@/lib/calculations";
 import { amountToWords, formatDate, formatInvoiceCurrency } from "@/lib/format";
 import { syncOverdueInvoices } from "@/lib/workflow";
+import { formatNpwp } from "@/lib/npwp";
+import { formatPpnRate } from "@/lib/tax";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +42,8 @@ export default async function InvoicePrintPage({
     paymentTermType: invoice.paymentTermType,
     creditTermMonths: invoice.creditTermMonths
   });
-  const isPreOrder = invoice.salesOrder.transactionType === "PRE_ORDER";
-  const transactionLabel = isPreOrder ? "Pre Order" : "Sales Order";
+  const isCustomerPo = invoice.salesOrder.source === "CUSTOMER_PO";
+  const orderLabel = isCustomerPo ? "Customer PO" : "Sales Order";
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -87,23 +89,28 @@ export default async function InvoicePrintPage({
             <p className="mt-1 max-w-md text-sm leading-6 text-slate-700">
               {invoice.customer.address}
             </p>
+            {invoice.customerNpwpSnapshot && (
+              <p className="mt-2 text-sm font-semibold text-slate-800">
+                NPWP: {formatNpwp(invoice.customerNpwpSnapshot)}
+              </p>
+            )}
           </div>
 
           <div className="grid gap-3 text-sm">
             <InfoRow label="Invoice No." value={invoice.invoiceNumber} />
             <InfoRow label="Invoice Date" value={formatDate(invoice.issueDate)} />
             <InfoRow label="Due Date" value={formatDate(invoice.dueDate)} />
-            <InfoRow label="Payment Term" value={paymentTerm} />
-            <InfoRow label="Transaction Type" value={transactionLabel} />
+            <InfoRow label="Payment Terms" value={paymentTerm} />
+            <InfoRow label="Order Source" value={orderLabel} />
             <InfoRow label="Sales Order" value={invoice.salesOrder.orderNumber} />
-            {isPreOrder && (
-              <InfoRow label="PO ID" value={invoice.salesOrder.poNumber ?? "-"} />
+            {isCustomerPo && (
+              <InfoRow label="Customer PO Number" value={invoice.salesOrder.customerPoNumber ?? "-"} />
             )}
-            {isPreOrder && invoice.salesOrder.requiredDate && (
+            {isCustomerPo && invoice.salesOrder.requiredDate && (
               <InfoRow label="Required Date" value={formatDate(invoice.salesOrder.requiredDate)} />
             )}
-            {isPreOrder && (
-              <InfoRow label="PO Document" value={invoice.salesOrder.poDocumentName ?? "-"} />
+            {isCustomerPo && (
+              <InfoRow label="Customer PO Document" value={invoice.salesOrder.customerPoDocumentName ?? "-"} />
             )}
           </div>
         </section>
@@ -117,7 +124,7 @@ export default async function InvoicePrintPage({
                   <th className="border border-slate-400 px-3 py-2">Product / Item</th>
                   <th className="border border-slate-400 px-3 py-2 text-right">Qty</th>
                   <th className="border border-slate-400 px-3 py-2">Unit</th>
-                  <th className="border border-slate-400 px-3 py-2 text-right">Unit Price</th>
+                  <th className="border border-slate-400 px-3 py-2 text-right">Final Unit Price</th>
                   <th className="border border-slate-400 px-3 py-2 text-right">Line Total</th>
                 </tr>
               </thead>
@@ -131,7 +138,7 @@ export default async function InvoicePrintPage({
                     </td>
                     <td className="border border-slate-400 px-3 py-2">PCS</td>
                     <td className="border border-slate-400 px-3 py-2 text-right">
-                      {formatInvoiceCurrency(item.unitPrice)}
+                      {formatInvoiceCurrency(item.finalUnitPrice)}
                     </td>
                     <td className="border border-slate-400 px-3 py-2 text-right font-semibold">
                       {formatInvoiceCurrency(item.subtotal)}
@@ -170,7 +177,16 @@ export default async function InvoicePrintPage({
           </div>
 
           <div className="space-y-2 text-sm">
-            <AmountRow label="Invoice Subtotal" value={invoice.totalAmount} />
+            <AmountRow
+              label={invoice.ppnApplied ? "Net Sales (DPP)" : "Invoice Subtotal / Net Sales"}
+              value={invoice.netSalesAmount}
+            />
+            {invoice.ppnApplied && (
+              <AmountRow
+                label={`PPN (${formatPpnRate(invoice.ppnRateBasisPoints)})`}
+                value={invoice.ppnAmount}
+              />
+            )}
             <AmountRow label="Invoice Total" value={invoice.totalAmount} strong />
             <AmountRow label="Paid Amount" value={invoice.paidAmount} />
             <AmountRow label="Remaining Amount" value={invoice.remainingAmount} strong />

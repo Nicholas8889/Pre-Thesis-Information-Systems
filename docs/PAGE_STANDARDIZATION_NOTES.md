@@ -15,12 +15,12 @@ Operational pages should follow this order:
 
 2. Optional summary or form area
    - Used only when it helps the user complete the page's main task.
-   - Examples: create Sales Order, record Payment, add Follow-up, or view a selected document.
+   - Examples: create Sales Order, record Payment, add Customer Outreach, or view a selected document.
 
 3. Process tabs where applicable
-   - Ongoing Process is for active work and operational actions.
-   - Done Process is for completed or closed records.
-   - Done Process should stay mostly list-only, so completed records are easy to review without extra operational controls.
+   - Open is for active work and operational actions.
+   - Completed is for completed or closed records.
+   - Completed should stay mostly list-only, so completed records are easy to review without extra operational controls.
 
 4. Main table/list card
    - Shows the primary records for the module.
@@ -36,17 +36,27 @@ Operational pages should follow this order:
 
 Customers use the standard header, optional add/edit form, optional selected customer detail, and a main customer table.
 
-The page remains focused on customer master data, because customer data is reused by Sales Orders, Invoices, Payments, Receivables, and Follow-ups.
+The page remains focused on customer master data, because customer data is reused by Sales Orders, Invoices, Payments, Receivables, and Customer Outreach.
+
+### Customer Inquiries
+
+Customer Inquiries use the standard header, optional create form, inquiry list, and inquiry detail page.
+
+The inquiry page captures customer requests before they become formal orders. An Open inquiry can be closed, cancelled, converted to a direct Sales Order, or converted to a Customer PO when every item has a Product match and Agreed Unit Price.
 
 ### Sales Orders
 
-Sales Orders use the standard header, Ongoing/Done Process tabs, optional create form, optional selected order detail, and a main sales order table.
+Sales Orders use the standard header, Open/Completed tabs, optional create form, optional selected order detail, and a main sales order table.
 
 Ongoing Sales Orders keep operational actions such as creating a sales order and generating an invoice. Done Sales Orders remain list-focused for review.
 
+### Customer Purchase Orders
+
+Customer Purchase Orders follow the Sales Order page pattern but represent customer PO transactions. They include a separate Customer PO Number, required date, and supporting PO document metadata while still using the connected invoice, payment, Surat Jalan, receivable, collection, and dashboard flow.
+
 ### Invoices
 
-Invoices are the reference page for this standard. The page uses Ongoing/Done Process tabs, invoice detail, printable invoice access, delivery-note action where allowed, and a main invoice table.
+Invoices are the reference page for this standard. The page uses Open/Completed tabs, invoice detail, printable invoice access, delivery-note action where allowed, and a main invoice table.
 
 ### Payments
 
@@ -56,21 +66,21 @@ The Payment Queue remains separate because it represents invoices that still nee
 
 ### Surat Jalan
 
-Surat Jalan uses the standard header, Ongoing/Done Process tabs, optional create form, optional selected delivery note detail, and a main delivery note table.
+Surat Jalan uses the standard header, Open/Completed tabs, optional create form, optional selected delivery note detail, and a main delivery note table.
 
 Ongoing Surat Jalan keeps create, view, edit status, and print actions. Done Surat Jalan stays list-focused, with print access still available.
 
 ### Receivables
 
-Receivables use the standard header, Ongoing/Done Process tabs, optional compact summary cards, status filters, and a main receivable table.
+Receivables use the standard header, Open/Completed tabs, optional compact summary cards, status filters, and a main receivable table.
 
-Ongoing Receivables show follow-up actions. Done Receivables are kept as closed review records.
+Ongoing Receivables show customer outreach actions. Done Receivables are kept as closed review records.
 
-### Follow-ups
+### Customer Outreach
 
-Follow-ups use the standard header, Ongoing/Done Process tabs, optional add form, and a main follow-up table.
+Customer Outreach uses the standard header, optional add form, and a main customer outreach table.
 
-Ongoing Follow-ups allow new reminders to be created. Done Follow-ups are list-only so completed reminders are easy to review.
+Ongoing Customer Outreach allow new reminders to be created. Done Customer Outreach are list-only so completed reminders are easy to review.
 
 ### Settings
 
@@ -94,6 +104,6 @@ The MVP uses a consistent page layout so users can move through the revenue cycl
 
 The standard flow is:
 
-Customer -> Sales Order -> Invoice -> Payment -> Surat Jalan -> Receivable -> Follow-up -> Dashboard monitoring
+Customer -> Customer Inquiry -> Sales Order / Customer PO -> Invoice -> Payment -> Surat Jalan -> Receivable -> Collections / Customer Outreach -> Dashboard monitoring
 
-Each operational page shows the module purpose at the top, keeps active work in Ongoing Process, keeps finished records in Done Process, and uses consistent tables, statuses, and action buttons.
+Each operational page shows the module purpose at the top, keeps active work in Open, keeps finished records in Completed, and uses consistent tables, statuses, and action buttons.

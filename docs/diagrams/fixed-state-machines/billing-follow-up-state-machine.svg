@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="780" viewBox="0 0 1400 780" role="img" aria-labelledby="title desc">
-  <title id="title">Billing Follow Up - State Machine Diagram</title>
-  <desc id="desc">Need Billing is a Receivable condition, not a state of a Billing Follow Up record</desc>
+  <title id="title">Collection Task - State Machine Diagram</title>
+  <desc id="desc">Need Collections is a Receivable condition, not a state of a Collection Task record</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#233044"/>
@@ -12,8 +12,8 @@
   </defs>
   <rect width="100%" height="100%" fill="#f8fafc"/>
   <rect x="28" y="28" width="1344" height="724" rx="24" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-  <text x="700" y="68" text-anchor="middle" class="title">Billing Follow Up - State Machine Diagram</text>
-  <text x="700" y="98" text-anchor="middle" class="subtitle">Need Billing is a Receivable condition, not a state of a Billing Follow Up record</text>
+  <text x="700" y="68" text-anchor="middle" class="title">Collection Task - State Machine Diagram</text>
+  <text x="700" y="98" text-anchor="middle" class="subtitle">Need Collections is a Receivable condition, not a state of a Collection Task record</text>
   <style>
     .title { font: 700 27px Arial, sans-serif; fill: #0f172a; }
     .subtitle { font: 400 15px Arial, sans-serif; fill: #64748b; }
@@ -55,7 +55,7 @@
 
     <path class="transition" d="M 103 390 L 305 390"/><g>
     <rect class="label-bg" x="17.930000000000007" y="314" width="374.14" height="52" rx="7"/>
-    <text class="label" text-anchor="middle"><tspan x="205" y="335.5">createBilling()</tspan><tspan x="205" y="354.5">or generateInvoice() [paymentTerm=CREDIT]</tspan></text>
+    <text class="label" text-anchor="middle"><tspan x="205" y="335.5">createCollections()</tspan><tspan x="205" y="354.5">or generateInvoice() [paymentTerm=CREDIT]</tspan></text>
   </g>
     <path class="transition" d="M 525 370 L 800 260"/><g>
     <rect class="label-bg" x="610.3" y="268.5" width="109.39999999999999" height="33" rx="7"/>
@@ -63,19 +63,19 @@
   </g>
     <path class="transition" d="M 525 410 L 800 520"/><g>
     <rect class="label-bg" x="588.95" y="483.5" width="152.1" height="33" rx="7"/>
-    <text class="label" text-anchor="middle"><tspan x="665" y="505">cancelBilling()</tspan></text>
+    <text class="label" text-anchor="middle"><tspan x="665" y="505">cancelCollections()</tspan></text>
   </g>
     <path class="transition" d="M 1000 235 L 1150 235 L 1150 375 L 1253 385"/><g>
     <rect class="label-bg" x="1063.22" y="183.5" width="143.56" height="33" rx="7"/>
-    <text class="label" text-anchor="middle"><tspan x="1135" y="205">closeBilling()</tspan></text>
+    <text class="label" text-anchor="middle"><tspan x="1135" y="205">closeCollections()</tspan></text>
   </g>
     <path class="transition" d="M 1000 545 L 1150 545 L 1150 405 L 1253 395"/><g>
     <rect class="label-bg" x="1063.22" y="563.5" width="143.56" height="33" rx="7"/>
-    <text class="label" text-anchor="middle"><tspan x="1135" y="585">closeBilling()</tspan></text>
+    <text class="label" text-anchor="middle"><tspan x="1135" y="585">closeCollections()</tspan></text>
   </g>
     <g>
     <rect class="note" x="305" y="610" width="640" height="64" rx="10"/>
-    <text class="note-text"><tspan x="319" y="635">When the deadline is near or overdue, the system sends an Admin notification.</tspan><tspan x="319" y="655">The Billing Follow Up remains Planned until it is marked Done or Cancelled.</tspan></text>
+    <text class="note-text"><tspan x="319" y="635">When the deadline is near or overdue, the system sends an Admin notification.</tspan><tspan x="319" y="655">The Collection Task remains Planned until it is marked Done or Cancelled.</tspan></text>
   </g>
     <g>
     <rect class="note" x="995" y="650" width="300" height="64" rx="10"/>

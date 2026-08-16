@@ -11,16 +11,22 @@ datasource db {
 enum CustomerStatus {
   Active
   Inactive
+
+  @@map("customer_status")
 }
 
 enum ProductStatus {
   Active
   Inactive
+
+  @@map("product_status")
 }
 
-enum TransactionType {
-  SALES_ORDER
-  PRE_ORDER
+enum SalesOrderSource {
+  DIRECT
+  CUSTOMER_PO
+
+  @@map("sales_order_source")
 }
 
 enum SalesOrderStatus {
@@ -29,6 +35,8 @@ enum SalesOrderStatus {
   Shipped
   Invoiced
   Cancelled
+
+  @@map("sales_order_status")
 }
 
 enum SalesOrderApprovalStatus {
@@ -36,6 +44,8 @@ enum SalesOrderApprovalStatus {
   Pending
   Approved
   Rejected
+
+  @@map("sales_order_approval_status")
 }
 
 enum InvoiceStatus {
@@ -44,32 +54,42 @@ enum InvoiceStatus {
   Paid
   Overdue
   Cancelled
+
+  @@map("invoice_status")
 }
 
 enum PaymentMethod {
   Cash
   BankTransfer
   Other
+
+  @@map("payment_method")
 }
 
 enum PaymentTermType {
-  DEBIT
+  IMMEDIATE
   CREDIT
+
+  @@map("payment_term_type")
 }
 
-enum FollowUpStatus {
+enum CollectionTaskStatus {
   Planned
   Done
   Cancelled
+
+  @@map("collection_task_status")
 }
 
 enum CustomerInquiryStatus {
   Open
   Closed
   Cancelled
-  ConvertedToPO
+  ConvertedToCustomerPO
   ConvertedToSO
   Done
+
+  @@map("customer_inquiry_status")
 }
 
 enum DeliveryNoteStatus {
@@ -77,279 +97,328 @@ enum DeliveryNoteStatus {
   Issued
   Delivered
   Cancelled
+
+  @@map("delivery_note_status")
 }
 
 enum UserRole {
   ADMIN
   SALES
   MANAGER
+
+  @@map("user_role")
 }
 
 enum UserStatus {
   Active
   Inactive
+
+  @@map("user_status")
 }
 
 model User {
-  id           String     @id @default(cuid()) @map("idUser")
-  username     String     @unique
-  passwordHash String
-  displayName  String
+  id           String     @id(map: "users_pkey") @default(cuid()) @map("id")
+  username     String     @unique(map: "users_username_key")
+  passwordHash String     @map("password_hash")
+  displayName  String     @map("display_name")
   role         UserRole   @default(SALES)
   status       UserStatus @default(Active)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@map("users")
 }
 
 model AuditTrail {
-  id               String   @id @default(cuid()) @map("idAuditTrail")
-  actorUserId      String?
-  actorUsername    String
-  actorDisplayName String?
-  actorRole        String
-  moduleName       String
-  entityType       String
-  entityId         String
-  transactionCode  String
+  id               String   @id(map: "audit_trails_pkey") @default(cuid()) @map("id")
+  actorUserId      String?  @map("actor_user_id")
+  actorUsername    String   @map("actor_username")
+  actorDisplayName String?  @map("actor_display_name")
+  actorRole        String   @map("actor_role")
+  moduleName       String   @map("module_name")
+  entityType       String   @map("entity_type")
+  entityId         String   @map("entity_id")
+  recordReference  String   @map("record_reference")
   action           String
-  changeSummary    String
-  actionNote       String?
-  oldValue         String?
-  newValue         String?
-  createdAt        DateTime @default(now())
+  changeSummary    String   @map("change_summary")
+  actionNote       String?  @map("action_note")
+  oldValue         String?  @map("old_value")
+  newValue         String?  @map("new_value")
+  createdAt        DateTime @default(now()) @map("created_at")
 
-  @@index([createdAt])
-  @@index([moduleName])
-  @@index([actorUsername])
-  @@index([transactionCode])
+  @@index([createdAt], map: "audit_trails_created_at_idx")
+  @@index([moduleName], map: "audit_trails_module_name_idx")
+  @@index([actorUsername], map: "audit_trails_actor_username_idx")
+  @@index([recordReference], map: "audit_trails_record_reference_idx")
+  @@map("audit_trails")
 }
 
 model Customer {
-  id           String         @id @default(cuid()) @map("idCustomer")
-  name         String
-  companyName  String
-  phone        String
-  email        String
-  address      String
-  customerType String
-  status       CustomerStatus @default(Active)
-  notes        String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id              String         @id(map: "customers_pkey") @default(cuid()) @map("id")
+  name            String
+  companyName     String         @map("company_name")
+  npwp            String?        @unique(map: "customers_npwp_key")
+  phone           String
+  email           String
+  address         String
+  customerSegment String         @map("customer_segment")
+  status          CustomerStatus @default(Active)
+  notes           String?
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
 
-  salesOrders      SalesOrder[]
-  invoices         Invoice[]
-  followUps        FollowUp[]
-  productFollowUps CustomerProductFollowUp[]
-  deliveryNotes    DeliveryNote[]
-  inquiries        CustomerInquiry[]
+  salesOrders        SalesOrder[]
+  invoices           Invoice[]
+  collectionTasks    CollectionTask[]
+  outreachActivities CustomerOutreach[]
+  deliveryNotes      DeliveryNote[]
+  inquiries          CustomerInquiry[]
+
+  @@map("customers")
 }
 
 model Product {
-  id          String        @id @default(cuid()) @map("idProduct")
-  productName String
+  id          String        @id(map: "products_pkey") @default(cuid()) @map("id")
+  productName String        @map("product_name")
   notes       String?
-  basePrice   Int
+  listPrice   Int           @map("list_price")
   status      ProductStatus @default(Active)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
 
   salesOrderItems SalesOrderItem[]
   inquiryItems    CustomerInquiryItem[]
 
-  @@index([productName])
-  @@index([status])
+  @@index([productName], map: "products_product_name_idx")
+  @@index([status], map: "products_status_idx")
+  @@map("products")
 }
 
 model SalesOrder {
-  id                   String                   @id @default(cuid()) @map("idSalesOrder")
-  orderNumber          String                   @unique
-  poNumber             String?                  @unique
-  transactionType      TransactionType          @default(SALES_ORDER)
-  requiredDate         DateTime?
-  poDocumentName       String?
-  poDocumentStoredName String?
-  poDocumentMimeType   String?
-  customerId           String
-  orderDate            DateTime
-  status               SalesOrderStatus         @default(Draft)
-  subtotal             Int
-  total                Int
-  paymentTermType      PaymentTermType          @default(DEBIT)
-  creditTermMonths     Int?
-  notes                String?
-  approvalStatus       SalesOrderApprovalStatus @default(NotRequired)
-  approvalRisk         String?
-  approvalDecisionNote String?
-  approvalDecidedAt    DateTime?
-  approvalDecidedById  String?
-  createdByUserId      String?
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
+  id                           String                   @id(map: "sales_orders_pkey") @default(cuid()) @map("id")
+  orderNumber                  String                   @unique(map: "sales_orders_order_number_key") @map("order_number")
+  customerPoNumber             String?                  @unique(map: "sales_orders_customer_po_number_key") @map("customer_po_number")
+  source                       SalesOrderSource         @default(DIRECT)
+  requiredDate                 DateTime?                @map("required_date")
+  customerPoDocumentName       String?                  @map("customer_po_document_name")
+  customerPoDocumentStoredName String?                  @map("customer_po_document_stored_name")
+  customerPoDocumentMimeType   String?                  @map("customer_po_document_mime_type")
+  customerId                   String                   @map("customer_id")
+  orderDate                    DateTime                 @map("order_date")
+  status                       SalesOrderStatus         @default(Draft)
+  subtotal                     Int
+  total                        Int
+  customerNpwpSnapshot         String?                  @map("customer_npwp_snapshot")
+  ppnApplied                   Boolean                  @default(false) @map("ppn_applied")
+  ppnRateBasisPoints           Int                      @default(0) @map("ppn_rate_basis_points")
+  ppnAmount                    Int                      @default(0) @map("ppn_amount")
+  netSalesAmount               Int                      @default(0) @map("net_sales_amount")
+  paymentTermType              PaymentTermType          @default(IMMEDIATE) @map("payment_term_type")
+  creditTermMonths             Int?                     @map("credit_term_months")
+  notes                        String?
+  approvalStatus               SalesOrderApprovalStatus @default(NotRequired) @map("approval_status")
+  approvalRisk                 String?                  @map("approval_risk")
+  approvalDecisionNote         String?                  @map("approval_decision_note")
+  approvalDecidedAt            DateTime?                @map("approval_decided_at")
+  approvalDecidedById          String?                  @map("approval_decided_by_id")
+  createdByUserId              String?                  @map("created_by_user_id")
+  createdAt                    DateTime                 @default(now()) @map("created_at")
+  updatedAt                    DateTime                 @updatedAt @map("updated_at")
 
-  customer        Customer         @relation(fields: [customerId], references: [id])
+  customer        Customer         @relation(fields: [customerId], references: [id], map: "sales_orders_customer_id_fkey")
   items           SalesOrderItem[]
   invoice         Invoice?
   deliveryNotes   DeliveryNote[]
   customerInquiry CustomerInquiry?
 
-  @@index([approvalStatus])
-  @@index([transactionType])
-  @@index([requiredDate])
+  @@index([approvalStatus], map: "sales_orders_approval_status_idx")
+  @@index([source], map: "sales_orders_source_idx")
+  @@index([requiredDate], map: "sales_orders_required_date_idx")
+  @@index([customerId, orderDate], map: "sales_orders_customer_id_order_date_idx")
+  @@map("sales_orders")
 }
 
 model CustomerInquiry {
-  id            String                @id @default(cuid()) @map("idCustomerInquiry")
-  inquiryNumber String                @unique
-  customerId    String
-  inquiryDate   DateTime              @default(now())
-  neededBy      DateTime?
+  id            String                @id(map: "customer_inquiries_pkey") @default(cuid()) @map("id")
+  inquiryNumber String                @unique(map: "customer_inquiries_inquiry_number_key") @map("inquiry_number")
+  customerId    String                @map("customer_id")
+  inquiryDate   DateTime              @default(now()) @map("inquiry_date")
+  neededBy      DateTime?             @map("needed_by")
   status        CustomerInquiryStatus @default(Open)
   notes         String?
-  statusNote    String?
-  salesOrderId  String?               @unique
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  statusNote    String?               @map("status_note")
+  salesOrderId  String?               @unique(map: "customer_inquiries_sales_order_id_key") @map("sales_order_id")
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
 
-  customer   Customer              @relation(fields: [customerId], references: [id])
-  salesOrder SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  customer   Customer              @relation(fields: [customerId], references: [id], map: "customer_inquiries_customer_id_fkey")
+  salesOrder SalesOrder?           @relation(fields: [salesOrderId], references: [id], map: "customer_inquiries_sales_order_id_fkey")
   items      CustomerInquiryItem[]
 
-  @@index([customerId])
-  @@index([status])
-  @@index([inquiryDate])
+  @@index([customerId], map: "customer_inquiries_customer_id_idx")
+  @@index([status], map: "customer_inquiries_status_idx")
+  @@index([inquiryDate], map: "customer_inquiries_inquiry_date_idx")
+  @@map("customer_inquiries")
 }
 
 model CustomerInquiryItem {
-  id                String  @id @default(cuid()) @map("idCustomerInquiryItem")
-  customerInquiryId String
-  productId         String?
-  itemName          String
-  quantity          Int
-  requestedPrice    Int?
-  agreedPrice       Int?
-  notes             String?
+  id                 String  @id(map: "customer_inquiry_items_pkey") @default(cuid()) @map("id")
+  customerInquiryId  String  @map("customer_inquiry_id")
+  productId          String? @map("product_id")
+  itemName           String  @map("item_name")
+  quantity           Int
+  requestedUnitPrice Int?    @map("requested_unit_price")
+  agreedUnitPrice    Int?    @map("agreed_unit_price")
+  notes              String?
 
-  customerInquiry CustomerInquiry @relation(fields: [customerInquiryId], references: [id], onDelete: Cascade)
-  product         Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  customerInquiry CustomerInquiry @relation(fields: [customerInquiryId], references: [id], onDelete: Cascade, map: "customer_inquiry_items_customer_inquiry_id_fkey")
+  product         Product?        @relation(fields: [productId], references: [id], onDelete: SetNull, map: "customer_inquiry_items_product_id_fkey")
 
-  @@index([productId])
+  @@index([productId], map: "customer_inquiry_items_product_id_idx")
+  @@map("customer_inquiry_items")
 }
 
 model SalesOrderItem {
-  id              String  @id @default(cuid()) @map("idSalesOrderItem")
-  salesOrderId    String
-  productId       String?
-  itemName        String
+  id              String  @id(map: "sales_order_items_pkey") @default(cuid()) @map("id")
+  salesOrderId    String  @map("sales_order_id")
+  productId       String? @map("product_id")
+  itemName        String  @map("item_name")
   quantity        Int
-  basePrice       Int     @default(0)
-  markupPercent   Int     @default(0)
-  discountPercent Int     @default(0)
-  unitPrice       Int
+  baseUnitPrice   Int     @default(0) @map("base_unit_price")
+  markupPercent   Int     @default(0) @map("markup_percent")
+  discountPercent Int     @default(0) @map("discount_percent")
+  finalUnitPrice  Int     @map("final_unit_price")
   subtotal        Int
 
-  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  product    Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade, map: "sales_order_items_sales_order_id_fkey")
+  product    Product?   @relation(fields: [productId], references: [id], onDelete: SetNull, map: "sales_order_items_product_id_fkey")
 
-  @@index([productId])
+  @@index([productId], map: "sales_order_items_product_id_idx")
+  @@map("sales_order_items")
 }
 
 model Invoice {
-  id               String          @id @default(cuid()) @map("idInvoice")
-  invoiceNumber    String          @unique
-  salesOrderId     String          @unique
-  customerId       String
-  issueDate        DateTime
-  dueDate          DateTime
-  totalAmount      Int
-  paidAmount       Int             @default(0)
-  remainingAmount  Int
-  paymentTermType  PaymentTermType @default(DEBIT)
-  creditTermMonths Int?
-  status           InvoiceStatus   @default(Unpaid)
-  notes            String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                   String          @id(map: "invoices_pkey") @default(cuid()) @map("id")
+  invoiceNumber        String          @unique(map: "invoices_invoice_number_key") @map("invoice_number")
+  salesOrderId         String          @unique(map: "invoices_sales_order_id_key") @map("sales_order_id")
+  customerId           String          @map("customer_id")
+  issueDate            DateTime        @map("issue_date")
+  dueDate              DateTime        @map("due_date")
+  totalAmount          Int             @map("total_amount")
+  paidAmount           Int             @default(0) @map("paid_amount")
+  remainingAmount      Int             @map("remaining_amount")
+  customerNpwpSnapshot String?         @map("customer_npwp_snapshot")
+  ppnApplied           Boolean         @default(false) @map("ppn_applied")
+  ppnRateBasisPoints   Int             @default(0) @map("ppn_rate_basis_points")
+  ppnAmount            Int             @default(0) @map("ppn_amount")
+  netSalesAmount       Int             @default(0) @map("net_sales_amount")
+  paymentTermType      PaymentTermType @default(IMMEDIATE) @map("payment_term_type")
+  creditTermMonths     Int?            @map("credit_term_months")
+  status               InvoiceStatus   @default(Unpaid)
+  notes                String?
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
 
-  salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id])
-  customer      Customer       @relation(fields: [customerId], references: [id])
-  payments      Payment[]
-  followUps     FollowUp[]
-  deliveryNotes DeliveryNote[]
+  salesOrder      SalesOrder       @relation(fields: [salesOrderId], references: [id], map: "invoices_sales_order_id_fkey")
+  customer        Customer         @relation(fields: [customerId], references: [id], map: "invoices_customer_id_fkey")
+  payments        Payment[]
+  collectionTasks CollectionTask[]
+  deliveryNotes   DeliveryNote[]
+
+  @@index([customerId], map: "invoices_customer_id_idx")
+  @@map("invoices")
 }
 
 model Payment {
-  id            String        @id @default(cuid()) @map("idPayment")
-  invoiceId     String
-  paymentDate   DateTime
+  id            String        @id(map: "payments_pkey") @default(cuid()) @map("id")
+  invoiceId     String        @map("invoice_id")
+  paymentDate   DateTime      @map("payment_date")
   amount        Int
-  paymentMethod PaymentMethod
+  paymentMethod PaymentMethod @map("payment_method")
   notes         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade, map: "payments_invoice_id_fkey")
+
+  @@index([invoiceId], map: "payments_invoice_id_idx")
+  @@map("payments")
 }
 
-model FollowUp {
-  id           String         @id @default(cuid()) @map("idFollowUp")
-  customerId   String
-  invoiceId    String?
-  followUpDate DateTime
-  status       FollowUpStatus @default(Planned)
-  notes        String
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+model CollectionTask {
+  id            String               @id(map: "collection_tasks_pkey") @default(cuid()) @map("id")
+  customerId    String               @map("customer_id")
+  invoiceId     String?              @map("invoice_id")
+  scheduledDate DateTime             @map("scheduled_date")
+  status        CollectionTaskStatus @default(Planned)
+  notes         String
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
 
-  customer Customer @relation(fields: [customerId], references: [id])
-  invoice  Invoice? @relation(fields: [invoiceId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id], map: "collection_tasks_customer_id_fkey")
+  invoice  Invoice? @relation(fields: [invoiceId], references: [id], map: "collection_tasks_invoice_id_fkey")
+
+  @@index([customerId], map: "collection_tasks_customer_id_idx")
+  @@index([invoiceId], map: "collection_tasks_invoice_id_idx")
+  @@map("collection_tasks")
 }
 
-model CustomerProductFollowUp {
-  id          String   @id @default(cuid()) @map("idCustomerProductFollowUp")
-  customerId  String
-  contactDate DateTime
+model CustomerOutreach {
+  id          String   @id(map: "customer_outreach_pkey") @default(cuid()) @map("id")
+  customerId  String   @map("customer_id")
+  contactDate DateTime @map("contact_date")
   notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade, map: "customer_outreach_customer_id_fkey")
 
-  @@index([customerId, contactDate])
+  @@index([customerId, contactDate], map: "customer_outreach_customer_id_contact_date_idx")
+  @@map("customer_outreach")
 }
 
 model DeliveryNote {
-  id                 String             @id @default(cuid()) @map("idDeliveryNote")
-  deliveryNoteNumber String             @unique
-  invoiceId          String?
-  salesOrderId       String?
-  customerId         String
-  recipientName      String
-  recipientPhone     String
-  recipientAddress   String
-  deliveryDate       DateTime
+  id                 String             @id(map: "delivery_notes_pkey") @default(cuid()) @map("id")
+  deliveryNoteNumber String             @unique(map: "delivery_notes_delivery_note_number_key") @map("delivery_note_number")
+  invoiceId          String?            @map("invoice_id")
+  salesOrderId       String?            @map("sales_order_id")
+  customerId         String             @map("customer_id")
+  recipientName      String             @map("recipient_name")
+  recipientPhone     String             @map("recipient_phone")
+  recipientAddress   String             @map("recipient_address")
+  deliveryDate       DateTime           @map("delivery_date")
   status             DeliveryNoteStatus @default(Draft)
   notes              String?
-  receiverName       String?
-  senderName         String?
-  authorizedBy       String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  receiverName       String?            @map("receiver_name")
+  senderName         String?            @map("sender_name")
+  driverName         String?            @map("driver_name")
+  vehiclePlateNumber String?            @map("vehicle_plate_number")
+  authorizedBy       String?            @map("authorized_by")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  invoice    Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  salesOrder SalesOrder?        @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
-  customer   Customer           @relation(fields: [customerId], references: [id])
+  invoice    Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull, map: "delivery_notes_invoice_id_fkey")
+  salesOrder SalesOrder?        @relation(fields: [salesOrderId], references: [id], onDelete: SetNull, map: "delivery_notes_sales_order_id_fkey")
+  customer   Customer           @relation(fields: [customerId], references: [id], map: "delivery_notes_customer_id_fkey")
   items      DeliveryNoteItem[]
+
+  @@index([invoiceId], map: "delivery_notes_invoice_id_idx")
+  @@index([salesOrderId], map: "delivery_notes_sales_order_id_idx")
+  @@index([customerId], map: "delivery_notes_customer_id_idx")
+  @@map("delivery_notes")
 }
 
 model DeliveryNoteItem {
-  id             String  @id @default(cuid()) @map("idDeliveryNoteItem")
-  deliveryNoteId String
-  productCode    String?
-  itemName       String
+  id             String  @id(map: "delivery_note_items_pkey") @default(cuid()) @map("id")
+  deliveryNoteId String  @map("delivery_note_id")
+  productCode    String? @map("product_code")
+  itemName       String  @map("item_name")
   quantity       Int
   unit           String  @default("PCS")
   description    String?
 
-  deliveryNote DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  deliveryNote DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade, map: "delivery_note_items_delivery_note_id_fkey")
+
+  @@index([deliveryNoteId], map: "delivery_note_items_delivery_note_id_idx")
+  @@map("delivery_note_items")
 }

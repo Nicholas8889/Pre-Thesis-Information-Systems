@@ -1,0 +1,28 @@
+flowchart LR
+  Users["Pengguna\nStaff Sales, Staff Admin,\nGeneral Manager, Administrator"]
+  Browser["Browser\nLaptop / PC"]
+  App["CV Tajuk Revenue Cycle\nWeb Application\nNext.js"]
+  Logic["Business Logic\nServer Actions and API Routes"]
+  Data["Prisma / Data Access"]
+  DB["Supabase PostgreSQL\nOperational Database"]
+  Storage["Supabase Storage\nCustomer PO Documents"]
+  Stock["Existing Stock System\nExternal System - Not Integrated"]
+
+  Users --> Browser
+  Browser --> App
+  App --> Logic
+  Logic --> Data
+  Data --> DB
+  Logic --> Storage
+
+  Stock -. "manual / outside scope" .- Users
+
+  classDef user fill:#dbeafe,stroke:#2563eb,color:#172554
+  classDef app fill:#ecfdf5,stroke:#059669,color:#064e3b
+  classDef data fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+  classDef external fill:#f1f5f9,stroke:#64748b,color:#334155,stroke-dasharray: 6 4
+
+  class Users,Browser user
+  class App,Logic app
+  class Data,DB,Storage data
+  class Stock external

@@ -97,7 +97,7 @@ export function SalesCustomerInsights({
 
       <section className="rounded-md border border-line bg-white shadow-soft">
         <SectionHeading
-          title="Customer Category & Price Markup"
+          title="Purchase Frequency Category & Price Markup"
           description="Customer value classification based on average monthly Sales Order activity over the last three months."
           value={`${customers.length} customer(s)`}
         />
@@ -117,7 +117,7 @@ export function SalesCustomerInsights({
               <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-5 py-3">Customer</th>
-                  {!compact && <th className="px-5 py-3">Customer Type</th>}
+                  {!compact && <th className="px-5 py-3">Customer Segment</th>}
                   <th className="px-5 py-3">Category</th>
                   <th className="px-5 py-3 text-right">3-Month Orders</th>
                   <th className="px-5 py-3 text-right">Monthly Rate</th>
@@ -131,9 +131,9 @@ export function SalesCustomerInsights({
                       <p className="font-medium text-ink">{customer.companyName}</p>
                       <p className="mt-1 text-xs text-slate-500">{customer.contactName}</p>
                     </td>
-                    {!compact && <td className="px-5 py-3.5 text-slate-600">{customer.customerType}</td>}
+                    {!compact && <td className="px-5 py-3.5 text-slate-600">{customer.customerSegment}</td>}
                     <td className="px-5 py-3.5"><CategoryBadge category={customer.category} /></td>
-                    <td className="px-5 py-3.5 text-right">{customer.transactionCount}</td>
+                    <td className="px-5 py-3.5 text-right">{customer.orderCount}</td>
                     <td className="px-5 py-3.5 text-right">{customer.monthlyOrderRate.toFixed(1)}</td>
                     <td className="px-5 py-3.5 text-right font-semibold text-brand">{customer.markup}</td>
                   </tr>

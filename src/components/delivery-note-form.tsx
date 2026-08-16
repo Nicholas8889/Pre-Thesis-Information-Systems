@@ -2,6 +2,10 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import {
+  DELIVERY_DRIVER_OPTIONS,
+  DELIVERY_VEHICLE_PLATE_OPTIONS
+} from "@/lib/delivery-options";
 
 type CustomerOption = {
   id: string;
@@ -43,8 +47,8 @@ type InvoiceOption = {
 type SalesOrderOption = {
   id: string;
   orderNumber: string;
-  poNumber?: string | null;
-  transactionType: string;
+  customerPoNumber?: string | null;
+  source: string;
   customerId: string;
   customerName: string;
   recipientName: string;
@@ -117,7 +121,7 @@ export function DeliveryNoteForm({
     () => invoices.find((invoice) => invoice.id === selectedInvoiceId),
     [invoices, selectedInvoiceId]
   );
-  const isDebitBlocked = Boolean(selectedInvoice && !selectedInvoice.canCreateDeliveryNote);
+  const isImmediatePaymentBlocked = Boolean(selectedInvoice && !selectedInvoice.canCreateDeliveryNote);
 
   function applyCustomer(customerId: string) {
     const customer = customers.find((item) => item.id === customerId);
@@ -218,8 +222,8 @@ export function DeliveryNoteForm({
             {salesOrders.map((order) => (
               <option key={order.id} value={order.id}>
                 {order.orderNumber}
-                {order.transactionType === "PRE_ORDER" && order.poNumber
-                  ? ` / ${order.poNumber}`
+                {order.source === "CUSTOMER_PO" && order.customerPoNumber
+                  ? ` / ${order.customerPoNumber}`
                   : ""}{" "}
                 - {order.customerName}
               </option>
@@ -246,16 +250,16 @@ export function DeliveryNoteForm({
         </label>
       </div>
 
-      {isDebitBlocked ? (
+      {isImmediatePaymentBlocked ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-          Debit transaction must be paid before Surat Jalan can be created.
+          An immediate-payment order must be paid before Surat Jalan can be created.
         </div>
       ) : (
         selectedInvoice &&
         selectedInvoice.paymentTermType === "CREDIT" &&
         selectedInvoice.status !== "Paid" && (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-            Credit transaction: Surat Jalan can be created before full payment.
+            Credit order: Surat Jalan can be created before full payment.
           </div>
         )
       )}
@@ -291,6 +295,44 @@ export function DeliveryNoteForm({
             defaultValue={today}
             className={`${inputClass} mt-1`}
           />
+        </label>
+
+        <label className="text-sm font-medium text-slate-700">
+          Driver Name
+          <select
+            name="driverName"
+            required
+            defaultValue=""
+            className={`${inputClass} mt-1`}
+          >
+            <option value="" disabled>
+              Select driver
+            </option>
+            {DELIVERY_DRIVER_OPTIONS.map((driverName) => (
+              <option key={driverName} value={driverName}>
+                {driverName}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm font-medium text-slate-700">
+          Vehicle Plate Number
+          <select
+            name="vehiclePlateNumber"
+            required
+            defaultValue=""
+            className={`${inputClass} mt-1`}
+          >
+            <option value="" disabled>
+              Select vehicle plate
+            </option>
+            {DELIVERY_VEHICLE_PLATE_OPTIONS.map((vehiclePlateNumber) => (
+              <option key={vehiclePlateNumber} value={vehiclePlateNumber}>
+                {vehiclePlateNumber}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="text-sm font-medium text-slate-700">
@@ -411,7 +453,7 @@ export function DeliveryNoteForm({
         </button>
 
         <button
-          disabled={isDebitBlocked}
+          disabled={isImmediatePaymentBlocked}
           className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           Save Surat Jalan

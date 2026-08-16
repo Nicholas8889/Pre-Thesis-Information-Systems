@@ -10,7 +10,7 @@ type AuditTrailInput = {
   moduleName: string;
   entityType: string;
   entityId: string;
-  transactionCode: string;
+  recordReference: string;
   action: string;
   changeSummary: string;
   actionNote?: string | null;
@@ -31,7 +31,7 @@ export async function createAuditTrailLog(input: AuditTrailInput) {
         moduleName: input.moduleName,
         entityType: input.entityType,
         entityId: input.entityId,
-        transactionCode: input.transactionCode || input.entityId,
+        recordReference: input.recordReference || input.entityId,
         action: input.action,
         changeSummary: input.changeSummary,
         actionNote: normalizeActionNote(input.actionNote ?? "") || null,

@@ -1,0 +1,139 @@
+%%{init: {"flowchart": {"curve": "stepBefore", "nodeSpacing": 90, "rankSpacing": 110}}}%%
+flowchart LR
+  Sales["Staff Sales\nExternal Entity"]
+  Admin["Staff Admin\nExternal Entity"]
+  Manager["General Manager\nExternal Entity"]
+  Administrator["Administrator\nExternal Entity"]
+  Customer["Customer\nNo direct app login"]
+
+  P1(["1.0\nMengelola Pengguna\ndan Hak Akses"])
+  P2(["2.0\nMengelola Data\nCustomer dan Product"])
+  P3(["3.0\nMengelola\nCustomer Inquiry"])
+  P4(["4.0\nMemproses Sales Order\n/ Customer PO"])
+  P5(["5.0\nMengelola Invoice\ndan Surat Jalan"])
+  P6(["6.0\nMencatat Payment"])
+  P7(["7.0\nReceivable, Collections,\ndan Customer Outreach"])
+  P8(["8.0\nMenghasilkan Dashboard\ndan Laporan"])
+
+  D1[("D1 User")]
+  D2[("D2 Customer")]
+  D3[("D3 Product")]
+  D4[("D4 Customer Inquiry")]
+  D5[("D5 Sales Order")]
+  D6[("D6 Invoice")]
+  D7[("D7 Payment")]
+  D8[("D8 Surat Jalan")]
+  D9[("D9 Receivables, Collection Tasks, and Customer Outreach\n(logical records)")]
+  D10[("D10 Audit Trail")]
+  D11[("D11 PO Document Storage")]
+
+  Sales -->|"login data"| P1
+  Admin -->|"login data"| P1
+  Manager -->|"login data"| P1
+  Administrator -->|"account and role input"| P1
+  P1 -->|"session and access status"| Sales
+  P1 -->|"session and access status"| Admin
+  P1 -->|"session and access status"| Manager
+  P1 -->|"account status"| Administrator
+  P1 -->|"user account data"| D1
+  D1 -->|"user credential and role data"| P1
+  P1 -->|"account audit event"| D10
+
+  Sales -->|"customer and product input"| P2
+  Admin -->|"customer and product review/update input"| P2
+  Manager -->|"master data review input"| P2
+  Customer -->|"customer profile and contact data"| P2
+  P2 -->|"customer/product list and status"| Sales
+  P2 -->|"customer/product information"| Admin
+  P2 -->|"master data status"| Manager
+  P2 -->|"customer data"| D2
+  D2 -->|"stored customer data"| P2
+  P2 -->|"product data"| D3
+  D3 -->|"stored product data"| P2
+  P2 -->|"master data audit event"| D10
+
+  Sales -->|"inquiry details and item requests"| P3
+  Customer -->|"request details and needed date"| P3
+  Manager -->|"inquiry review input"| P3
+  D2 -->|"active customer data"| P3
+  D3 -->|"active product data"| P3
+  P3 -->|"inquiry record and status"| D4
+  D4 -->|"stored inquiry data"| P3
+  P3 -->|"inquiry status and conversion option"| Sales
+  P3 -->|"inquiry status"| Manager
+  P3 -->|"inquiry audit event"| D10
+
+  Sales -->|"sales order / customer PO input"| P4
+  Manager -->|"approval decision"| P4
+  Customer -->|"PO document and order requirement"| P4
+  D2 -->|"customer data and payment risk"| P4
+  D3 -->|"product price data"| P4
+  D4 -->|"eligible inquiry data"| P4
+  P4 -->|"sales order / customer PO data"| D5
+  D5 -->|"stored order data"| P4
+  P4 -->|"PO document metadata"| D11
+  D11 -->|"stored PO document"| P4
+  P4 -->|"order status and approval queue"| Sales
+  P4 -->|"approval result and order status"| Manager
+  P4 -->|"order audit event"| D10
+
+  Admin -->|"invoice and surat jalan input"| P5
+  Manager -->|"invoice and delivery review input"| P5
+  Customer -->|"delivery recipient information"| P5
+  D5 -->|"eligible sales order data"| P5
+  D2 -->|"customer delivery and collection data"| P5
+  P5 -->|"invoice data"| D6
+  D6 -->|"stored invoice data"| P5
+  P5 -->|"surat jalan data"| D8
+  D8 -->|"stored surat jalan data"| P5
+  P5 -->|"invoice and surat jalan information"| Admin
+  P5 -->|"invoice and surat jalan information"| Customer
+  P5 -->|"invoice/delivery audit event"| D10
+
+  Admin -->|"payment record input"| P6
+  Manager -->|"payment review input"| P6
+  Customer -->|"payment information"| P6
+  D6 -->|"open invoice data"| P6
+  P6 -->|"payment data"| D7
+  D7 -->|"stored payment data"| P6
+  P6 -->|"updated invoice amount and status"| D6
+  P6 -->|"payment status and receipt information"| Admin
+  P6 -->|"payment status information"| Customer
+  P6 -->|"payment audit event"| D10
+
+  Admin -->|"collection task input"| P7
+  Sales -->|"customer outreach input"| P7
+  Manager -->|"receivable review input"| P7
+  D2 -->|"customer data"| P7
+  D6 -->|"invoice remaining amount and due date"| P7
+  D7 -->|"payment history"| P7
+  P7 -->|"receivable status and customer outreach records"| D9
+  D9 -->|"stored customer outreach and receivable view data"| P7
+  P7 -->|"receivable and collection list"| Admin
+  P7 -->|"customer outreach reminders"| Sales
+  P7 -->|"receivable status"| Manager
+  P7 -->|"receivable, collection, and customer outreach audit event"| D10
+
+  Sales -->|"dashboard request"| P8
+  Admin -->|"report/dashboard request"| P8
+  Manager -->|"management report request"| P8
+  Administrator -->|"audit/report review request"| P8
+  D2 -->|"customer data"| P8
+  D5 -->|"sales order data"| P8
+  D6 -->|"invoice and receivable data"| P8
+  D7 -->|"payment data"| P8
+  D8 -->|"surat jalan data"| P8
+  D9 -->|"customer outreach data"| P8
+  D10 -->|"audit trail data"| P8
+  P8 -->|"dashboard, report, export, audit view"| Sales
+  P8 -->|"dashboard, report, export, audit view"| Admin
+  P8 -->|"management dashboard and report"| Manager
+  P8 -->|"account/audit report"| Administrator
+
+  classDef entity fill:#b8d5f2,stroke:#5b8fc0,color:#1f2937
+  classDef process fill:#a8c9e8,stroke:#4f84b4,color:#1f2937
+  classDef datastore fill:#c8ddf2,stroke:#111827,color:#1f2937
+
+  class Sales,Admin,Manager,Administrator,Customer entity
+  class P1,P2,P3,P4,P5,P6,P7,P8 process
+  class D1,D2,D3,D4,D5,D6,D7,D8,D9,D10,D11 datastore

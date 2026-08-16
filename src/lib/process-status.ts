@@ -7,8 +7,8 @@ const doneSalesOrderStatuses = ["Shipped", "Cancelled"];
 const ongoingDeliveryNoteStatuses = ["Draft", "Issued"];
 const doneDeliveryNoteStatuses = ["Delivered", "Cancelled"];
 
-const ongoingFollowUpStatuses = ["Planned"];
-const doneFollowUpStatuses = ["Done", "Cancelled"];
+const ongoingCollectionTaskStatuses = ["Planned"];
+const doneCollectionTaskStatuses = ["Done", "Cancelled"];
 
 export function isOngoingInvoice(status: string) {
   return ongoingInvoiceStatuses.includes(status);
@@ -65,12 +65,12 @@ export function isDoneReceivable({
   return remainingAmount <= 0 || doneInvoiceStatuses.includes(status);
 }
 
-export function isOngoingFollowUp(status: string) {
-  return ongoingFollowUpStatuses.includes(status);
+export function isOngoingCollectionTask(status: string) {
+  return ongoingCollectionTaskStatuses.includes(status);
 }
 
-export function isDoneFollowUp(status: string) {
-  return doneFollowUpStatuses.includes(status);
+export function isDoneCollectionTask(status: string) {
+  return doneCollectionTaskStatuses.includes(status);
 }
 
 function normalizeSalesOrderProcessInput(input: SalesOrderProcessInput) {

@@ -14,17 +14,22 @@ const protectedPaths = [
   "/",
   "/customers",
   "/sales-orders",
+  "/customer-purchase-orders",
   "/invoices",
   "/payments",
   "/receivables",
-  "/billing",
-  "/follow-ups",
+  "/collections",
+  "/customer-outreach",
   "/surat-jalan",
   "/audit-trail",
   "/settings"
 ];
 
 export async function login(formData: FormData) {
+  if (!process.env.AUTH_SECRET || process.env.AUTH_SECRET.length < 32) {
+    redirect("/login?error=Deployment setup is missing AUTH_SECRET. Add it in Vercel Environment Variables, then redeploy.");
+  }
+
   const username = getString(formData, "username");
   const password = getString(formData, "password");
 
@@ -32,7 +37,16 @@ export async function login(formData: FormData) {
     where: { username }
   });
 
-  if (!user || user.status !== "Active" || !verifyPassword(password, user.passwordHash)) {
+  if (!user) {
+    const userCount = await prisma.user.count();
+    if (userCount === 0) {
+      redirect("/login?error=No user accounts found in Supabase. Run the demo seed or create an Admin user first.");
+    }
+
+    redirect("/login?error=Invalid username or password");
+  }
+
+  if (user.status !== "Active" || !verifyPassword(password, user.passwordHash)) {
     redirect("/login?error=Invalid username or password");
   }
 
@@ -45,7 +59,7 @@ export async function login(formData: FormData) {
 
   await createSession(user);
 
-  redirect("/dashboard");
+  redirect("/");
 }
 
 export async function logout() {
@@ -102,7 +116,7 @@ export async function createAccount(formData: FormData) {
     moduleName: "Settings",
     entityType: "USER",
     entityId: user.id,
-    transactionCode: user.username,
+    recordReference: user.username,
     action: "ACCOUNT_CREATED",
     actionNote,
     changeSummary: `Account ${user.username} created`,

@@ -3,9 +3,9 @@ import "server-only";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  isBillingDeadlineNotification,
-  isPreOrderProcessingNotification,
-  needsSalesCustomerFollowUp
+  isCollectionDeadlineNotification,
+  isCustomerPoProcessingNotification,
+  needsCustomerOutreach
 } from "@/lib/notification-rules";
 
 export type AppNotification = {
@@ -19,24 +19,24 @@ export type AppNotification = {
 export async function getRoleNotifications(user: { role: UserRole }) {
   const roleNotificationsPromise =
     user.role === "ADMIN"
-      ? getAdminBillingNotifications()
+      ? getAdminCollectionsNotifications()
       : user.role === "SALES"
-        ? getSalesFollowUpNotifications()
+        ? getSalesOutreachNotifications()
         : user.role === "MANAGER"
           ? getManagerApprovalNotifications()
           : Promise.resolve([]);
-  const [roleNotifications, preOrderNotifications] = await Promise.all([
+  const [roleNotifications, customerPoNotifications] = await Promise.all([
     roleNotificationsPromise,
-    getPreOrderNotifications()
+    getCustomerPoNotifications()
   ]);
-  return [...preOrderNotifications, ...roleNotifications].slice(0, 12);
+  return [...customerPoNotifications, ...roleNotifications].slice(0, 12);
 }
 
-async function getPreOrderNotifications(): Promise<AppNotification[]> {
+async function getCustomerPoNotifications(): Promise<AppNotification[]> {
   const today = startOfDay(new Date());
-  const preOrders = await prisma.salesOrder.findMany({
+  const customerPos = await prisma.salesOrder.findMany({
     where: {
-      transactionType: "PRE_ORDER",
+      source: "CUSTOMER_PO",
       requiredDate: { not: null },
       status: { not: "Cancelled" }
     },
@@ -48,9 +48,9 @@ async function getPreOrderNotifications(): Promise<AppNotification[]> {
     }
   });
 
-  return preOrders
+  return customerPos
     .filter((order) =>
-      isPreOrderProcessingNotification(
+      isCustomerPoProcessingNotification(
         {
           requiredDate: order.requiredDate,
           status: order.status,
@@ -66,11 +66,11 @@ async function getPreOrderNotifications(): Promise<AppNotification[]> {
       const requiredDate = order.requiredDate as Date;
       const isOverdue = requiredDate < today;
       return {
-        id: `pre-order-${order.id}-${requiredDate.toISOString().slice(0, 10)}`,
-        title: isOverdue ? "Pre Order processing overdue" : "Pre Order date is approaching",
+        id: `customer-po-${order.id}-${requiredDate.toISOString().slice(0, 10)}`,
+        title: isOverdue ? "Customer PO processing overdue" : "Customer PO date is approaching",
         description: `${order.orderNumber} · ${order.customer.companyName} · Required ${formatShortDate(requiredDate)}`,
         sentAt: new Date().toISOString(),
-        href: `/pre-orders/${order.id}`
+        href: `/customer-purchase-orders/${order.id}`
       };
     });
 }
@@ -86,47 +86,47 @@ async function getManagerApprovalNotifications(): Promise<AppNotification[]> {
   return pendingOrders.map((order) => ({
     id: `sales-order-approval-${order.id}`,
     title:
-      order.transactionType === "PRE_ORDER"
-        ? "Pre Order approval needed"
+      order.source === "CUSTOMER_PO"
+        ? "Customer PO approval needed"
         : "Sales order approval needed",
     description: `${order.orderNumber} · ${order.customer.companyName} · ${order.approvalRisk ?? "Payment risk"}`,
     sentAt: order.createdAt.toISOString(),
     href: `${
-      order.transactionType === "PRE_ORDER" ? "/pre-orders" : "/sales-orders"
+      order.source === "CUSTOMER_PO" ? "/customer-purchase-orders" : "/sales-orders"
     }?tab=approval&view=${order.id}`
   }));
 }
 
-async function getAdminBillingNotifications(): Promise<AppNotification[]> {
+async function getAdminCollectionsNotifications(): Promise<AppNotification[]> {
   const today = startOfDay(new Date());
-  const billingTasks = await prisma.followUp.findMany({
+  const collectionTasks = await prisma.collectionTask.findMany({
     where: {
       status: "Planned"
     },
-    orderBy: { followUpDate: "asc" },
+    orderBy: { scheduledDate: "asc" },
     take: 12,
     include: { customer: true, invoice: true }
   });
 
-  return billingTasks.filter((task) =>
-    isBillingDeadlineNotification(
-      { status: task.status, deadline: task.followUpDate },
+  return collectionTasks.filter((task) =>
+    isCollectionDeadlineNotification(
+      { status: task.status, deadline: task.scheduledDate },
       today
     )
   ).map((task) => {
-    const isOverdue = task.followUpDate < today;
-    const invoiceLabel = task.invoice?.invoiceNumber ?? "customer billing";
+    const isOverdue = task.scheduledDate < today;
+    const invoiceLabel = task.invoice?.invoiceNumber ?? "customer collection";
     return {
-      id: `billing-${task.id}-${task.followUpDate.toISOString().slice(0, 10)}`,
-      title: isOverdue ? "Billing task overdue" : "Billing deadline is near",
-      description: `${task.customer.companyName} · ${invoiceLabel} · Due ${formatShortDate(task.followUpDate)}`,
+      id: `collection-task-${task.id}-${task.scheduledDate.toISOString().slice(0, 10)}`,
+      title: isOverdue ? "Collection task overdue" : "Collection deadline is near",
+      description: `${task.customer.companyName} · ${invoiceLabel} · Due ${formatShortDate(task.scheduledDate)}`,
       sentAt: new Date().toISOString(),
-      href: `/billing?customerId=${task.customerId}${task.invoiceId ? `&invoiceId=${task.invoiceId}` : ""}`
+      href: `/collections?customerId=${task.customerId}${task.invoiceId ? `&invoiceId=${task.invoiceId}` : ""}`
     };
   });
 }
 
-async function getSalesFollowUpNotifications(): Promise<AppNotification[]> {
+async function getSalesOutreachNotifications(): Promise<AppNotification[]> {
   const today = new Date();
   const customers = await prisma.customer.findMany({
     where: { status: "Active" },
@@ -143,19 +143,19 @@ async function getSalesFollowUpNotifications(): Promise<AppNotification[]> {
   return customers
     .filter((customer) => {
       const latestOrder = customer.salesOrders[0];
-      return needsSalesCustomerFollowUp(latestOrder?.orderDate ?? null, today);
+      return needsCustomerOutreach(latestOrder?.orderDate ?? null, today);
     })
     .slice(0, 12)
     .map((customer) => {
       const latestOrder = customer.salesOrders[0]?.orderDate;
       return {
-        id: `sales-follow-up-${customer.id}-${latestOrder?.toISOString().slice(0, 10) ?? "never"}`,
-        title: "Customer follow up needed",
+        id: `customer-outreach-${customer.id}-${latestOrder?.toISOString().slice(0, 10) ?? "never"}`,
+        title: "Customer outreach needed",
         description: latestOrder
-          ? `${customer.companyName} has not made a transaction since ${formatShortDate(latestOrder)}.`
-          : `${customer.companyName} has not made a transaction yet.`,
+          ? `${customer.companyName} has not placed an order since ${formatShortDate(latestOrder)}.`
+          : `${customer.companyName} has not placed an order yet.`,
         sentAt: today.toISOString(),
-        href: `/follow-ups?customerId=${customer.id}#record-follow-up`
+        href: `/customer-outreach?customerId=${customer.id}#record-outreach`
       };
     });
 }

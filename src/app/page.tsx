@@ -64,9 +64,9 @@ export default async function DashboardPage() {
     salesOrders,
     customers,
     deliveryNoteCount,
-    followUpCount,
+    collectionTaskCount,
     payments,
-    plannedFollowUps,
+    plannedCollectionTasks,
     recentSalesOrders,
     soldOrderItems
   ] = await Promise.all([
@@ -101,7 +101,7 @@ export default async function DashboardPage() {
       }
     }),
     prisma.deliveryNote.count(),
-    prisma.followUp.count(),
+    prisma.collectionTask.count(),
     prisma.payment.findMany({
       select: {
         id: true,
@@ -110,9 +110,9 @@ export default async function DashboardPage() {
       },
       orderBy: { paymentDate: "desc" }
     }),
-    prisma.followUp.findMany({
+    prisma.collectionTask.findMany({
       where: { status: "Planned" },
-      orderBy: { followUpDate: "asc" },
+      orderBy: { scheduledDate: "asc" },
       include: { customer: true, invoice: true }
     }),
     prisma.salesOrder.findMany({
@@ -145,7 +145,7 @@ export default async function DashboardPage() {
       ["Unpaid", "Partial", "Overdue"].includes(invoice.status)
   ).length;
   const overdueCount = invoices.filter((invoice) => invoice.status === "Overdue").length;
-  const needFollowUpCount = overdueCount + plannedFollowUps.length;
+  const needCollectionTaskCount = overdueCount + plannedCollectionTasks.length;
   const trendData = getRevenueTrendData(
     salesOrders.map((order) => ({ date: order.orderDate, amount: order.total })),
     payments.map((payment) => ({ date: payment.paymentDate, amount: payment.amount }))
@@ -200,13 +200,13 @@ export default async function DashboardPage() {
           <KpiCard label="Open Invoices" value={String(openInvoices.length)} description={formatCurrency(outstandingAmount)} icon={FileText} tone="warning" />
           <KpiCard label="Overdue Receivables" value={String(overdueCount)} description="Requires collection attention" icon={ReceiptText} tone="danger" />
           <KpiCard label="Surat Jalan Needed" value={String(deliveryNotesNeeded.length)} description="Eligible invoices without delivery note" icon={Truck} />
-          <KpiCard label="Planned Billing" value={String(plannedFollowUps.length)} description="Admin collection queue" icon={Handshake} tone="good" />
+          <KpiCard label="Planned Collection Tasks" value={String(plannedCollectionTasks.length)} description="Admin collection queue" icon={Handshake} tone="good" />
         </section>
 
         <section className="mt-5 grid gap-4 xl:grid-cols-2">
           <AdminListPanel
             title="Invoice Insight"
-            description="Current billing status and remaining exposure."
+            description="Current invoice status and remaining exposure."
             href="/invoices"
           >
             <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
@@ -259,18 +259,18 @@ export default async function DashboardPage() {
           </AdminListPanel>
 
           <AdminListPanel
-            title="Billing Tasks to Do"
-            description="Planned billing and collection tasks ordered by date."
-            href="/billing"
+            title="Collection Tasks to Do"
+            description="Planned payment collection tasks ordered by date."
+            href="/collections"
           >
             <CompactActionList
-              empty="No planned billing tasks."
-              rows={plannedFollowUps.slice(0, 5).map((followUp) => ({
-                id: followUp.id,
-                primary: followUp.customer.companyName,
-                secondary: `${followUp.invoice?.invoiceNumber ?? "Customer billing"} · ${formatDate(followUp.followUpDate)}`,
-                value: followUp.notes,
-                href: "/billing",
+              empty="No planned collection tasks."
+              rows={plannedCollectionTasks.slice(0, 5).map((collectionTask) => ({
+                id: collectionTask.id,
+                primary: collectionTask.customer.companyName,
+                secondary: `${collectionTask.invoice?.invoiceNumber ?? "Customer collection"} · ${formatDate(collectionTask.scheduledDate)}`,
+                value: collectionTask.notes,
+                href: "/collections",
                 action: "Open"
               }))}
             />
@@ -309,10 +309,10 @@ export default async function DashboardPage() {
     { href: "/surat-jalan", label: "Surat Jalan", value: deliveryNoteCount, helper: "documents", icon: Truck },
     { href: "/receivables", label: "Receivables", value: activeReceivableCount, helper: "active", icon: ReceiptText },
     {
-      href: "/billing",
-      label: "Billing",
-      value: followUpCount,
-      helper: `${plannedFollowUps.length} pending`,
+      href: "/collections",
+      label: "Collections",
+      value: collectionTaskCount,
+      helper: `${plannedCollectionTasks.length} pending`,
       icon: Handshake
     }
   ];
@@ -351,8 +351,8 @@ export default async function DashboardPage() {
         />
         <KpiCard
           label="Need Attention"
-          value={String(needFollowUpCount)}
-          description={`${overdueCount} overdue + ${plannedFollowUps.length} billing tasks`}
+          value={String(needCollectionTaskCount)}
+          description={`${overdueCount} overdue + ${plannedCollectionTasks.length} collection tasks`}
           icon={AlertTriangle}
           tone="danger"
         />
@@ -363,7 +363,7 @@ export default async function DashboardPage() {
           <div>
             <h2 className="text-lg font-semibold text-ink">Revenue Cycle Insights</h2>
             <p className="text-sm text-slate-600">
-              Historical movement and current transaction status in one compact view.
+              Historical movement and current business status in one compact view.
             </p>
           </div>
           <p className="text-xs font-medium text-slate-500">
@@ -495,34 +495,34 @@ export default async function DashboardPage() {
         {dashboardRole === "MANAGER" && <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
           <section className="rounded-md border border-line bg-white p-4 shadow-soft">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold">Billing Reminders</h2>
+              <h2 className="text-base font-semibold">Collection Reminders</h2>
               <Link
-                href="/billing"
+                href="/collections"
                 className="inline-flex h-8 items-center justify-center rounded-md border border-line px-3 text-xs font-semibold text-brand"
               >
                 View all
               </Link>
             </div>
-            {plannedFollowUps.length === 0 ? (
-              <EmptyState message="No billing reminders at the moment." />
+            {plannedCollectionTasks.length === 0 ? (
+              <EmptyState message="No collection reminders at the moment." />
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                {plannedFollowUps.slice(0, 2).map((followUp) => (
-                  <article key={followUp.id} className="rounded-md border border-line p-3">
+                {plannedCollectionTasks.slice(0, 2).map((collectionTask) => (
+                  <article key={collectionTask.id} className="rounded-md border border-line p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="text-sm font-semibold text-ink">
-                          {followUp.customer.companyName}
+                          {collectionTask.customer.companyName}
                         </h3>
                         <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
-                          {followUp.notes}
+                          {collectionTask.notes}
                         </p>
                       </div>
-                      <StatusBadge status={followUp.status} />
+                      <StatusBadge status={collectionTask.status} />
                     </div>
                     <p className="mt-2 text-xs font-medium text-slate-500">
-                      {followUp.invoice?.invoiceNumber ?? "Customer billing"} -{" "}
-                      {formatDate(followUp.followUpDate)}
+                      {collectionTask.invoice?.invoiceNumber ?? "Customer collection"} -{" "}
+                      {formatDate(collectionTask.scheduledDate)}
                     </p>
                   </article>
                 ))}
@@ -708,7 +708,7 @@ function RevenueTrendChart({ data }: { data: TrendPoint[] }) {
   const maxValue = Math.max(...data.flatMap((point) => [point.sales, point.payments]), 0);
 
   if (maxValue === 0) {
-    return <EmptyState message="No transaction data available yet." />;
+    return <EmptyState message="No business data available yet." />;
   }
 
   const width = 320;
@@ -837,7 +837,7 @@ function RevenueCompositionChart({
   const visibleTotal = paid + outstanding;
 
   if (total === 0 && visibleTotal === 0) {
-    return <EmptyState message="No transaction data available yet." />;
+    return <EmptyState message="No business data available yet." />;
   }
 
   return (
@@ -859,7 +859,7 @@ function RevenueCompositionChart({
 
 function StatusDonutChart({ total, segments }: { total: number; segments: DonutSegment[] }) {
   if (total === 0) {
-    return <EmptyState message="No transaction data available yet." />;
+    return <EmptyState message="No business data available yet." />;
   }
 
   return (

@@ -25,7 +25,7 @@ export default async function AuditTrailPage({
     ...(query
       ? {
           OR: [
-            { transactionCode: { contains: query } },
+            { recordReference: { contains: query } },
             { changeSummary: { contains: query } },
             { actionNote: { contains: query } },
             { actorUsername: { contains: query } },
@@ -67,7 +67,7 @@ export default async function AuditTrailPage({
     <>
       <PageHeader
         title="Audit Trail"
-        description="Central record of who changed data, what changed, which transaction was affected, and when it happened."
+        description="Central record of who changed data, what changed, which record was affected, and when it happened."
       />
 
       <div className="mb-4 rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
@@ -84,7 +84,7 @@ export default async function AuditTrailPage({
                 name="q"
                 defaultValue={query}
                 className="w-full text-sm outline-none"
-                placeholder="Transaction code or keyword"
+                placeholder="Record reference or keyword"
               />
             </span>
           </label>
@@ -147,7 +147,7 @@ export default async function AuditTrailPage({
                   <th className="py-3 pr-4">User</th>
                   <th className="py-3 pr-4">Role</th>
                   <th className="py-3 pr-4">Module</th>
-                  <th className="py-3 pr-4">Transaction Code</th>
+                  <th className="py-3 pr-4">Record Reference</th>
                   <th className="py-3 pr-4">Action</th>
                   <th className="py-3 pr-4">Change Summary</th>
                   <th className="py-3 pr-4">Confirmation Note</th>
@@ -170,7 +170,7 @@ export default async function AuditTrailPage({
                     </td>
                     <td className="py-3 pr-4 text-slate-600">{record.actorRole}</td>
                     <td className="py-3 pr-4 text-slate-600">{record.moduleName}</td>
-                    <td className="py-3 pr-4 font-medium">{record.transactionCode}</td>
+                    <td className="py-3 pr-4 font-medium">{record.recordReference}</td>
                     <td className="py-3 pr-4 text-slate-600">
                       {formatActionLabel(record.action)}
                     </td>

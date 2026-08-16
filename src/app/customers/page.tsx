@@ -1,7 +1,9 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  CreditCard,
   Eye,
+  FileText,
   Pencil,
   Plus,
   Search,
@@ -20,11 +22,13 @@ import { prisma } from "@/lib/prisma";
 import { getPaymentTermLabel } from "@/lib/calculations";
 import {
   getCustomerCategory,
+  getCustomerPaymentBehaviour,
   getCustomerPaymentRisk,
   type CustomerCategory,
   type CustomerPaymentRisk
 } from "@/lib/customer-intelligence";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { formatNpwp } from "@/lib/npwp";
 import { getSearchMessage } from "@/lib/workflow";
 import { getOppositeCustomerStatus } from "@/lib/customer-status";
 
@@ -108,6 +112,9 @@ export default async function CustomersPage({
   const selectedPaymentRisk = selectedCustomer
     ? getCustomerPaymentRisk(selectedCustomer)
     : null;
+  const selectedPaymentBehaviour = selectedCustomer
+    ? getCustomerPaymentBehaviour(selectedCustomer)
+    : null;
 
   return (
     <>
@@ -174,7 +181,7 @@ export default async function CustomersPage({
           <div className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
             <Detail label="Phone" value={selectedCustomer.phone} />
             <Detail label="Email" value={selectedCustomer.email} />
-            <Detail label="Type" value={selectedCustomer.customerType} />
+            <Detail label="Customer Segment" value={selectedCustomer.customerSegment} />
             <Detail label="Address" value={selectedCustomer.address} />
           </div>
           {selectedCustomer.notes && (
@@ -182,11 +189,11 @@ export default async function CustomersPage({
               {selectedCustomer.notes}
             </p>
           )}
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <CustomerIntelligenceCard
-              title="Customer Category"
+              title="Purchase Frequency Category"
               value={selectedCategory?.category ?? "Occasional"}
-              description={`${selectedCategory?.transactionCount ?? 0} order(s) in the last 3 months · Recommended markup ${selectedCategory?.markup ?? "10–15%"}`}
+              description={`${selectedCategory?.orderCount ?? 0} order(s) in the last 3 months · Recommended markup ${selectedCategory?.markup ?? "10–15%"}`}
               icon={Tags}
               tone="category"
             />
@@ -197,17 +204,38 @@ export default async function CustomersPage({
               icon={ShieldCheck}
               tone="risk"
             />
+            <CustomerIntelligenceCard
+              title="Customer Payment Behaviour"
+              value={selectedPaymentBehaviour?.behaviour ?? "No Payment History"}
+              description={
+                selectedPaymentBehaviour?.evidence ??
+                "No eligible orders were found in the last 12 months."
+              }
+              icon={CreditCard}
+              tone="behaviour"
+            />
+            <CustomerIntelligenceCard
+              title="NPWP / Tax Profile"
+              value={formatNpwp(selectedCustomer.npwp) ?? "Not provided"}
+              description={
+                selectedCustomer.npwp
+                  ? "PPN enabled for new orders. The NPWP will be snapshotted when an order is finalized."
+                  : "PPN not enabled for new orders because an NPWP has not been provided."
+              }
+              icon={FileText}
+              tone="tax"
+            />
           </div>
 
           <section className="mt-5 border-t border-line pt-5">
             <div className="mb-4">
-              <h3 className="text-base font-semibold text-ink">Customer Transactions</h3>
+              <h3 className="text-base font-semibold text-ink">Customer Orders</h3>
               <p className="mt-1 text-sm text-slate-500">
                 Every Sales Order and its connected Invoice and Surat Jalan.
               </p>
             </div>
             {selectedCustomer.salesOrders.length === 0 ? (
-              <EmptyState message="This customer has no transactions yet." />
+              <EmptyState message="This customer has no orders yet." />
             ) : (
               <div className="overflow-x-auto">
                 <table>
@@ -215,7 +243,7 @@ export default async function CustomersPage({
                     <tr>
                       <th className="py-3 pr-4">Order Number</th>
                       <th className="py-3 pr-4">Order Date</th>
-                      <th className="py-3 pr-4">Payment Term</th>
+                      <th className="py-3 pr-4">Payment Terms</th>
                       <th className="py-3 pr-4">Status</th>
                       <th className="py-3 pr-4">Invoice</th>
                       <th className="py-3 pr-4">Surat Jalan</th>
@@ -287,7 +315,7 @@ export default async function CustomersPage({
                   <th className="py-3 pr-4">Name</th>
                   <th className="py-3 pr-4">Company</th>
                   <th className="py-3 pr-4">Phone</th>
-                  <th className="py-3 pr-4">Type</th>
+                  <th className="py-3 pr-4">Segment</th>
                   <th className="py-3 pr-4">Customer Category</th>
                   <th className="py-3 pr-4">Payment Risk</th>
                   <th className="py-3 pr-4">Status</th>
@@ -303,7 +331,7 @@ export default async function CustomersPage({
                     <td className="py-3 pr-4 font-medium">{customer.name}</td>
                     <td className="py-3 pr-4 text-slate-600">{customer.companyName}</td>
                     <td className="py-3 pr-4 text-slate-600">{customer.phone}</td>
-                    <td className="py-3 pr-4 text-slate-600">{customer.customerType}</td>
+                    <td className="py-3 pr-4 text-slate-600">{customer.customerSegment}</td>
                     <td className="py-3 pr-4"><CustomerCategoryBadge category={category.category} /></td>
                     <td className="py-3 pr-4"><PaymentRiskBadge risk={paymentRisk} /></td>
                     <td className="py-3 pr-4">
@@ -352,12 +380,14 @@ function CustomerIntelligenceCard({
   value: string;
   description: string;
   icon: LucideIcon;
-  tone: "category" | "risk";
+  tone: "category" | "risk" | "behaviour" | "tax";
 }) {
-  const iconStyle =
-    tone === "category"
-      ? "bg-blue-50 text-blue-700 ring-blue-200"
-      : "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  const iconStyle = {
+    category: "bg-blue-50 text-blue-700 ring-blue-200",
+    risk: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    behaviour: "bg-amber-50 text-amber-800 ring-amber-200",
+    tax: "bg-violet-50 text-violet-700 ring-violet-200"
+  }[tone];
 
   return (
     <article className="rounded-md border border-line bg-slate-50 p-4">
@@ -411,20 +441,27 @@ function CustomerForm({
     <form action={customer ? updateCustomer : createCustomer} className="space-y-4">
       {customer && <input type="hidden" name="id" value={customer.id} />}
       <div className="grid gap-4 md:grid-cols-2">
-        <FormField label="Customer Name" name="name" defaultValue={customer?.name} required />
+        <FormField label="Contact Person" name="name" defaultValue={customer?.name} required />
         <FormField
           label="Company Name"
           name="companyName"
           defaultValue={customer?.companyName}
           required
         />
+        <FormField
+          label="NPWP (Optional)"
+          name="npwp"
+          defaultValue={formatNpwp(customer?.npwp)}
+          placeholder="01.234.567.8-901.234"
+          helper="Used for the order tax simulation and copied to new invoices."
+        />
         <FormField label="Phone" name="phone" defaultValue={customer?.phone} />
         <FormField label="Email" name="email" type="email" defaultValue={customer?.email} />
         <FormField label="Address" name="address" defaultValue={customer?.address} />
         <FormField
-          label="Customer Type"
-          name="customerType"
-          defaultValue={customer?.customerType ?? "Retail"}
+          label="Customer Segment"
+          name="customerSegment"
+          defaultValue={customer?.customerSegment ?? "Retail"}
         />
         <label className="text-sm font-medium text-slate-700">
           Status
@@ -462,13 +499,17 @@ function FormField({
   name,
   defaultValue,
   type = "text",
-  required = false
+  required = false,
+  placeholder,
+  helper
 }: {
   label: string;
   name: string;
   defaultValue?: string | null;
   type?: string;
   required?: boolean;
+  placeholder?: string;
+  helper?: string;
 }) {
   return (
     <label className="text-sm font-medium text-slate-700">
@@ -478,8 +519,10 @@ function FormField({
         type={type}
         defaultValue={defaultValue ?? ""}
         required={required}
+        placeholder={placeholder}
         className={`${inputClass} mt-1`}
       />
+      {helper && <span className="mt-1 block text-xs font-normal text-slate-500">{helper}</span>}
     </label>
   );
 }

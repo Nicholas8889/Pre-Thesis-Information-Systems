@@ -1,25 +1,25 @@
 export type PaymentStatus = "Unpaid" | "Partial" | "Paid" | "Overdue";
 export type ReceivableStatus = "Unpaid" | "Partial" | "Overdue";
-export type PaymentTermType = "DEBIT" | "CREDIT";
+export type PaymentTermType = "IMMEDIATE" | "CREDIT";
 
-export function calculateLineSubtotal(quantity: number, unitPrice: number) {
-  return quantity * unitPrice;
+export function calculateLineSubtotal(quantity: number, finalUnitPrice: number) {
+  return quantity * finalUnitPrice;
 }
 
 export function calculateAdjustedUnitPrice(
-  basePrice: number,
+  baseUnitPrice: number,
   markupPercent = 0,
   discountPercent = 0
 ) {
-  const adjustedPrice = basePrice * (100 + markupPercent - discountPercent) / 100;
+  const adjustedPrice = baseUnitPrice * (100 + markupPercent - discountPercent) / 100;
   return Math.max(0, Math.round(adjustedPrice));
 }
 
 export function calculateSalesOrderTotal(
-  items: Array<{ quantity: number; unitPrice: number }>
+  items: Array<{ quantity: number; finalUnitPrice: number }>
 ) {
   return items.reduce(
-    (total, item) => total + calculateLineSubtotal(item.quantity, item.unitPrice),
+    (total, item) => total + calculateLineSubtotal(item.quantity, item.finalUnitPrice),
     0
   );
 }
@@ -54,7 +54,7 @@ export function buildInvoiceDraftFromSalesOrder({
   customerId,
   total,
   issueDate,
-  paymentTermType = "DEBIT",
+  paymentTermType = "IMMEDIATE",
   creditTermMonths = null
 }: {
   salesOrderId: string;
@@ -95,7 +95,7 @@ export function calculateDueDateForPaymentTerm({
 }) {
   const dueDate = new Date(issueDate);
 
-  if (paymentTermType === "DEBIT") {
+  if (paymentTermType === "IMMEDIATE") {
     return dueDate;
   }
 
@@ -118,7 +118,7 @@ export function isValidSalesOrderPaymentTerm({
   paymentTermType: string;
   creditTermMonths?: number | null;
 }) {
-  if (paymentTermType === "DEBIT") {
+  if (paymentTermType === "IMMEDIATE") {
     return true;
   }
 
@@ -141,12 +141,12 @@ export function getPaymentTermLabel({
   paymentTermType: PaymentTermType;
   creditTermMonths?: number | null;
 }) {
-  if (paymentTermType === "DEBIT") {
-    return "Debit / Immediate Payment";
+  if (paymentTermType === "IMMEDIATE") {
+    return "Immediate Payment";
   }
 
   const months = getValidCreditTermMonths(creditTermMonths);
-  return `Credit - ${months} Month${months === 1 ? "" : "s"}`;
+  return `Credit – ${months} Month${months === 1 ? "" : "s"}`;
 }
 
 export function canCreateDeliveryNoteForInvoice({
@@ -167,7 +167,7 @@ export function calculateRemainingBalance(totalAmount: number, totalPaid: number
   return Math.max(totalAmount - totalPaid, 0);
 }
 
-export function isFullyPaidTransaction({
+export function isInvoiceFullyPaid({
   invoiceStatus,
   remainingAmount,
   totalPaid,
@@ -190,13 +190,13 @@ export function getSalesOrderProgressStatus({
   paymentCount,
   deliveryNoteCount,
   remainingAmount,
-  followUpCount
+  collectionTaskCount
 }: {
   hasInvoice: boolean;
   paymentCount: number;
   deliveryNoteCount: number;
   remainingAmount: number;
-  followUpCount: number;
+  collectionTaskCount: number;
 }) {
   if (!hasInvoice) {
     return "Sales Order Only";
@@ -210,8 +210,8 @@ export function getSalesOrderProgressStatus({
     return "Paid";
   }
 
-  if (followUpCount > 0) {
-    return "Billing Active";
+  if (collectionTaskCount > 0) {
+    return "Collections Active";
   }
 
   if (paymentCount > 0) {

@@ -1,11 +1,10 @@
-import { OrderTransactionsPage } from "@/app/sales-orders/page";
+import { redirect } from "next/navigation";
+import { withSearchParams, type LegacySearchParams } from "@/lib/legacy-route";
 
-type SearchParams = Record<string, string | string[] | undefined>;
-
-export default async function PreOrdersPage({
+export default async function LegacyPreOrdersPage({
   searchParams
 }: {
-  searchParams?: Promise<SearchParams>;
+  searchParams?: Promise<LegacySearchParams>;
 }) {
-  return await OrderTransactionsPage({ searchParams, transactionType: "PRE_ORDER" });
+  redirect(withSearchParams("/customer-purchase-orders", await searchParams));
 }

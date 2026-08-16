@@ -6,7 +6,7 @@ export const customers = [
     phone: "0812-1000-1100",
     email: "andi@sinarmaju.example",
     address: "Jl. Merdeka No. 12, Bandung",
-    customerType: "Retail",
+    customerSegment: "Retail",
     status: "Active",
     notes: "Long-term customer with regular monthly orders."
   },
@@ -17,7 +17,7 @@ export const customers = [
     phone: "0813-2000-2200",
     email: "maya@bintangniaga.example",
     address: "Jl. Cendana No. 7, Jakarta",
-    customerType: "Wholesale",
+    customerSegment: "Wholesale",
     status: "Active",
     notes: "Usually pays by bank transfer."
   },
@@ -28,7 +28,7 @@ export const customers = [
     phone: "0815-3000-3300",
     email: "rizky@tokoharapan.example",
     address: "Jl. Diponegoro No. 21, Semarang",
-    customerType: "Retail",
+    customerSegment: "Retail",
     status: "Active",
     notes: "Needs reminder before due date."
   },
@@ -39,7 +39,7 @@ export const customers = [
     phone: "0817-4000-4400",
     email: "dewi@nusantarajaya.example",
     address: "Jl. Veteran No. 9, Surabaya",
-    customerType: "Corporate",
+    customerSegment: "Corporate",
     status: "Active",
     notes: "Requests formal invoice copies."
   },
@@ -50,7 +50,7 @@ export const customers = [
     phone: "0819-5000-5500",
     email: "budi@makmurbersama.example",
     address: "Jl. Sudirman No. 31, Yogyakarta",
-    customerType: "Wholesale",
+    customerSegment: "Wholesale",
     status: "Inactive",
     notes: "Inactive until next seasonal order."
   }
@@ -202,12 +202,12 @@ export const payments = [
   }
 ];
 
-export const followUps = [
+export const collectionTasks = [
   {
     id: "fu-001",
     customerName: "PT Nusantara Jaya",
     invoiceNumber: "INV-2026-003",
-    followUpDate: "2026-06-10",
+    scheduledDate: "2026-06-10",
     status: "Planned",
     notes: "Call finance team about overdue invoice."
   },
@@ -215,7 +215,7 @@ export const followUps = [
     id: "fu-002",
     customerName: "Toko Harapan",
     invoiceNumber: "INV-2026-002",
-    followUpDate: "2026-06-12",
+    scheduledDate: "2026-06-12",
     status: "Planned",
     notes: "Confirm remaining payment schedule."
   },
@@ -223,7 +223,7 @@ export const followUps = [
     id: "fu-003",
     customerName: "UD Makmur Bersama",
     invoiceNumber: "INV-2026-005",
-    followUpDate: "2026-06-04",
+    scheduledDate: "2026-06-04",
     status: "Done",
     notes: "Customer promised payment next week."
   }
@@ -280,7 +280,7 @@ export const testingEvidence = [
     scenarioId: "UT-005",
     scenarioName: "Build invoice draft from sales order",
     userRole: "System",
-    steps: "Input sales order ID, customer ID, total amount, and issue date.",
+    steps: "Input Sales Order Number, customer ID, total amount, and issue date.",
     expectedResult:
       "Invoice draft uses sales order data, starts Unpaid, and due date is 14 days after issue date.",
     status: "Prepared"
@@ -298,20 +298,20 @@ export const testingEvidence = [
   {
     testType: "Unit Testing",
     scenarioId: "UT-007",
-    scenarioName: "Validate sales order payment term",
+    scenarioName: "Validate sales order payment terms",
     userRole: "System",
-    steps: "Input Debit, valid Credit, and invalid Credit terms.",
-    expectedResult: "Debit is accepted without credit term and Credit requires 1-12 months.",
+    steps: "Input Immediate Payment, valid Credit, and invalid Credit terms.",
+    expectedResult: "Immediate Payment is accepted without credit term and Credit requires 1-12 months.",
     status: "Prepared"
   },
   {
     testType: "Unit Testing",
     scenarioId: "UT-008",
-    scenarioName: "Calculate Debit and Credit due dates",
+    scenarioName: "Calculate Immediate Payment and Credit due dates",
     userRole: "System",
-    steps: "Input Debit and Credit invoice issue dates.",
+    steps: "Input Immediate Payment and Credit invoice issue dates.",
     expectedResult:
-      "Debit due date equals issue date and Credit due date adds selected months.",
+      "Immediate Payment due date equals issue date and Credit due date adds selected months.",
     status: "Prepared"
   },
   {
@@ -319,9 +319,9 @@ export const testingEvidence = [
     scenarioId: "UT-009",
     scenarioName: "Check Surat Jalan payment-term rule",
     userRole: "System",
-    steps: "Input Debit unpaid, Debit paid, and Credit unpaid invoice states.",
+    steps: "Input Immediate Payment unpaid, Immediate Payment paid, and Credit unpaid invoice states.",
     expectedResult:
-      "Debit unpaid blocks Surat Jalan while Debit paid and Credit unpaid allow Surat Jalan.",
+      "Immediate Payment unpaid blocks Surat Jalan while Immediate Payment paid and Credit unpaid allow Surat Jalan.",
     status: "Prepared"
   },
   {
@@ -374,9 +374,9 @@ export const testingEvidence = [
     scenarioId: "SIT-002",
     scenarioName: "Sales order to invoice",
     userRole: "Admin",
-    steps: "Create sales order, choose Debit or Credit, and select Confirm & Generate Invoice.",
+    steps: "Create sales order, choose Immediate Payment or Credit, and select Confirm & Generate Invoice.",
     expectedResult:
-      "One invoice is created, payment term is copied, due date is calculated, and sales order status becomes Invoiced.",
+      "One invoice is created, payment terms are copied, due date is calculated, and sales order status becomes Invoiced.",
     status: "Prepared"
   },
   {
@@ -420,9 +420,9 @@ export const testingEvidence = [
   {
     testType: "Integration Testing / SIT",
     scenarioId: "SIT-SJ-TERM-001",
-    scenarioName: "Debit Surat Jalan rule",
+    scenarioName: "Immediate Payment Surat Jalan rule",
     userRole: "Admin",
-    steps: "Try creating Surat Jalan from unpaid Debit invoice, then after full payment.",
+    steps: "Try creating Surat Jalan from unpaid Immediate Payment invoice, then after full payment.",
     expectedResult: "Surat Jalan is blocked before payment and allowed after invoice is Paid.",
     status: "Prepared"
   },
@@ -447,11 +447,11 @@ export const testingEvidence = [
   {
     testType: "Integration Testing / SIT",
     scenarioId: "SIT-005",
-    scenarioName: "Receivable to billing",
+    scenarioName: "Receivable to collection task",
     userRole: "Sales",
-    steps: "Select Create Billing from a receivable row.",
+    steps: "Select Create Collection Task from a receivable row.",
     expectedResult:
-      "Billing form opens with customer and invoice context, then appears in the list and dashboard reminder.",
+      "Collections form opens with customer and invoice context, then appears in the list and dashboard reminder.",
     status: "Prepared"
   },
   {
@@ -468,7 +468,7 @@ export const testingEvidence = [
     scenarioId: "SAT-002",
     scenarioName: "Dashboard reflects data",
     userRole: "Manager",
-    steps: "Create order, invoice, payment, and billing activity, then reopen Dashboard.",
+    steps: "Create order, invoice, payment, and collection activity, then reopen Dashboard.",
     expectedResult: "Dashboard totals, recent orders, receivables, and reminders update.",
     status: "Prepared"
   },
@@ -514,7 +514,7 @@ export const testingEvidence = [
     scenarioName: "Sales creates sales order and invoice",
     userRole: "Sales",
     steps:
-      "Open Sales Orders, select customer, add items, choose Debit or Credit term, and select Confirm & Generate Invoice.",
+      "Open Sales Orders, select customer, add items, choose Immediate Payment or Credit term, and select Confirm & Generate Invoice.",
     expectedResult:
       "Sales order appears with correct total and invoice is created automatically with correct due date.",
     status: "Prepared"
@@ -526,16 +526,16 @@ export const testingEvidence = [
     userRole: "Admin",
     steps: "Open Invoices after sales order confirmation.",
     expectedResult:
-      "Invoice shows copied customer, sales order, item, amount, payment term, and due date data.",
+      "Invoice shows copied customer, sales order, item, amount, payment terms, and due date data.",
     status: "Prepared"
   },
   {
     testType: "User Acceptance Testing / UAT",
     scenarioId: "UAT-TERM-001",
-    scenarioName: "Debit requires payment before Surat Jalan",
+    scenarioName: "Immediate Payment requires payment before Surat Jalan",
     userRole: "Admin",
     steps:
-      "Create Debit sales order and invoice, try Surat Jalan before payment, record full payment, then create Surat Jalan.",
+      "Create Immediate Payment sales order and invoice, try Surat Jalan before payment, record full payment, then create Surat Jalan.",
     expectedResult: "Surat Jalan is blocked before payment and allowed after invoice is Paid.",
     status: "Prepared"
   },
@@ -601,18 +601,18 @@ export const testingEvidence = [
     scenarioId: "UAT-005",
     scenarioName: "Admin checks receivables",
     userRole: "Admin",
-    steps: "Open Receivables after recording payment and select Create Billing from a receivable row.",
+    steps: "Open Receivables after recording payment and select Create Collection Task from a receivable row.",
     expectedResult:
-      "Open invoice balance is visible, paid invoices are hidden, and billing starts with customer and invoice preselected.",
+      "Open invoice balance is visible, paid invoices are hidden, and Collections opens with customer and invoice preselected.",
     status: "Prepared"
   },
   {
     testType: "User Acceptance Testing / UAT",
     scenarioId: "UAT-006",
-    scenarioName: "Sales creates billing reminder",
+    scenarioName: "Sales creates collection reminder",
     userRole: "Sales",
-    steps: "Create planned billing reminder for customer or invoice.",
-    expectedResult: "Billing activity appears on the Billing page and Dashboard.",
+    steps: "Create a planned collection task for a customer or invoice.",
+    expectedResult: "Collections activity appears on the Collections page and Dashboard.",
     status: "Prepared"
   },
   {

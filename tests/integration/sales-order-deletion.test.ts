@@ -4,7 +4,7 @@ import { deleteSalesOrderProcess } from "../../src/lib/sales-order-deletion";
 
 describe("sales order process deletion integration", () => {
   it(
-    "removes the order, invoice, payment, billing, delivery note, and their items atomically",
+    "removes the order, invoice, payment, collection task, delivery note, and their items atomically",
     async () => {
       const marker = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -17,7 +17,7 @@ describe("sales order process deletion integration", () => {
               phone: "-",
               email: "",
               address: "Test",
-              customerType: "Test"
+              customerSegment: "Test"
             }
           });
           const order = await tx.salesOrder.create({
@@ -29,7 +29,7 @@ describe("sales order process deletion integration", () => {
               subtotal: 100,
               total: 100,
               items: {
-                create: { itemName: "Test Item", quantity: 1, unitPrice: 100, subtotal: 100 }
+                create: { itemName: "Test Item", quantity: 1, finalUnitPrice: 100, subtotal: 100 }
               }
             },
             include: { items: true }
@@ -55,13 +55,13 @@ describe("sales order process deletion integration", () => {
               paymentMethod: "Cash"
             }
           });
-          const followUp = await tx.followUp.create({
+          const collectionTask = await tx.collectionTask.create({
             data: {
               customerId: customer.id,
               invoiceId: invoice.id,
-              followUpDate: new Date(),
+              scheduledDate: new Date(),
               status: "Planned",
-              notes: "Test billing"
+              notes: "Test collection task"
             }
           });
           const deliveryNote = await tx.deliveryNote.create({
@@ -91,7 +91,7 @@ describe("sales order process deletion integration", () => {
           expect(await tx.salesOrderItem.count({ where: { id: order.items[0].id } })).toBe(0);
           expect(await tx.invoice.count({ where: { id: invoice.id } })).toBe(0);
           expect(await tx.payment.count({ where: { id: payment.id } })).toBe(0);
-          expect(await tx.followUp.count({ where: { id: followUp.id } })).toBe(0);
+          expect(await tx.collectionTask.count({ where: { id: collectionTask.id } })).toBe(0);
           expect(await tx.deliveryNote.count({ where: { id: deliveryNote.id } })).toBe(0);
           expect(
             await tx.deliveryNoteItem.count({ where: { id: deliveryNote.items[0].id } })

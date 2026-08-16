@@ -1,5 +1,72 @@
 # Last Changes Test Report
 
+## Batch 10 Production Release Gate - 13 August 2026
+
+Scope:
+
+- Remove the final stale TypeScript test-contract mismatch.
+- Validate the complete application using production compilation and a built-server smoke test.
+- Reconfirm all Supabase integration tests and migration state without reseeding or retaining fixtures.
+
+Result:
+
+- [x] Updated the password-hash test to use the production helper's one-argument contract; bcrypt continues to generate and embed its own salt.
+- [x] Standalone TypeScript passed.
+- [x] Full ESLint passed with zero warnings.
+- [x] Optimized production build passed, including Prisma Client generation, Next.js compilation, TypeScript, page-data collection, and all route outputs.
+- [x] Automated suite passed: 28 files, 101 tests.
+- [x] Supabase reports 4 migrations applied and no schema drift.
+- [x] Built production server started successfully; `/login` returned 200.
+- [x] `/` and `/customers` returned 307 redirects to `/login` with the correct `next` target when unauthenticated.
+- [x] Production-server error log was empty.
+- [x] Temporary production server was stopped after verification.
+- [x] No seed/reset operation was executed and live Batch 10 integration fixtures were rolled back.
+
+Local environment note:
+
+- The first build attempt encountered a Windows lock on Prisma's generated query-engine DLL. The lock belonged to a verified stale Next.js development-server process tree for this workspace. After stopping only those processes, the production build passed cleanly.
+
+Verdict: Batch 10 passed. The current implementation has a clean compiler, lint, test, schema, build, and production-runtime baseline.
+
+## Batch 9 Final Hardening - 12 August 2026
+
+Scope:
+
+- Representative, self-verifying seed scenarios for optional NPWP, PPN and non-PPN snapshots, all five Customer Payment Behaviour outcomes, current-month Product average prices, and assigned Surat Jalan drivers/plates.
+- Rollback-only cross-feature Supabase regression coverage.
+- UAT, demo-script, README, and testing-matrix alignment for the completed feature set.
+
+Verification result:
+
+- [x] Full ESLint run passed with zero warnings.
+- [x] Prisma schema validation passed.
+- [x] Supabase reports 4 migrations applied and the database schema up to date.
+- [x] Prisma schema drift check returned `No difference detected`.
+- [x] Automated suite passed: 28 files, 101 tests.
+- [x] Batch 9 cross-feature test validated all five payment behaviours, weighted current-month pricing, PPN reconciliation, Invoice snapshot equality, and delivery assignment persistence in a rolled-back transaction.
+- [x] Authenticated browser smoke checks passed for Customers, Products, Sales Order simulation, Invoices, and printable Surat Jalan.
+- [x] Browser console contained no warnings or errors.
+- [x] The current Supabase database was not reseeded because `prisma:seed` intentionally deletes and recreates application demo records.
+
+Release customer outreach:
+
+- [x] Batch 10 removed the stale second `hashPassword` test argument so standalone TypeScript checking uses the production helper's public one-argument contract.
+
+Verdict: Batch 9 feature and regression scope passed. The self-verifying seed is ready for the next explicitly approved demo reset.
+
+## 0. Current Status Update - 19 July 2026
+
+- Project is now a Git repository synced with `origin/main`.
+- Database provider is PostgreSQL on Supabase through Prisma, not local SQLite.
+- Vercel deployment path has been added: GitHub -> Vercel -> Supabase.
+- `package.json` build script runs `prisma generate && next build` so Vercel has generated Prisma types before TypeScript checking.
+- `next.config.mjs` uses the default Next.js output directory `.next`, which Vercel expects.
+- `npm.cmd run lint` passed with zero warnings.
+- `npm.cmd run test` result: 70 tests passed and 2 Supabase-dependent integration tests failed because the local environment could not reach the configured Supabase database host.
+- Deployment handover checklist is documented in `docs/DEPLOYMENT_GUIDE.md`.
+
+The older sections below are retained as historical testing evidence from earlier MVP iterations.
+
 ## 1. Testing Date
 
 - Date: 14 June 2026
@@ -11,7 +78,7 @@
 - [x] Active folder verified as `D:\Pre Thesis MVP Iterative Development`.
 - [x] `package.json` scripts inspected.
 - [x] Temporary write test file was created and deleted successfully.
-- [x] Recent files inspected directly because this folder is not currently a Git repository.
+- [x] Recent files inspected directly because this folder was not a Git repository at the time of the 14 June 2026 test.
 - [x] Prisma schema inspected at `prisma/schema.prisma`.
 
 ## 3. Commands Run
@@ -46,7 +113,7 @@
 - [x] Charts render from actual database/seed data.
 - [x] Empty chart states are handled with clean empty-state messages in code.
 - [x] Module Summary is compact.
-- [x] Follow-up Reminders displays properly.
+- [x] Customer Outreach Reminders displays properly.
 - [x] Layout is substantially more compact than the earlier long stacked dashboard.
 
 ## 6. Recent Sales Order Clickable Result
@@ -67,7 +134,7 @@
 - [x] Related Payment section appears.
 - [x] Related Surat Jalan / Delivery Note section appears.
 - [x] Related Receivable section appears.
-- [x] Related Follow-up section appears.
+- [x] Related Customer Outreach section appears.
 - [x] Missing related data uses clean empty states.
 - [x] Money values use Indonesian Rupiah formatting.
 - [x] Status badges are readable.
@@ -105,7 +172,7 @@
   - SalesOrderItem
   - Invoice
   - Payment
-  - FollowUp
+  - CollectionTask
   - DeliveryNote
   - DeliveryNoteItem
 - [x] ERD does not add a physical Receivable model that does not exist in Prisma.
@@ -122,7 +189,7 @@
 - [x] Payments page loads.
 - [x] Surat Jalan page loads.
 - [x] Receivables page loads.
-- [x] Follow-ups page loads.
+- [x] Customer Outreach page loads.
 - [x] Settings page loads.
 - [x] Printable Invoice route loads.
 - [x] Printable Surat Jalan route loads.
@@ -150,7 +217,7 @@
 ## 15. Remaining Issues / Manual Notes
 
 - The in-app browser console check is still blocked by the Windows sandbox in this Codex environment. Manual visual browser review is recommended by opening `http://localhost:3000` in the normal browser.
-- This folder is not currently a Git repository, so `git status` / `git diff` could not be used for recent-change inspection.
+- At the time of the 14 June 2026 test, this folder was not a Git repository, so `git status` / `git diff` could not be used for recent-change inspection. As of 19 July 2026, the project is synced with `origin/main`.
 - No remaining functional blocker was found in the tested MVP flow.
 
 ## 16. Verdict
@@ -163,14 +230,14 @@
 ### Scope
 
 - Customer Inquiry with multiple item lines.
-- Inquiry conversion to Sales Order and Pre Order.
-- PO ID, required date, and supporting PO document fields.
+- Inquiry conversion to Sales Order and Customer PO.
+- Customer PO Number, required date, and supporting PO document fields.
 - Inquiry lifecycle from Open to Converted to SO/PO and Done after delivery.
 
 ### Automated Result
 
 - [x] Unit tests validate optional inquiry price handling, conversion eligibility, and status labels.
-- [x] Integration test creates a multi-item inquiry and tests both Sales Order and Pre Order conversion paths.
+- [x] Integration test creates a multi-item inquiry and tests both Sales Order and Customer PO conversion paths.
 - [x] Integration test creates and marks the linked Surat Jalan as Delivered, then verifies the inquiry becomes Done.
 - [x] Test data is rolled back at the end of the integration test.
 - [x] `npm.cmd test` passed: 72 tests across 19 test files.
@@ -180,8 +247,8 @@
 ### Manual Form-Prefill Check
 
 - [x] Sales Order conversion form receives the inquiry ID, customer, product, quantity, and agreed price automatically.
-- [x] Pre Order conversion route exposes the inquiry field, customer field, item data, and mandatory PO document field.
+- [x] Customer PO conversion route exposes the inquiry field, customer field, item data, and mandatory PO document field.
 
 ### Verdict
 
-- [x] Customer Inquiry, Sales Order conversion, Pre Order conversion, and delivery-completion lifecycle are ready for UAT and thesis demonstration.
+- [x] Customer Inquiry, Sales Order conversion, Customer PO conversion, and delivery-completion lifecycle are ready for UAT and thesis demonstration.

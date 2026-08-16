@@ -6,25 +6,25 @@ start
 :Maintain Customer and Product data;
 :Create a new transaction;
 
-if (Is this a Pre Order?) then (Yes)
+if (Is this a Customer PO?) then (Yes)
   |System|
-  :Generate the Sales Order ID\nand PO ID;
+  :Generate the Sales Order Number\nand Customer PO Number;
   |Sales|
   :Enter required date and\nupload the PO document;
 else (No)
   |System|
-  :Generate the Sales Order ID;
+  :Generate the Sales Order Number;
 endif
 
 |Sales|
 :Select the customer and products;
-:Edit Base Price and enter optional\nMarkup or Discount;
+:Edit Price and enter optional\nMarkup or Discount;
 
 |System|
 :Calculate Unit Price and total;
 :Validate and save the transaction;
 
-if (Is this a Pre Order?) then (Yes)
+if (Is this a Customer PO?) then (Yes)
   :Send the required-date reminder;
 endif
 
@@ -47,14 +47,14 @@ endif
 |System|
 :Create the Receivable;
 
-if (Is the payment term Debit?) then (Yes)
+if (Is the payment terms Immediate Payment?) then (Yes)
   |Admin|
   :Record the payment;
 else (No)
   |System|
-  :Schedule the billing follow-up;
+  :Schedule the collection task;
   |Sales|
-  :Perform the billing follow-up;
+  :Perform the collection task;
   |Admin|
   :Record partial or full payment;
 endif
@@ -66,7 +66,7 @@ endif
 :Create the Surat Jalan;
 
 |System|
-:Generate printable Invoice and Surat Jalan\nwith transaction type and PO details;
+:Generate printable Invoice and Surat Jalan\nwith order source and PO details;
 
 |Customer|
 :Receive the product and documents;

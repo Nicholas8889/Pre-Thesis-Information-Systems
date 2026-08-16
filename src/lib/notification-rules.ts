@@ -1,4 +1,4 @@
-export function isBillingDeadlineNotification(
+export function isCollectionDeadlineNotification(
   input: { status: string; deadline: Date },
   now = new Date(),
   daysAhead = 7
@@ -9,14 +9,14 @@ export function isBillingDeadlineNotification(
   return input.deadline <= deadlineLimit;
 }
 
-export function needsSalesCustomerFollowUp(latestOrderDate: Date | null, now = new Date()) {
+export function needsCustomerOutreach(latestOrderDate: Date | null, now = new Date()) {
   if (!latestOrderDate) return true;
   const threeMonthsAgo = new Date(now);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
   return latestOrderDate < threeMonthsAgo;
 }
 
-export function isPreOrderProcessingNotification(
+export function isCustomerPoProcessingNotification(
   input: {
     requiredDate: Date | null;
     status: string;

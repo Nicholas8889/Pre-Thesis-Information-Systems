@@ -74,7 +74,7 @@ export default async function PaymentsPage({
                 <tr>
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Customer</th>
-                  <th className="py-3 pr-4">Payment Term</th>
+                  <th className="py-3 pr-4">Payment Terms</th>
                   <th className="py-3 pr-4 text-right">Total</th>
                   <th className="py-3 pr-4 text-right">Paid</th>
                   <th className="py-3 pr-4 text-right">Remaining</th>
@@ -93,17 +93,15 @@ export default async function PaymentsPage({
                     <td className="py-3 pr-4">
                       <span
                         className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${
-                          invoice.paymentTermType === "DEBIT"
+                          invoice.paymentTermType === "IMMEDIATE"
                             ? "bg-amber-50 text-amber-800 ring-amber-200"
                             : "bg-sky-50 text-sky-700 ring-sky-200"
                         }`}
                       >
-                        {invoice.paymentTermType === "DEBIT"
-                          ? "Payment Required"
-                          : getPaymentTermLabel({
-                              paymentTermType: invoice.paymentTermType,
-                              creditTermMonths: invoice.creditTermMonths
-                            })}
+                        {getPaymentTermLabel({
+                          paymentTermType: invoice.paymentTermType,
+                          creditTermMonths: invoice.creditTermMonths
+                        })}
                       </span>
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
@@ -199,7 +197,7 @@ export default async function PaymentsPage({
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Customer</th>
                   <th className="py-3 pr-4">Date</th>
-                  <th className="py-3 pr-4">Method</th>
+                  <th className="py-3 pr-4">Payment Method</th>
                   <th className="py-3 text-right">Amount</th>
                   <th className="py-3 pr-4">Notes</th>
                   <th className="py-3 text-right">Actions</th>

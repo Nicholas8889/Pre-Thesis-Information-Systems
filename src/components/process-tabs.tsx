@@ -26,8 +26,8 @@ export function ProcessTabs({
     ...(approvalCount === undefined
       ? []
       : [{ value: "approval" as const, label: "Need Approval", count: approvalCount }]),
-    { value: "ongoing" as const, label: "Ongoing Process", count: ongoingCount },
-    { value: "done" as const, label: "Done Process", count: doneCount }
+    { value: "ongoing" as const, label: "Open", count: ongoingCount },
+    { value: "done" as const, label: "Completed", count: doneCount }
   ];
 
   return (

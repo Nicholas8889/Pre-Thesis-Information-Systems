@@ -1,0 +1,75 @@
+flowchart TB
+  %% CV Tajuk Revenue Cycle Information System - Application Components
+
+  subgraph PL["Presentation Layer"]
+    UI["User Interface\nNext.js App Router Pages\nReact Components"]
+  end
+
+  subgraph AUTH["Authentication and Authorization"]
+    Auth["Authentication\nLogin, Session Cookie"]
+    Role["Authorization\nRole Capability Checks"]
+  end
+
+  subgraph APP["Business / Application Layer"]
+    Master["Customer and Product Component"]
+    Inquiry["Customer Inquiry Component"]
+    Sales["Sales Order Component"]
+    Invoice["Invoice Component"]
+    Payment["Payment Component"]
+    Delivery["Surat Jalan Component"]
+    Receivable["Receivables, Collections, and Customer Outreach Component"]
+    Dashboard["Dashboard Component"]
+    Audit["Audit Trail Component"]
+    FileDoc["File / Document Management\nCustomer PO Documents and Export"]
+  end
+
+  subgraph DATA["Data Access Layer"]
+    Prisma["Prisma / Data Access"]
+  end
+
+  subgraph DB["Database and Storage Layer"]
+    Database["Supabase PostgreSQL Database"]
+    Storage["Supabase Storage\nCustomer PO Documents"]
+  end
+
+  UI --> Auth
+  Auth --> Role
+  Role --> APP
+
+  Master --> Inquiry
+  Master --> Sales
+  Inquiry --> Sales
+  Sales --> Invoice
+  Invoice --> Payment
+  Sales --> Delivery
+  Invoice --> Delivery
+  Payment --> Receivable
+  Invoice --> Receivable
+  Sales -. summary data .-> Dashboard
+  Invoice -. summary data .-> Dashboard
+  Payment -. summary data .-> Dashboard
+  Receivable -. summary data .-> Dashboard
+
+  Sales -. audit events .-> Audit
+  Invoice -. audit events .-> Audit
+  Payment -. audit events .-> Audit
+  Delivery -. audit events .-> Audit
+  Receivable -. audit events .-> Audit
+
+  APP --> Prisma
+  Prisma --> Database
+  FileDoc --> Prisma
+  FileDoc --> Storage
+
+  classDef layer fill:#f8fafc,stroke:#94a3b8,color:#0f172a
+  classDef ui fill:#dbeafe,stroke:#2563eb,color:#172554
+  classDef auth fill:#ede9fe,stroke:#7c3aed,color:#2e1065
+  classDef app fill:#ecfdf5,stroke:#059669,color:#064e3b
+  classDef data fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+  classDef db fill:#fef2f2,stroke:#dc2626,color:#7f1d1d
+
+  class UI ui
+  class Auth,Role auth
+  class Master,Inquiry,Sales,Invoice,Payment,Delivery,Receivable,Dashboard,Audit,FileDoc app
+  class Prisma data
+  class Database,Storage db

@@ -125,7 +125,7 @@ export default async function ReceivablesPage({
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Sales Order</th>
                   <th className="py-3 pr-4">Customer</th>
-                  <th className="py-3 pr-4">Payment Term</th>
+                  <th className="py-3 pr-4">Payment Terms</th>
                   <th className="py-3 pr-4">Due Date</th>
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4 text-right">Remaining</th>
@@ -149,7 +149,7 @@ export default async function ReceivablesPage({
                       })}
                       {activeTab === "ongoing" && invoice.paymentTermType === "CREDIT" && (
                         <span className="mt-1 block text-xs font-medium text-sky-700">
-                          Billing reminder suggested near due date
+                          Collection reminder suggested near due date
                         </span>
                       )}
                     </td>
@@ -158,7 +158,7 @@ export default async function ReceivablesPage({
                       <StatusBadge status={invoice.status} />
                       {invoice.status === "Overdue" && (
                         <span className="ml-2 inline-flex rounded-md bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
-                          Needs Billing
+                          Needs Collection
                         </span>
                       )}
                     </td>
@@ -176,11 +176,11 @@ export default async function ReceivablesPage({
                         </Link>
                         {activeTab === "ongoing" && (
                           <Link
-                            href={`/billing?customerId=${invoice.customerId}&invoiceId=${invoice.id}`}
+                            href={`/collections?customerId=${invoice.customerId}&invoiceId=${invoice.id}`}
                             className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
                           >
                             <Handshake aria-hidden="true" className="h-4 w-4" />
-                            Create Billing
+                            Create Collection Task
                           </Link>
                         )}
                       </div>

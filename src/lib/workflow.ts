@@ -15,10 +15,10 @@ export type OrderItemInput = {
   productId: string;
   itemName: string;
   quantity: number;
-  basePrice: number;
+  baseUnitPrice: number;
   markupPercent: number;
   discountPercent: number;
-  unitPrice: number;
+  finalUnitPrice: number;
 };
 
 export function normalizeOrderItems(rawItems: unknown): OrderItemInput[] {
@@ -29,17 +29,17 @@ export function normalizeOrderItems(rawItems: unknown): OrderItemInput[] {
   return rawItems
     .map((item) => {
       const record = item as Record<string, unknown>;
-      const basePrice = Number(record.basePrice);
+      const baseUnitPrice = Number(record.baseUnitPrice);
       const markupPercent = Number(record.markupPercent ?? 0);
       const discountPercent = Number(record.discountPercent ?? 0);
       return {
         productId: String(record.productId ?? "").trim(),
         itemName: String(record.itemName ?? "").trim(),
         quantity: Number(record.quantity),
-        basePrice,
+        baseUnitPrice,
         markupPercent,
         discountPercent,
-        unitPrice: calculateAdjustedUnitPrice(basePrice, markupPercent, discountPercent)
+        finalUnitPrice: calculateAdjustedUnitPrice(baseUnitPrice, markupPercent, discountPercent)
       };
     })
     .filter(
@@ -47,12 +47,12 @@ export function normalizeOrderItems(rawItems: unknown): OrderItemInput[] {
         item.productId.length > 0 &&
         Number.isFinite(item.quantity) &&
         Number.isInteger(item.quantity) &&
-        Number.isFinite(item.basePrice) &&
-        Number.isInteger(item.basePrice) &&
+        Number.isFinite(item.baseUnitPrice) &&
+        Number.isInteger(item.baseUnitPrice) &&
         Number.isInteger(item.markupPercent) &&
         Number.isInteger(item.discountPercent) &&
         item.quantity > 0 &&
-        item.basePrice >= 0 &&
+        item.baseUnitPrice >= 0 &&
         item.markupPercent >= 0 &&
         item.markupPercent <= 100 &&
         item.discountPercent >= 0 &&
@@ -121,7 +121,7 @@ export function normalizePaymentTerm({
   creditTermMonths: FormDataEntryValue | null;
 }) {
   const normalizedPaymentTerm: PaymentTermType =
-    paymentTermType === "CREDIT" ? "CREDIT" : "DEBIT";
+    paymentTermType === "CREDIT" ? "CREDIT" : "IMMEDIATE";
   const normalizedCreditTerm =
     normalizedPaymentTerm === "CREDIT"
       ? getValidCreditTermMonths(Number(creditTermMonths))
@@ -170,12 +170,12 @@ export async function nextDocumentNumber(prefix: "SO" | "PO" | "INV") {
     });
     existingNumbers = invoices.map((invoice) => invoice.invoiceNumber);
   } else if (prefix === "PO") {
-    const preOrders = await prisma.salesOrder.findMany({
-      where: { poNumber: { startsWith: sequencePrefix } },
-      select: { poNumber: true }
+    const customerPos = await prisma.salesOrder.findMany({
+      where: { customerPoNumber: { startsWith: sequencePrefix } },
+      select: { customerPoNumber: true }
     });
-    existingNumbers = preOrders.flatMap((order) =>
-      order.poNumber ? [order.poNumber] : []
+    existingNumbers = customerPos.flatMap((order) =>
+      order.customerPoNumber ? [order.customerPoNumber] : []
     );
   } else {
     const salesOrders = await prisma.salesOrder.findMany({

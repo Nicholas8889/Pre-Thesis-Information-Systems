@@ -8,6 +8,8 @@ Build an end-to-end local MVP web application for:
 
 This is a thesis MVP, not a production system. The application should be simple, usable, and complete enough to demonstrate the revenue cycle flow from customer data to sales order, invoice, payment, receivable monitoring, follow-up, dashboard, and testing evidence.
 
+> Historical naming note (13 August 2026): this original project brief is retained as requirements history. Current canonical names are Customer Purchase Orders, Collections / CollectionTask, Customer Outreach, Customer Segment, contextual unit-price fields, and the canonical routes documented in `README.md`. Old terms below are not current UI or Prisma API names.
+
 The MVP must run locally and be easy to explain during thesis defense.
 
 ## 2. Main Objective
@@ -30,7 +32,7 @@ Use:
 * TypeScript
 * Tailwind CSS
 * Prisma
-* SQLite
+* PostgreSQL on Supabase through Prisma
 
 The app must run locally using:
 
@@ -38,7 +40,7 @@ The app must run locally using:
 npm run dev
 ```
 
-Use SQLite because this MVP is only for local thesis demonstration.
+Use Supabase PostgreSQL because the MVP can be demonstrated locally and deployed through Vercel for online demo or limited internal pilot review.
 
 ## 4. App Pages
 

@@ -31,10 +31,10 @@ export async function GET(request: NextRequest) {
 
   const startDateValue = request.nextUrl.searchParams.get("startDate");
   const endDateValue = request.nextUrl.searchParams.get("endDate");
-  const transactionType =
-    request.nextUrl.searchParams.get("transactionType") === "PRE_ORDER"
-      ? "PRE_ORDER"
-      : "SALES_ORDER";
+  const source =
+    request.nextUrl.searchParams.get("source") === "CUSTOMER_PO"
+      ? "CUSTOMER_PO"
+      : "DIRECT";
   const startDate = parseLocalDate(startDateValue, false);
   const endDate = parseLocalDate(endDateValue, true);
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
   const salesOrders = await prisma.salesOrder.findMany({
     where: {
-      transactionType,
+      source,
       orderDate: {
         gte: startDate,
         lte: endDate
@@ -79,10 +79,10 @@ export async function GET(request: NextRequest) {
     startDate,
     endDate,
     exportedBy: currentUser.displayName,
-    transactionType
+    source
   });
   const buffer = await workbook.xlsx.writeBuffer();
-  const fileName = `${transactionType === "PRE_ORDER" ? "pre-orders" : "sales-orders"}-${startDateValue}-${endDateValue}.xlsx`;
+  const fileName = `${source === "CUSTOMER_PO" ? "customer-purchase-orders" : "sales-orders"}-${startDateValue}-${endDateValue}.xlsx`;
 
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,
@@ -94,20 +94,20 @@ export async function GET(request: NextRequest) {
   });
 }
 
-function createSalesOrderWorkbook({
+export function createSalesOrderWorkbook({
   salesOrders,
   startDate,
   endDate,
   exportedBy,
-  transactionType
+  source
 }: {
   salesOrders: SalesOrderExportRow[];
   startDate: Date;
   endDate: Date;
   exportedBy: string;
-  transactionType: "SALES_ORDER" | "PRE_ORDER";
+  source: "DIRECT" | "CUSTOMER_PO";
 }) {
-  const transactionLabel = transactionType === "PRE_ORDER" ? "PRE ORDER" : "SALES ORDER";
+  const orderLabel = source === "CUSTOMER_PO" ? "CUSTOMER PURCHASE ORDER" : "SALES ORDER";
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "CV Tajuk Revenue Cycle MVP";
   workbook.created = new Date();
@@ -118,12 +118,12 @@ function createSalesOrderWorkbook({
   });
   summary.columns = [
     { header: "Order Number", key: "orderNumber", width: 20 },
-    { header: "PO ID", key: "poNumber", width: 20 },
+    { header: "Customer PO Number", key: "customerPoNumber", width: 22 },
     { header: "Order Date", key: "orderDate", width: 14 },
     { header: "Customer", key: "customer", width: 28 },
     { header: "Contact Name", key: "contactName", width: 22 },
     { header: "Status", key: "status", width: 14 },
-    { header: "Payment Term", key: "paymentTerm", width: 18 },
+    { header: "Payment Terms", key: "paymentTerm", width: 20 },
     { header: "Subtotal", key: "subtotal", width: 16 },
     { header: "Total", key: "total", width: 16 },
     { header: "Invoice", key: "invoice", width: 20 },
@@ -133,19 +133,19 @@ function createSalesOrderWorkbook({
   ];
 
   summary.mergeCells("A1:M1");
-  summary.getCell("A1").value = `CV TAJUK - ${transactionLabel} DATA`;
+  summary.getCell("A1").value = `CV TAJUK - ${orderLabel} DATA`;
   summary.mergeCells("A2:M2");
   summary.getCell("A2").value = `Date range: ${formatDateForWorkbook(startDate)} to ${formatDateForWorkbook(endDate)}`;
   summary.mergeCells("A3:M3");
   summary.getCell("A3").value = `Exported by ${exportedBy} on ${formatDateForWorkbook(new Date())}`;
   summary.getRow(5).values = [
     "Order Number",
-    "PO ID",
+    "Customer PO Number",
     "Order Date",
     "Customer",
     "Contact Name",
     "Status",
-    "Payment Term",
+    "Payment Terms",
     "Subtotal",
     "Total",
     "Invoice",
@@ -157,7 +157,7 @@ function createSalesOrderWorkbook({
   for (const order of salesOrders) {
     summary.addRow({
       orderNumber: order.orderNumber,
-      poNumber: order.poNumber ?? "-",
+      customerPoNumber: order.customerPoNumber ?? "-",
       orderDate: order.orderDate,
       customer: order.customer.companyName,
       contactName: order.customer.name,
@@ -180,35 +180,35 @@ function createSalesOrderWorkbook({
   });
   items.columns = [
     { header: "Order Number", key: "orderNumber", width: 20 },
-    { header: "PO ID", key: "poNumber", width: 20 },
+    { header: "Customer PO Number", key: "customerPoNumber", width: 22 },
     { header: "Order Date", key: "orderDate", width: 14 },
     { header: "Customer", key: "customer", width: 28 },
     { header: "Item Name", key: "itemName", width: 32 },
     { header: "Quantity", key: "quantity", width: 12 },
-    { header: "Base Price", key: "basePrice", width: 16 },
+    { header: "Base Unit Price", key: "baseUnitPrice", width: 16 },
     { header: "Markup (%)", key: "markupPercent", width: 14 },
     { header: "Discount (%)", key: "discountPercent", width: 14 },
-    { header: "Unit Price", key: "unitPrice", width: 16 },
+    { header: "Final Unit Price", key: "finalUnitPrice", width: 16 },
     { header: "Item Subtotal", key: "itemSubtotal", width: 18 },
     { header: "Order Total", key: "orderTotal", width: 16 }
   ];
   items.mergeCells("A1:L1");
-  items.getCell("A1").value = `CV TAJUK - ${transactionLabel} ITEM DETAILS`;
+  items.getCell("A1").value = `CV TAJUK - ${orderLabel} ITEM DETAILS`;
   items.mergeCells("A2:L2");
   items.getCell("A2").value = `Date range: ${formatDateForWorkbook(startDate)} to ${formatDateForWorkbook(endDate)}`;
   items.mergeCells("A3:L3");
-  items.getCell("A3").value = `${salesOrders.length} ${transactionType === "PRE_ORDER" ? "Pre Order" : "Sales Order"}(s)`;
+  items.getCell("A3").value = `${salesOrders.length} ${source === "CUSTOMER_PO" ? "Customer PO" : "Sales Order"}(s)`;
   items.getRow(5).values = [
     "Order Number",
-    "PO ID",
+    "Customer PO Number",
     "Order Date",
     "Customer",
     "Item Name",
     "Quantity",
-    "Base Price",
+    "Base Unit Price",
     "Markup (%)",
     "Discount (%)",
-    "Unit Price",
+    "Final Unit Price",
     "Item Subtotal",
     "Order Total"
   ];
@@ -217,15 +217,15 @@ function createSalesOrderWorkbook({
     for (const item of order.items) {
       items.addRow({
         orderNumber: order.orderNumber,
-        poNumber: order.poNumber ?? "-",
+        customerPoNumber: order.customerPoNumber ?? "-",
         orderDate: order.orderDate,
         customer: order.customer.companyName,
         itemName: item.itemName,
         quantity: item.quantity,
-        basePrice: item.basePrice,
+        baseUnitPrice: item.baseUnitPrice,
         markupPercent: item.markupPercent,
         discountPercent: item.discountPercent,
-        unitPrice: item.unitPrice,
+        finalUnitPrice: item.finalUnitPrice,
         itemSubtotal: item.subtotal,
         orderTotal: order.total
       });

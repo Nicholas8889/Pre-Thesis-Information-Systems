@@ -1,12 +1,12 @@
 # CV Tajuk Revenue Cycle MVP - Complete User Flows
 
-Updated: 18 July 2026
+Updated: 19 July 2026
 
 This revision reflects the current responsive layout, role-specific dashboards,
 Manager Sales Order approval, transaction confirmation dialogs, confirmation
 notes, cascading ongoing-order deletion, customer activation controls, table
 pagination/search/filter/sort behavior, expandable comments, the latest role restrictions,
-Customer Inquiry, Pre Order conversion, PO IDs, and inquiry completion after delivery.
+Customer Inquiry, Customer PO conversion, Customer PO Numbers, inquiry completion after delivery, and the Vercel/Supabase deployment path.
 
 ## 1. Main System Flow
 
@@ -18,7 +18,7 @@ flowchart TD
     C --> CI["Customer Inquiry"]
     CI --> CI1{"Inquiry outcome"}
     CI1 -->|"Close or cancel"| O["Dashboard and Audit Trail"]
-    CI1 -->|"Convert to Sales Order or Pre Order"| D
+    CI1 -->|"Convert to Sales Order or Customer PO"| D
     C --> D["Create Sales Order"]
     D --> E{"Creator and customer risk"}
     E -->|"Manager"| F["Sales Order and Invoice created"]
@@ -30,8 +30,8 @@ flowchart TD
     F --> K["Payment and/or Surat Jalan"]
     H --> K
     K --> L["Receivable monitoring"]
-    L --> M["Billing Follow Up when collection is needed"]
-    C --> N["Product Follow Up"]
+    L --> M["Collection Tasks when collection is needed"]
+    C --> N["Customer Outreach"]
     J --> O["Dashboard and Audit Trail"]
     M --> O
     N --> O
@@ -51,7 +51,7 @@ Admin users can view Sales Orders but cannot create them. Every operational crea
 | Role | Main responsibility | Special flow |
 |---|---|---|
 | Manager | Monitor the complete revenue cycle and business insights | Can view and use every current feature, approve or reject risky Sales Orders, and review popular products |
-| Admin | Manage invoicing, delivery documents, receivables, payments, Billing, and accounts | Cannot create Sales Orders; Audit Trail is for reviewing automatically generated records |
+| Admin | Manage invoicing, delivery documents, receivables, payments, Collections, and accounts | Cannot create Sales Orders; Audit Trail is for reviewing automatically generated records |
 | Sales | Manage customers, create Sales Orders, and maintain customer relationships | Cannot create Invoices, Payments, Surat Jalan, or accounts |
 
 The application identity area shows the current role beside **CV Tajuk / Revenue
@@ -66,13 +66,13 @@ use the action.
 | View dashboards and operational modules | Yes | Yes | Yes |
 | Manage customer records | Yes | Yes | Yes |
 | Create Customer Inquiry | Yes | No | Yes |
-| Create Sales Order or Pre Order | Yes | No | Yes |
+| Create Sales Order or Customer PO | Yes | No | Yes |
 | Delete eligible ongoing Sales Order | Yes | Yes | No |
 | Approve or reject risky Sales Order | Yes | No | No |
 | Generate Invoice | Yes | Yes | No |
 | Record Payment | Yes | Yes | No |
 | Create Surat Jalan | Yes | Yes | No |
-| Manage Billing and product Follow Up | Yes | Yes | Yes |
+| Manage Collections and Customer Outreach | Yes | Yes | Yes |
 | Review Audit Trail | Yes | Yes | Yes |
 | Create user account | Yes | Yes | No |
 
@@ -90,7 +90,7 @@ use the action.
 
 ### Navigation
 
-1. On a desktop screen, use the left sidebar to open Dashboard, Customers, Sales Orders, Invoices, Payments, Surat Jalan, Receivables, Billing, Follow Up, Audit Trail, or Settings.
+1. On a desktop screen, use the left sidebar to open Dashboard, Customers, Sales Orders, Invoices, Payments, Surat Jalan, Receivables, Collections, Customer Outreach, Audit Trail, or Settings.
 2. On a smaller screen, use the horizontally scrollable navigation row at the top of the page.
 3. The active module is highlighted in the navigation.
 4. Check the role badge beside the CV Tajuk identity when confirming which role is active.
@@ -122,20 +122,20 @@ use the action.
 3. Review Revenue Trend, Revenue Composition, Sales Order Status, and Invoice Status.
 4. Review the **Top 5 Popular Products** horizontal chart ranked by confirmed quantity sold.
 5. Open a Recent Sales Order to see its complete transaction detail.
-6. Review Billing reminders and module totals.
+6. Review Collections reminders and module totals.
 7. Search customer overdue-payment and category insights.
 8. Use the notification button to open pending Sales Order approvals, then continue to the **Need Approval** tab.
 
 ### Admin Dashboard
 
 1. Login as Admin.
-2. Review Open Invoices, Overdue Receivables, Surat Jalan Needed, and Planned Billing counts.
+2. Review Open Invoices, Overdue Receivables, Surat Jalan Needed, and Planned Collections counts.
 3. Review Invoice Insight.
 4. Open a transaction from **Surat Jalan to Create** when delivery documentation is needed.
 5. Review incoming due receivables; if none are approaching, review other unpaid receivables.
-6. Open a Billing task requiring action.
+6. Open a Collection task requiring action.
 7. Review the compact Recent Sales Orders list.
-8. Use notifications to open Billing work whose deadline is near or overdue.
+8. Use notifications to open Collection work whose deadline is near or overdue.
 
 ### Sales Dashboard
 
@@ -145,7 +145,7 @@ use the action.
 4. Search customers with overdue payments.
 5. Search the customer category list.
 6. Use the displayed category and recommended markup when preparing a Sales Order.
-7. Open Follow Up reminders for customers with no transaction in three months.
+7. Open Customer Outreach reminders for customers with no order in three months.
 8. Sales does not see the Manager-only Popular Products chart.
 
 ## 5. Notification Flow
@@ -159,8 +159,8 @@ use the action.
 Role-specific notification destinations:
 
 - Manager: pending Sales Order -> **Sales Orders / Need Approval**.
-- Admin: near or overdue Billing task -> **Billing**.
-- Sales: customer inactive for three months -> **Follow Up**.
+- Admin: near or overdue Collection task -> **Collections**.
+- Sales: customer inactive for three months -> **Customer Outreach**.
 
 ## 6. Customer Management Flows
 
@@ -168,7 +168,7 @@ Role-specific notification destinations:
 
 1. Open **Customers**.
 2. Select **Add Customer**.
-3. Enter company, contact, phone, email, address, customer type, status, and optional notes.
+3. Enter company, contact person, phone, email, address, customer segment, status, and optional notes.
 4. Save the customer.
 5. The customer becomes available for Sales Orders and related transactions when Active.
 
@@ -209,18 +209,43 @@ The system calculates payment risk from invoice due dates and payment history:
 1. Open a customer.
 2. Review the Customer Category card.
 3. Review the Customer Payment Risk card.
-4. Review all linked transactions: Order Number, Order Date, Payment Term, Sales Order Status, Invoice, Surat Jalan, and Total.
-5. Select **Make Inactive** or **Make Active** to change whether the customer is available for new Sales Orders and Follow-ups.
+4. Review all linked transactions: Order Number, Order Date, Payment Terms, Sales Order Status, Invoice, Surat Jalan, and Total.
+5. Select **Make Inactive** or **Make Active** to change whether the customer is available for new Sales Orders and Customer Outreach.
 6. Review the confirmation dialog, add an optional note of up to 150 characters, and Submit or Cancel.
 7. Select the transaction action to open the full Sales Order detail.
 
 ## 7. Customer Inquiry Flow
 
+### End-to-End Inquiry to PO Flow
+
+```mermaid
+flowchart TD
+    A["Customer contacts company"] --> B["Sales opens Customer Inquiry"]
+    B --> C["Sales selects Add Customer Inquiry"]
+    C --> D["Select active customer"]
+    D --> E["Input requested items, quantity, Requested Unit Price, Agreed Unit Price, needed-by date, and notes"]
+    E --> F["Save inquiry"]
+    F --> G["Status: Open"]
+    G --> H{"Inquiry outcome"}
+    H -->|"Not continued"| I["Close or Cancel with reason"]
+    H -->|"Continued as normal order"| J["Convert to Sales Order"]
+    H -->|"Customer PO / Customer PO"| K["Convert to Customer PO"]
+    K --> L["Complete Customer PO Number, required date, payment terms, and customer PO document"]
+    L --> M["System creates Sales Order record with order source CUSTOMER_PO"]
+    M --> N["System generates Sales Order Number and Customer PO Number"]
+    N --> O["Inquiry status: Converted to Customer PO"]
+    O --> P["Generate Invoice"]
+    P --> Q["Record Payment according to Immediate Payment/Credit rules"]
+    Q --> R["Create Surat Jalan"]
+    R --> S["Mark Surat Jalan Delivered"]
+    S --> T["Inquiry status: Done"]
+```
+
 ### Create and Review Inquiry
 
 1. Open **Customer Inquiries** and select **Add Customer Inquiry**.
 2. Select a customer, add an optional needed-by date and inquiry note, then add one or more requested items.
-3. Each item may be linked to a Product or recorded as not listed/unavailable. Record quantity, requested price, agreed price, and item notes as needed.
+3. Each item may be linked to a Product or recorded as not listed/unavailable. Record quantity, Requested Unit Price, Agreed Unit Price, and item notes as needed.
 4. Save the inquiry. Its initial status is **Open**.
 5. Select the eye icon in the table to open the inquiry detail.
 
@@ -228,28 +253,30 @@ The system calculates payment risk from invoice due dates and payment history:
 
 1. For a failed negotiation or unavailable timing, enter a reason and select **Close Inquiry**. The status becomes **Closed**.
 2. To stop an active inquiry, enter a cancellation reason and select **Cancel Inquiry**. The status becomes **Cancelled**.
-3. To convert an Open inquiry, every item must have a matched Product and agreed price.
-4. Select **Convert to Sales Order** or **Convert to Pre Order** from the detail page.
+3. To convert an Open inquiry, every item must have a matched Product and Agreed Unit Price.
+4. Select **Convert to Sales Order** or **Convert to Customer PO** from the detail page.
 5. The destination form copies the customer, item lines, quantities, and agreed prices. The inquiry remains Open until the order is actually saved.
-6. A saved Sales Order changes the inquiry status to **Converted to SO**. A saved Pre Order changes it to **Converted to PO**.
+6. A saved Sales Order changes the inquiry status to **Converted to SO**. A saved Customer PO changes it to **Converted to Customer PO**.
 7. When the linked Surat Jalan becomes **Delivered**, the inquiry status becomes **Done**.
 
-### Pre Order / PO Rules
+### Customer PO / PO Rules
 
-- A Pre Order uses transaction type `PRE_ORDER` and has both a Sales Order ID and a separate PO ID.
-- Pre Orders require a required date and supporting PO document.
-- The PO ID is shown in related invoice and Surat Jalan documents.
+- A Customer PO uses order source `CUSTOMER_PO` and has both a Sales Order Number and a separate Customer PO Number.
+- Customer Purchase Orders require a required date and supporting PO document.
+- The Customer PO Number is shown in related invoice and Surat Jalan documents.
+- The originating Customer Inquiry remains Open while the user is only viewing the conversion form. It changes to Converted to Customer PO only after the Customer PO is saved.
+- If delivery is completed through Surat Jalan, the originating inquiry becomes Done.
 
 ## 8. Sales Order Flows
 
 ### Create Sales Order
 
 1. Open **Sales Orders**.
-2. Stay on **Ongoing Process**.
+2. Stay on **Open**.
 3. Select **Create Sales Order**.
 4. Select an active customer.
-5. Choose Debit or Credit; for Credit, select a term from 1 to 12 months.
-6. Add one or more item names, quantities, and unit prices.
+5. Choose Immediate Payment or Credit; for Credit, select a term from 1 to 12 months.
+6. Add one or more item names, quantities, Base Unit Prices, and optional markup/discount values; verify each Final Unit Price.
 7. Add optional notes.
 8. Review the calculated total.
 9. Select **Create Sales Order**.
@@ -264,14 +291,14 @@ This branch is used when Sales creates an order for a Clean customer.
 2. The Sales Order status becomes Confirmed.
 3. No Invoice is generated by Sales.
 4. Admin or Manager opens the Sales Order and selects Generate Invoice.
-5. The Invoice, Receivable, and any Credit Billing reminder are created.
+5. The Invoice, Receivable, and any Credit Collections reminder are created.
 
 ### Manager-Created Sales Order Branch
 
 1. Manager creates the Sales Order.
 2. The Invoice is generated automatically.
 3. The Sales Order becomes Invoiced.
-4. The Receivable and any Credit Billing reminder are created.
+4. The Receivable and any Credit Collections reminder are created.
 
 Admin can view Sales Orders but its Create Sales Order button and direct-entry form are disabled.
 
@@ -280,7 +307,7 @@ Admin can view Sales Orders but its Create Sales Order button and direct-entry f
 This branch is used when Sales creates an order for a Late Payment or Historically Late customer.
 
 1. The Sales Order is saved as Draft with approval status Pending.
-2. No Invoice, Receivable, or Billing task is created yet.
+2. No Invoice, Receivable, or Collection task is created yet.
 3. The order appears in **Need Approval**.
 4. The Manager receives an unread notification.
 5. Sales can review the pending order but cannot decide it.
@@ -289,8 +316,8 @@ Manager decision:
 
 1. Login as Manager.
 2. Open the notification or open **Sales Orders**.
-3. Select **Need Approval**, located before Ongoing Process.
-4. Select the pending order to review customer, payment risk, payment term, items, quantities, prices, and total.
+3. Select **Need Approval**, located before Open.
+4. Select the pending order to review customer, payment risk, payment terms, items, quantities, prices, and total.
 5. Enter an optional decision note.
 6. Select **Approve** or **Reject**.
 
@@ -299,7 +326,7 @@ If approved:
 1. Approval status becomes Approved.
 2. The Invoice is generated.
 3. The Sales Order becomes Invoiced.
-4. The Receivable and any required Credit Billing reminder are created.
+4. The Receivable and any required Credit Collections reminder are created.
 5. The order continues through the normal revenue cycle.
 
 If rejected:
@@ -312,10 +339,10 @@ If rejected:
 ### Sales Order Tabs and Detail
 
 1. Use **Need Approval** for pending Manager decisions.
-2. Use **Ongoing Process** for active orders.
-3. Use **Done Process** for shipped or cancelled orders.
+2. Use **Open** for active orders.
+3. Use **Completed** for shipped or cancelled orders.
 4. Select View to open the complete transaction detail.
-5. Review customer, items, Invoice, Payments, Surat Jalan, Receivable, and Billing progress.
+5. Review customer, items, Invoice, Payments, Surat Jalan, Receivable, and Collections progress.
 6. A pending or rejected approval cannot bypass the Invoice restriction.
 
 ### Delete an Ongoing Sales Order
@@ -326,7 +353,7 @@ If rejected:
 4. The confirmation dialog lists the affected transaction and related records.
 5. Enter a mandatory deletion note of up to 150 characters.
 6. Select Submit to delete, or Cancel to keep the complete transaction.
-7. The system removes related Delivery Notes and items, Billing Follow-ups, Payments, Invoice, Sales Order Items, and Sales Order in one transaction.
+7. The system removes related Delivery Notes and items, Collection Tasks, Payments, Invoice, Sales Order Items, and Sales Order in one transaction.
 8. The Customer remains active in master data.
 9. Audit Trail retains the deletion action, actor, record summary, and mandatory confirmation note.
 
@@ -344,9 +371,9 @@ If rejected:
 ### Review Invoice
 
 1. Open **Invoices**.
-2. Use Ongoing Process for Unpaid, Partial, or Overdue invoices.
-3. Use Done Process for Paid or Cancelled invoices.
-4. Select an Invoice to review customer, Sales Order, issue date, due date, payment term, totals, remaining balance, and status.
+2. Use Open for Unpaid, Partial, or Overdue invoices.
+3. Use Completed for Paid or Cancelled invoices.
+4. Select an Invoice to review customer, Sales Order, issue date, due date, payment terms, totals, remaining balance, and status.
 
 ### Generate Invoice from an Existing Eligible Sales Order
 
@@ -356,7 +383,7 @@ If rejected:
 4. Submit or Cancel the action.
 5. The system checks that approval is Not Required or Approved.
 6. The Invoice and Receivable are created.
-7. For Credit, the Billing reminder is created.
+7. For Credit, the Collections reminder is created.
 
 ### Print Invoice
 
@@ -376,7 +403,7 @@ If rejected:
 7. The system prevents payment above the remaining balance.
 8. Paid Amount and Remaining Amount update automatically.
 9. Invoice status becomes Partial or Paid as appropriate.
-10. A fully paid Receivable moves to Done Process.
+10. A fully paid Receivable moves to Completed.
 11. Review the payment and confirmation note in Recorded Payments and the Sales Order detail.
 
 ## 11. Surat Jalan Flows
@@ -392,13 +419,13 @@ If rejected:
 
 Eligibility rules:
 
-- Debit: the Invoice must be Paid before Surat Jalan can be created.
+- Immediate Payment: the Invoice must be Paid before Surat Jalan can be created.
 - Credit: Surat Jalan can be created after Invoice generation, before full payment.
 
 ### Manage and Print Surat Jalan
 
-1. Use Ongoing Process for Draft or Issued documents.
-2. Use Done Process for Delivered or Cancelled documents.
+1. Use Open for Draft or Issued documents.
+2. Use Completed for Delivered or Cancelled documents.
 3. Open a document to review its detail.
 4. Update the status when delivery progresses.
 5. Select Print to print or save the Surat Jalan as PDF.
@@ -407,39 +434,39 @@ Eligibility rules:
 
 1. Open **Receivables**.
 2. Review Active Receivables and the total Remaining Amount.
-3. Use Ongoing Process for balances still owed.
+3. Use Open for balances still owed.
 4. Filter Ongoing records by Unpaid, Partial, or Overdue.
-5. Use Done Process for Paid or Cancelled records.
+5. Use Completed for Paid or Cancelled records.
 6. The list shows Remaining Amount but keeps Total and Paid Amount in the full Sales Order detail.
-7. Select **View Sales Order** to inspect the full source transaction and its Total/Paid values.
-8. Select **Create Billing** when collection work is needed.
+7. Select **View Sales Order** to inspect the full source order and its Total/Paid values.
+8. Select **Create Collection Task** when collection work is needed.
 9. Customer payment risk updates automatically from overdue and payment history.
 
 Receivables are calculated from Invoices and Payments; users do not manually create a Receivable record.
 
-## 13. Billing Flow
+## 13. Collections Flow
 
-1. Open **Billing**, or select Create Billing from a Receivable.
+1. Open **Collections**, or select Create Collection Task from a Receivable.
 2. If opened from a Receivable, confirm the preselected Customer and Invoice.
-3. Enter the follow-up date/deadline, status, and collection note.
+3. Enter the scheduled date/deadline, status, and collection note.
 4. Select Save, review the confirmation dialog, and optionally add a note of up to 150 characters.
-5. Submit or Cancel the Billing task.
-6. Use Ongoing Process for Planned tasks.
-7. Use Done Process for Done or Cancelled tasks.
-8. Admin sees near or overdue Billing work on the dashboard and in notifications.
+5. Submit or Cancel the Collection task.
+6. Use Open for Planned tasks.
+7. Use Completed for Done or Cancelled tasks.
+8. Admin sees near or overdue Collection work on the dashboard and in notifications.
 9. Open the task from the notification and use its customer, Invoice, deadline, and notes to perform the collection activity.
 
-## 14. Product Follow Up Flow
+## 14. Customer Outreach Flow
 
-1. Open **Follow Up**.
+1. Open **Customer Outreach**.
 2. Search for a customer.
 3. Review the latest contact date or identify customers never contacted.
-4. Sales receives a reminder when an active customer has no transaction for three months.
+4. Sales receives a reminder when an active customer has no order for three months.
 5. Open the reminder to preselect the customer.
 6. Selecting Record Contact from any customer row also scrolls to the form and automatically selects that customer.
 7. Enter the contact date and an optional note about new products or the conversation.
 8. Select Save, review the confirmation dialog, and optionally add a note of up to 150 characters.
-9. Submit or Cancel the Follow Up.
+9. Submit or Cancel the Customer Outreach.
 10. The latest-contact information and Audit Trail update.
 
 ## 15. Table Search, Sort, and Filter Flow
@@ -461,14 +488,14 @@ Receivables are calculated from Invoices and Payments; users do not manually cre
 
 Sorting and filtering are excluded from printable Invoice and Surat Jalan document views.
 
-Product Follow Up is for sales relationship activity. Billing is a separate collection workflow.
+Customer Outreach is for sales relationship activity. Collections is a separate collection workflow.
 
 ## 16. Audit Trail Flow
 
 1. Open **Audit Trail**.
-2. Review who performed an action, their role, the module, transaction code, action, confirmation note, summary, and time.
-3. Filter by date, module, action, transaction, or user.
-4. Use the trail to verify Customer, Sales Order, approval, Invoice, Payment, Surat Jalan, Billing, and Follow Up activity.
+2. Review who performed an action, their role, the module, record reference, action, confirmation note, summary, and time.
+3. Filter by module, action, record reference, or user.
+4. Use the trail to verify Customer, Sales Order, approval, Invoice, Payment, Surat Jalan, Collections, and Customer Outreach activity.
 5. Compare old and new values when change detail is available.
 6. Deletion evidence remains in Audit Trail even after the operational Sales Order chain is removed.
 
@@ -505,12 +532,12 @@ Sales can inspect Settings and existing accounts, but all account-creation field
 
 1. Open an Invoice or Surat Jalan with a print action.
 2. Open its printable view.
-3. Check the business and transaction information.
+3. Check the business and order information.
 4. Use the browser Print action to print or save as PDF.
 
 ## 19. End-to-End Business Scenarios
 
-### Clean Debit Customer
+### Clean Immediate Payment Customer
 
 ```text
 Customer -> Sales Order -> Invoice -> Full Payment -> Surat Jalan -> Completed
@@ -520,7 +547,7 @@ Customer -> Sales Order -> Invoice -> Full Payment -> Surat Jalan -> Completed
 
 ```text
 Customer -> Sales Order -> Invoice -> Surat Jalan -> Receivable
-         -> Billing when needed -> Payment -> Completed
+         -> Collections when needed -> Payment -> Completed
 ```
 
 ### Risky Customer Created by Sales
@@ -529,16 +556,16 @@ Customer -> Sales Order -> Invoice -> Surat Jalan -> Receivable
 Customer with Late/Historical Late risk
   -> Sales creates Sales Order
   -> Need Approval + Manager notification
-      -> Approve -> Invoice -> normal Debit/Credit flow
+      -> Approve -> Invoice -> normal Immediate Payment/Credit flow
       -> Reject  -> Cancelled Sales Order, no Invoice
 ```
 
 ### Inactive Customer Relationship
 
 ```text
-No transaction for 3 months
+No order for 3 months
   -> Sales notification
-  -> Follow Up page
+  -> Customer Outreach page
   -> Record contact date and optional note
 ```
 
@@ -548,7 +575,7 @@ No transaction for 3 months
 Invoice reaches due date with remaining balance
   -> Overdue Receivable
   -> Customer becomes Late Payment risk
-  -> Billing task and Admin reminder
+  -> Collection task and Admin reminder
   -> Record Payment
   -> Receivable closes when fully paid
 ```
@@ -575,8 +602,22 @@ Invoice reaches due date with remaining balance
 ### Admin
 
 1. Open any module and inspect all records.
-2. Invoice, Payment, Surat Jalan, Billing, and account actions remain enabled.
+2. Invoice, Payment, Surat Jalan, Collections, and account actions remain enabled.
 3. Create Sales Order fields and buttons appear disabled.
 4. Hover the disabled control to see that Sales or Manager access is required.
 5. Audit Trail can be searched and reviewed; its records are generated automatically by system activity rather than through a manual Create action.
 6. Admin cannot approve or reject Sales Orders in **Need Approval**.
+
+## 21. Deployment Flow
+
+```text
+Developer/Codex changes code
+  -> GitHub main branch
+  -> Vercel build
+  -> Prisma Client generation
+  -> Next.js production build
+  -> Vercel deployment URL
+  -> Supabase PostgreSQL for operational data
+```
+
+Deployment depends on Vercel environment variables. The most important variables are `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_CUSTOMER_PO_BUCKET`. See `docs/DEPLOYMENT_GUIDE.md`.
