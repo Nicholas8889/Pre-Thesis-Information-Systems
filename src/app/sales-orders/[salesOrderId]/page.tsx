@@ -4,6 +4,7 @@ import { ArrowLeft, Banknote, FilePlus2, FileText, Printer, Truck } from "lucide
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
 import { RestrictedAction } from "@/components/restricted-action";
 import { DeleteSalesOrderButton } from "@/components/delete-sales-order-button";
 import { generateInvoice } from "@/lib/actions";
@@ -690,7 +691,9 @@ function RelatedSections({
                     </td>
                     <td className="py-3 pr-4 text-ink/80">General Collection</td>
                     <td className="py-3 pr-4">
-                      <StatusBadge status={collectionTask.status} />
+                      <StatusStack>
+                        <StatusBadge status={collectionTask.status} />
+                      </StatusStack>
                     </td>
                     <td className="py-3 pr-4 text-ink/80">{collectionTask.notes}</td>
                     <td className="py-3 text-ink/80">-</td>

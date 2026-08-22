@@ -1,8 +1,8 @@
 import Link from "next/link";
 import {
   AlertTriangle,
-  ArrowRight,
   Banknote,
+  Eye,
   FileText,
   Handshake,
   ReceiptText,
@@ -19,6 +19,8 @@ import {
   type OverdueCustomerRow
 } from "@/components/sales-customer-insights";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
+import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { buildCustomerInsights } from "@/lib/customer-intelligence";
@@ -441,7 +443,7 @@ export default async function DashboardPage() {
                     <th className="px-5 py-3">Date</th>
                     <th className="px-5 py-3">Status</th>
                     <th className="px-5 py-3 text-right">Total</th>
-                    <th className="px-5 py-3 text-right"></th>
+                    <th className="px-5 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line text-sm">
@@ -473,7 +475,9 @@ export default async function DashboardPage() {
                       </td>
                       <td className="p-0">
                           <Link href={`/sales-orders/${order.id}`} className="block px-5 py-3.5">
-                          <StatusBadge status={order.status} />
+                          <StatusStack>
+                            <StatusBadge status={order.status} />
+                          </StatusStack>
                         </Link>
                       </td>
                       <td className="p-0 text-right">
@@ -484,17 +488,15 @@ export default async function DashboardPage() {
                           {formatCurrency(order.total)}
                         </Link>
                       </td>
-                      <td className="p-0 text-right">
-                        <Link
-                          href={`/sales-orders/${order.id}`}
-                          title="View Sales Order detail"
-                          className="inline-flex px-5 py-3.5 text-brand"
-                        >
-                          <ArrowRight
-                            aria-hidden="true"
-                            className="h-4 w-4 transition group-hover:translate-x-1"
-                          />
-                        </Link>
+                      <td className="px-5 py-2">
+                        <TableActionGroup>
+                          <TableActionLink
+                            href={`/sales-orders/${order.id}`}
+                            label="View Sales Order detail"
+                          >
+                            <Eye aria-hidden="true" />
+                          </TableActionLink>
+                        </TableActionGroup>
                       </td>
                     </tr>
                   ))}

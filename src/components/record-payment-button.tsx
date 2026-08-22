@@ -1,6 +1,7 @@
 "use client";
 
 import { Banknote } from "lucide-react";
+import { TableActionButton } from "@/components/table-actions";
 
 const paymentInvoiceSelectionEvent = "cv-tajuk:select-payment-invoice";
 
@@ -16,14 +17,12 @@ export function RecordPaymentButton({ invoiceId }: { invoiceId: string }) {
   }
 
   return (
-    <button
-      type="button"
+    <TableActionButton
       onClick={selectInvoice}
-      className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
+      label="Record payment"
     >
-      <Banknote aria-hidden="true" className="h-4 w-4" />
-      Record Payment
-    </button>
+      <Banknote aria-hidden="true" />
+    </TableActionButton>
   );
 }
 

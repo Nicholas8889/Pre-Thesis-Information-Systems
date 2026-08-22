@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Banknote, Truck } from "lucide-react";
 import { recordPayment } from "@/lib/actions";
 import { EmptyState } from "@/components/empty-state";
@@ -7,6 +6,12 @@ import { PageHeader } from "@/components/page-header";
 import { PaymentForm } from "@/components/payment-form";
 import { RecordPaymentButton } from "@/components/record-payment-button";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
+import {
+  TableActionButton,
+  TableActionGroup,
+  TableActionLink
+} from "@/components/table-actions";
 import { RestrictedAction } from "@/components/restricted-action";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -80,7 +85,7 @@ export default async function PaymentsPage({
                   <th className="py-3 pr-4 text-right">Remaining</th>
                   <th className="py-3 pr-4">Due Date</th>
                   <th className="py-3 pr-4">Status</th>
-                  <th className="py-3 text-right">Action</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -117,39 +122,39 @@ export default async function PaymentsPage({
                       {formatDate(invoice.dueDate)}
                     </td>
                     <td className="py-3 pr-4">
-                      <StatusBadge status={invoice.status} />
+                      <StatusStack>
+                        <StatusBadge status={invoice.status} />
+                      </StatusStack>
                     </td>
                     <td className="py-3">
-                      <div className="flex justify-end gap-2">
+                      <TableActionGroup>
                         {canRecordPayment ? (
                           <RecordPaymentButton invoiceId={invoice.id} />
                         ) : (
                           <RestrictedAction message={getRestrictionMessage("RECORD_PAYMENT")}>
-                            <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-soft px-3 text-sm font-semibold text-ink/50">
-                              <Banknote aria-hidden="true" className="h-4 w-4" />
-                              Record Payment
-                            </button>
+                            <TableActionButton disabled label="Record payment">
+                              <Banknote aria-hidden="true" />
+                            </TableActionButton>
                           </RestrictedAction>
                         )}
                         {canCreateDeliveryNoteForInvoice({
                           paymentTermType: invoice.paymentTermType,
                           status: invoice.status
                         }) && (canCreateSuratJalan ? (
-                          <Link
+                          <TableActionLink
                             href={`/surat-jalan?mode=create&invoiceId=${invoice.id}`}
-                            title="Create Surat Jalan"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
+                            label="Create Surat Jalan"
                           >
-                            <Truck aria-hidden="true" className="h-4 w-4" />
-                          </Link>
+                            <Truck aria-hidden="true" />
+                          </TableActionLink>
                         ) : (
                           <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
-                            <button disabled className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-soft text-ink/50">
-                              <Truck aria-hidden="true" className="h-4 w-4" />
-                            </button>
+                            <TableActionButton disabled label="Create Surat Jalan">
+                              <Truck aria-hidden="true" />
+                            </TableActionButton>
                           </RestrictedAction>
                         ))}
-                      </div>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}
@@ -200,7 +205,7 @@ export default async function PaymentsPage({
                   <th className="py-3 pr-4">Payment Method</th>
                   <th className="py-3 text-right">Amount</th>
                   <th className="py-3 pr-4">Notes</th>
-                  <th className="py-3 text-right">Actions</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -227,27 +232,25 @@ export default async function PaymentsPage({
                       {payment.notes ?? "-"}
                     </td>
                     <td className="py-3">
-                      <div className="flex justify-end gap-2">
+                      <TableActionGroup>
                         {canCreateDeliveryNoteForInvoice({
                           paymentTermType: payment.invoice.paymentTermType,
                           status: payment.invoice.status
                         }) && (canCreateSuratJalan ? (
-                          <Link
+                          <TableActionLink
                             href={`/surat-jalan?mode=create&invoiceId=${payment.invoice.id}`}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
+                            label="Create Surat Jalan"
                           >
-                            <Truck aria-hidden="true" className="h-4 w-4" />
-                            Create Surat Jalan
-                          </Link>
+                            <Truck aria-hidden="true" />
+                          </TableActionLink>
                         ) : (
                           <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
-                            <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-soft px-3 text-sm font-semibold text-ink/50">
-                              <Truck aria-hidden="true" className="h-4 w-4" />
-                              Create Surat Jalan
-                            </button>
+                            <TableActionButton disabled label="Create Surat Jalan">
+                              <Truck aria-hidden="true" />
+                            </TableActionButton>
                           </RestrictedAction>
                         ))}
-                      </div>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  ArrowRight,
   CreditCard,
   Eye,
   FileText,
@@ -18,6 +17,8 @@ import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
+import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 import { prisma } from "@/lib/prisma";
 import { getPaymentTermLabel } from "@/lib/calculations";
 import {
@@ -248,7 +249,7 @@ export default async function CustomersPage({
                       <th className="py-3 pr-4">Invoice</th>
                       <th className="py-3 pr-4">Surat Jalan</th>
                       <th className="py-3 pr-4 text-right">Total</th>
-                      <th className="py-3 text-right">Action</th>
+                      <th className="py-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line text-sm">
@@ -257,7 +258,11 @@ export default async function CustomersPage({
                         <td className="py-3 pr-4 font-medium">{order.orderNumber}</td>
                         <td className="py-3 pr-4 text-ink/80">{formatDate(order.orderDate)}</td>
                         <td className="py-3 pr-4 text-ink/80">{getPaymentTermLabel(order)}</td>
-                        <td className="py-3 pr-4"><StatusBadge status={order.status} /></td>
+                        <td className="py-3 pr-4">
+                          <StatusStack>
+                            <StatusBadge status={order.status} />
+                          </StatusStack>
+                        </td>
                         <td className="py-3 pr-4 text-ink/80">
                           {order.invoice ? (
                             <span>
@@ -272,14 +277,15 @@ export default async function CustomersPage({
                             : "-"}
                         </td>
                         <td className="py-3 pr-4 text-right font-medium">{formatCurrency(order.total)}</td>
-                        <td className="py-3 text-right">
-                          <Link
+                        <td className="py-3">
+                          <TableActionGroup>
+                          <TableActionLink
                             href={`/sales-orders/${order.id}`}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
+                            label="View Sales Order"
                           >
-                            View
-                            <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                          </Link>
+                            <Eye aria-hidden="true" />
+                          </TableActionLink>
+                          </TableActionGroup>
                         </td>
                       </tr>
                     ))}
@@ -320,7 +326,7 @@ export default async function CustomersPage({
                   <th className="py-3 pr-4">Payment Risk</th>
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4">Notes</th>
-                  <th className="py-3 text-right">Actions</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -335,28 +341,28 @@ export default async function CustomersPage({
                     <td className="py-3 pr-4"><CustomerCategoryBadge category={category.category} /></td>
                     <td className="py-3 pr-4"><PaymentRiskBadge risk={paymentRisk} /></td>
                     <td className="py-3 pr-4">
-                      <StatusBadge status={customer.status} />
+                      <StatusStack>
+                        <StatusBadge status={customer.status} />
+                      </StatusStack>
                     </td>
                     <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {customer.notes ?? "-"}
                     </td>
                     <td className="py-3">
-                      <div className="flex justify-end gap-2">
-                        <Link
+                      <TableActionGroup>
+                        <TableActionLink
                           href={`/customers?view=${customer.id}`}
-                          title="View customer"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
+                          label="View customer"
                         >
-                          <Eye aria-hidden="true" className="h-4 w-4" />
-                        </Link>
-                        <Link
+                          <Eye aria-hidden="true" />
+                        </TableActionLink>
+                        <TableActionLink
                           href={`/customers?edit=${customer.id}`}
-                          title="Edit customer"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
+                          label="Edit customer"
                         >
-                          <Pencil aria-hidden="true" className="h-4 w-4" />
-                        </Link>
-                      </div>
+                          <Pencil aria-hidden="true" />
+                        </TableActionLink>
+                      </TableActionGroup>
                     </td>
                   </tr>;
                 })}

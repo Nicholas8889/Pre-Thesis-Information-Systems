@@ -4,6 +4,8 @@ import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { ProcessTabs, normalizeProcessTab } from "@/components/process-tabs";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
+import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getPaymentTermLabel } from "@/lib/calculations";
@@ -129,7 +131,7 @@ export default async function ReceivablesPage({
                   <th className="py-3 pr-4">Due Date</th>
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4 text-right">Remaining</th>
-                  <th className="py-3 text-right">Action</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -155,35 +157,35 @@ export default async function ReceivablesPage({
                     </td>
                     <td className="py-3 pr-4 text-ink/80">{formatDate(invoice.dueDate)}</td>
                     <td className="py-3 pr-4">
-                      <StatusBadge status={invoice.status} />
-                      {invoice.status === "Overdue" && (
-                        <span className="ml-2 inline-flex rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white">
-                          Needs Collection
-                        </span>
-                      )}
+                      <StatusStack>
+                        <StatusBadge status={invoice.status} />
+                        {invoice.status === "Overdue" && (
+                          <span className="inline-flex whitespace-nowrap rounded-md bg-danger px-2.5 py-1 text-left text-xs font-semibold text-white">
+                            Needs Collection
+                          </span>
+                        )}
+                      </StatusStack>
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(invoice.remainingAmount)}
                     </td>
                     <td className="py-3">
-                      <div className="flex justify-end gap-2">
-                        <Link
+                      <TableActionGroup>
+                        <TableActionLink
                           href={`/sales-orders/${invoice.salesOrderId}`}
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
+                          label="View Sales Order"
                         >
-                          <Eye aria-hidden="true" className="h-4 w-4" />
-                          View Sales Order
-                        </Link>
+                          <Eye aria-hidden="true" />
+                        </TableActionLink>
                         {activeTab === "ongoing" && (
-                          <Link
+                          <TableActionLink
                             href={`/collections?customerId=${invoice.customerId}&invoiceId=${invoice.id}`}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
+                            label="Create Collection Task"
                           >
-                            <Handshake aria-hidden="true" className="h-4 w-4" />
-                            Create Collection Task
-                          </Link>
+                            <Handshake aria-hidden="true" />
+                          </TableActionLink>
                         )}
-                      </div>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}

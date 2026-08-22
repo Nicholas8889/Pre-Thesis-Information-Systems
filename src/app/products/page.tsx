@@ -19,6 +19,8 @@ import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
+import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import {
@@ -261,7 +263,7 @@ export default async function ProductsPage({
                   </th>
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4">Notes</th>
-                  <th className="py-3 text-right">Actions</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -281,28 +283,28 @@ export default async function ProductsPage({
                       )}
                     </td>
                     <td className="py-3 pr-4">
-                      <StatusBadge status={product.status} />
+                      <StatusStack>
+                        <StatusBadge status={product.status} />
+                      </StatusStack>
                     </td>
                     <td className="max-w-80 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {product.notes || "-"}
                     </td>
                     <td className="py-3">
-                      <div className="flex justify-end gap-2">
-                        <Link
+                      <TableActionGroup>
+                        <TableActionLink
                           href={`/products?view=${product.id}`}
-                          title="View product"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
+                          label="View product"
                         >
-                          <Eye aria-hidden="true" className="h-4 w-4" />
-                        </Link>
-                        <Link
+                          <Eye aria-hidden="true" />
+                        </TableActionLink>
+                        <TableActionLink
                           href={`/products?edit=${product.id}`}
-                          title="Edit product"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
+                          label="Edit product"
                         >
-                          <Pencil aria-hidden="true" className="h-4 w-4" />
-                        </Link>
-                      </div>
+                          <Pencil aria-hidden="true" />
+                        </TableActionLink>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}

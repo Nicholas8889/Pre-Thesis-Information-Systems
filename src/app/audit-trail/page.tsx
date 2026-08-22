@@ -1,7 +1,8 @@
 import type { Prisma } from "@prisma/client";
-import { Search } from "lucide-react";
+import { Eye, Search } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { TableActionGroup, TableDetailsAction } from "@/components/table-actions";
 import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
@@ -151,7 +152,7 @@ export default async function AuditTrailPage({
                   <th className="py-3 pr-4">Action</th>
                   <th className="py-3 pr-4">Change Summary</th>
                   <th className="py-3 pr-4">Confirmation Note</th>
-                  <th className="py-3">Details</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -180,20 +181,22 @@ export default async function AuditTrailPage({
                     <td className="min-w-56 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {record.actionNote ?? "-"}
                     </td>
-                    <td className="min-w-64 py-3">
-                      <details>
-                        <summary className="cursor-pointer text-sm font-semibold text-brand">
-                          View
-                        </summary>
-                        <div className="mt-3 space-y-3 rounded-md bg-soft p-3 text-xs text-ink/80">
+                    <td className="py-3">
+                      <TableActionGroup>
+                        <TableDetailsAction
+                          label="View audit record details"
+                          icon={<Eye aria-hidden="true" />}
+                        >
+                          <div className="space-y-3 rounded-md bg-soft p-3 text-xs text-ink/80">
                           <Detail label="Entity ID" value={record.entityId} />
                           <Detail label="Entity Type" value={record.entityType} />
                           <Detail label="Full Summary" value={record.changeSummary} />
                           <Detail label="Confirmation Note" value={record.actionNote ?? "-"} preserve />
                           <Detail label="Old Value" value={record.oldValue ?? "-"} preserve />
                           <Detail label="New Value" value={record.newValue ?? "-"} preserve />
-                        </div>
-                      </details>
+                          </div>
+                        </TableDetailsAction>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}

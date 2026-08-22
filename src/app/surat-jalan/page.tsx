@@ -6,6 +6,13 @@ import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
 import { ProcessTabs, normalizeProcessTab } from "@/components/process-tabs";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
+import {
+  TableActionGroup,
+  TableActionLink,
+  TableMenuLink,
+  TableOverflowMenu
+} from "@/components/table-actions";
 import { RestrictedAction } from "@/components/restricted-action";
 import { createDeliveryNote, updateDeliveryNoteStatus } from "@/lib/actions";
 import { formatDate } from "@/lib/format";
@@ -369,7 +376,7 @@ export default async function SuratJalanPage({
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4">Notes</th>
-                  <th className="py-3 text-right">Actions</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -388,39 +395,40 @@ export default async function SuratJalanPage({
                       {deliveryNote.invoice?.invoiceNumber ?? "-"}
                     </td>
                     <td className="py-3 pr-4">
-                      <StatusBadge status={deliveryNote.status} />
+                      <StatusStack>
+                        <StatusBadge status={deliveryNote.status} />
+                      </StatusStack>
                     </td>
                     <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {deliveryNote.notes ?? "-"}
                     </td>
                     <td className="py-3">
-                      <div className="flex justify-end gap-2">
+                      <TableActionGroup>
                         {activeTab === "ongoing" && (
-                          <Link
+                          <TableActionLink
                             href={`/surat-jalan?tab=${activeTab}&view=${deliveryNote.id}`}
-                            title="View Surat Jalan"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
+                            label="View Surat Jalan"
                           >
-                            <Eye aria-hidden="true" className="h-4 w-4" />
-                          </Link>
+                            <Eye aria-hidden="true" />
+                          </TableActionLink>
                         )}
-                        <Link
-                          href={`/surat-jalan/${deliveryNote.id}/print`}
-                          title="Cetak Surat Jalan"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
-                        >
-                          <Printer aria-hidden="true" className="h-4 w-4" />
-                        </Link>
                         {activeTab === "ongoing" && (
-                          <Link
+                          <TableActionLink
                             href={`/surat-jalan?tab=${activeTab}&view=${deliveryNote.id}&editStatus=${deliveryNote.id}`}
-                            title="Edit status"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
+                            label="Edit status"
                           >
-                            <Pencil aria-hidden="true" className="h-4 w-4" />
-                          </Link>
+                            <Pencil aria-hidden="true" />
+                          </TableActionLink>
                         )}
-                      </div>
+                        <TableOverflowMenu label="More Surat Jalan actions">
+                          <TableMenuLink
+                            href={`/surat-jalan/${deliveryNote.id}/print`}
+                            label="Print Surat Jalan"
+                          >
+                            <Printer aria-hidden="true" />
+                          </TableMenuLink>
+                        </TableOverflowMenu>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}

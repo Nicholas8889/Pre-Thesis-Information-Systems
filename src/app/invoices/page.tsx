@@ -6,6 +6,13 @@ import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
 import { ProcessTabs, normalizeProcessTab } from "@/components/process-tabs";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
+import {
+  TableActionGroup,
+  TableActionLink,
+  TableMenuLink,
+  TableOverflowMenu
+} from "@/components/table-actions";
 import { RestrictedAction } from "@/components/restricted-action";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -246,7 +253,7 @@ export default async function InvoicesPage({
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4 text-right">Remaining</th>
                   <th className="py-3 pr-4">Notes</th>
-                  <th className="py-3 text-right">Actions</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -271,7 +278,9 @@ export default async function InvoicesPage({
                       </td>
                     )}
                     <td className="py-3 pr-4">
-                      <StatusBadge status={invoice.status} />
+                      <StatusStack>
+                        <StatusBadge status={invoice.status} />
+                      </StatusStack>
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(invoice.remainingAmount)}
@@ -279,26 +288,25 @@ export default async function InvoicesPage({
                     <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {invoice.notes ?? "-"}
                     </td>
-                    <td className="py-3 text-right">
-                      <div className="flex justify-end gap-2">
+                    <td className="py-3">
+                      <TableActionGroup>
                         {activeTab === "ongoing" && (
-                          <Link
+                          <TableActionLink
                             href={`/invoices?tab=${activeTab}&view=${invoice.id}`}
-                            title="View invoice detail"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
+                            label="View invoice detail"
                           >
-                            <Eye aria-hidden="true" className="h-4 w-4" />
-                          </Link>
+                            <Eye aria-hidden="true" />
+                          </TableActionLink>
                         )}
-                        <Link
-                          href={`/invoices/${invoice.id}/print`}
-                          title="Cetak Invoice"
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-medium text-brand"
-                        >
-                          <Printer aria-hidden="true" className="h-4 w-4" />
-                          Cetak
-                        </Link>
-                      </div>
+                        <TableOverflowMenu label="More invoice actions">
+                          <TableMenuLink
+                            href={`/invoices/${invoice.id}/print`}
+                            label="Print invoice"
+                          >
+                            <Printer aria-hidden="true" />
+                          </TableMenuLink>
+                        </TableOverflowMenu>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}

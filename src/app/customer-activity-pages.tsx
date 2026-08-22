@@ -1,10 +1,11 @@
-import Link from "next/link";
 import { createCollectionTask, recordCustomerOutreach } from "@/lib/actions";
 import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
 import { ProcessTabs, normalizeProcessTab } from "@/components/process-tabs";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
+import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { isDoneCollectionTask, isOngoingCollectionTask } from "@/lib/process-status";
@@ -189,7 +190,7 @@ export async function CollectionsPage({
                   <th className="py-3 pr-4">Date</th>
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4">Notes</th>
-                  <th className="py-3 text-right">Action</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -208,23 +209,24 @@ export async function CollectionsPage({
                       {formatDate(collectionTask.scheduledDate)}
                     </td>
                     <td className="py-3 pr-4">
-                      <StatusBadge status={collectionTask.status} />
+                      <StatusStack>
+                        <StatusBadge status={collectionTask.status} />
+                      </StatusStack>
                     </td>
                     <td className="py-3 pr-4 text-ink/80">{collectionTask.notes}</td>
                     <td className="py-3">
-                      <div className="flex justify-end">
+                      <TableActionGroup>
                         {collectionTask.invoice ? (
-                          <Link
+                          <TableActionLink
                             href={`/sales-orders/${collectionTask.invoice.salesOrderId}`}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
+                            label="View Sales Order"
                           >
-                            <Eye aria-hidden="true" className="h-4 w-4" />
-                            View Sales Order
-                          </Link>
+                            <Eye aria-hidden="true" />
+                          </TableActionLink>
                         ) : (
-                          <span className="text-sm text-ink/70">Customer only</span>
+                          <span className="text-sm text-ink/70">—</span>
                         )}
-                      </div>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}
@@ -369,7 +371,7 @@ export async function CustomerOutreachPage({
                   <th className="py-3 pr-4">Phone</th>
                   <th className="py-3 pr-4">Last Contact</th>
                   <th className="py-3 pr-4">Last Note</th>
-                  <th className="py-3 text-right">Action</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -390,14 +392,15 @@ export async function CustomerOutreachPage({
                         )}
                       </td>
                       <td className="max-w-sm py-3 pr-4 text-ink/80">{latestContact?.notes || "-"}</td>
-                      <td className="py-3 text-right">
-                        <Link
+                      <td className="py-3">
+                        <TableActionGroup>
+                        <TableActionLink
                           href={`/customer-outreach?customerId=${customer.id}#record-outreach`}
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
+                          label="Record customer contact"
                         >
-                          <PhoneCall aria-hidden="true" className="h-4 w-4" />
-                          Record Contact
-                        </Link>
+                          <PhoneCall aria-hidden="true" />
+                        </TableActionLink>
+                        </TableActionGroup>
                       </td>
                     </tr>
                   );

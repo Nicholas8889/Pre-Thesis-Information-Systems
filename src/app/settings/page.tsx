@@ -3,6 +3,7 @@ import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
 import { RestrictedAction } from "@/components/restricted-action";
 import { roleLabel } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -123,7 +124,9 @@ export default async function SettingsPage({
                     <td className="py-3 pr-4 text-ink/80">{user.displayName}</td>
                     <td className="py-3 pr-4 text-ink/80">{roleLabel(user.role)}</td>
                     <td className="py-3 pr-4">
-                      <StatusBadge status={user.status} />
+                      <StatusStack>
+                        <StatusBadge status={user.status} />
+                      </StatusStack>
                     </td>
                     <td className="py-3 text-ink/80">{formatDate(user.createdAt)}</td>
                   </tr>

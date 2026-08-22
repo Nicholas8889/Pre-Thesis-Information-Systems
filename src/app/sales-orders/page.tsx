@@ -12,6 +12,12 @@ import { ProcessTabs, normalizeProcessTab } from "@/components/process-tabs";
 import { SalesOrderForm } from "@/components/sales-order-form";
 import { SalesOrderExportDialog } from "@/components/sales-order-export-dialog";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusStack } from "@/components/status-stack";
+import {
+  TableActionButton,
+  TableActionGroup,
+  TableActionLink
+} from "@/components/table-actions";
 import { RestrictedAction } from "@/components/restricted-action";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -498,7 +504,7 @@ export async function OrdersBySourcePage({
                   <th className="py-3 pr-4">Surat Jalan</th>
                   <th className="py-3 pr-4 text-right">Total</th>
                   <th className="py-3 pr-4">Notes</th>
-                  <th className="py-3 text-right">Actions</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -538,18 +544,30 @@ export async function OrdersBySourcePage({
                       })}
                     </td>
                     <td className="py-3 pr-4">
-                      <StatusBadge status={order.status} />
+                      <StatusStack>
+                        <StatusBadge status={order.status} />
+                      </StatusStack>
                     </td>
                     {activeTab === "approval" && (
                       <td className="py-3 pr-4">
-                        <StatusBadge status={order.approvalRisk ?? "Payment risk"} />
+                        <StatusStack>
+                          <StatusBadge status={order.approvalRisk ?? "Payment risk"} />
+                        </StatusStack>
                       </td>
                     )}
                     <td className="py-3 pr-4">
-                      {order.invoice ? <StatusBadge status={order.invoice.status} /> : "-"}
+                      {order.invoice ? (
+                        <StatusStack>
+                          <StatusBadge status={order.invoice.status} />
+                        </StatusStack>
+                      ) : "-"}
                     </td>
                     <td className="py-3 pr-4 text-ink/80">
-                      {order.deliveryNotes[0]?.status ?? "-"}
+                      {order.deliveryNotes[0] ? (
+                        <StatusStack>
+                          <StatusBadge status={order.deliveryNotes[0].status} />
+                        </StatusStack>
+                      ) : "-"}
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(order.total)}
@@ -558,38 +576,37 @@ export async function OrdersBySourcePage({
                       {order.notes ?? "-"}
                     </td>
                     <td className="py-3">
-                      <div className="flex justify-end gap-2">
-                        <Link
+                      <TableActionGroup>
+                        <TableActionLink
                           href={
                             activeTab === "approval"
                               ? `${basePath}?tab=approval&view=${order.id}`
                               : `${basePath}/${order.id}`
                           }
-                          title={`View full ${singularLabel.toLowerCase()} detail`}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
+                          label={`View full ${singularLabel.toLowerCase()} detail`}
                         >
-                          <Eye aria-hidden="true" className="h-4 w-4" />
-                        </Link>
+                          <Eye aria-hidden="true" />
+                        </TableActionLink>
                         {activeTab === "ongoing" && !order.invoice && (
                           canCreateInvoice ? (
                             <form action={generateInvoice}>
                               <input type="hidden" name="salesOrderId" value={order.id} />
-                              <button
-                                title="Generate invoice"
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-brand"
+                              <TableActionButton
+                                type="submit"
+                                label="Generate invoice"
                               >
-                                <FilePlus2 aria-hidden="true" className="h-4 w-4" />
-                              </button>
+                                <FilePlus2 aria-hidden="true" />
+                              </TableActionButton>
                             </form>
                           ) : (
                             <RestrictedAction message={invoiceRestriction}>
-                              <button disabled className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-soft text-ink/50">
-                                <FilePlus2 aria-hidden="true" className="h-4 w-4" />
-                              </button>
+                              <TableActionButton disabled label="Generate invoice">
+                                <FilePlus2 aria-hidden="true" />
+                              </TableActionButton>
                             </RestrictedAction>
                           )
                         )}
-                      </div>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}

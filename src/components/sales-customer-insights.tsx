@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { Search, UserRoundSearch } from "lucide-react";
+import { Eye, Search, UserRoundSearch } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { CustomerInsightRow } from "@/lib/customer-intelligence";
+import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 
 export type OverdueCustomerRow = {
   id: string;
@@ -66,7 +66,7 @@ export function SalesCustomerInsights({
                   <th className="px-5 py-3 text-right">Overdue Invoices</th>
                   <th className="px-5 py-3 text-right">Overdue Amount</th>
                   <th className="px-5 py-3">Oldest Due Date</th>
-                  <th className="px-5 py-3 text-right">Action</th>
+                  <th className="px-5 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -79,13 +79,15 @@ export function SalesCustomerInsights({
                       {formatCurrency(customer.overdueAmount)}
                     </td>
                     <td className="px-5 py-3.5 text-ink/80">{formatDate(new Date(customer.oldestDueDate))}</td>
-                    <td className="px-5 py-3.5 text-right">
-                      <Link
+                    <td className="px-5 py-2">
+                      <TableActionGroup>
+                      <TableActionLink
                         href={`/receivables?tab=ongoing&status=Overdue`}
-                        className="inline-flex h-9 items-center rounded-md border border-line px-3 text-sm font-semibold text-brand"
+                        label={`View ${customer.companyName} overdue receivables`}
                       >
-                        View receivables
-                      </Link>
+                        <Eye aria-hidden="true" />
+                      </TableActionLink>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}
