@@ -210,12 +210,37 @@ export default async function DashboardPage() {
           description={`Welcome, ${currentUser?.displayName ?? "Admin"}. Focus on invoices, delivery documents, receivables, and collection work.`}
         />
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Open Invoices" value={String(openInvoices.length)} description={formatCurrency(outstandingAmount)} icon={FileText} tone="warning" />
-          <KpiCard label="Overdue Receivables" value={String(overdueCount)} description="Requires collection attention" icon={ReceiptText} tone="danger" />
-          <KpiCard label="Surat Jalan Needed" value={String(deliveryNotesNeeded.length)} description="Eligible invoices without delivery note" icon={Truck} />
-          <KpiCard label="Planned Collection Tasks" value={String(plannedCollectionTasks.length)} description="Admin collection queue" icon={Handshake} tone="good" />
-        </section>
+        <DashboardSummary
+          items={[
+            {
+              label: "Open Invoices",
+              value: String(openInvoices.length),
+              description: formatCurrency(outstandingAmount),
+              icon: FileText,
+              tone: "warning"
+            },
+            {
+              label: "Overdue Receivables",
+              value: String(overdueCount),
+              description: "Requires collection attention",
+              icon: ReceiptText,
+              tone: "danger"
+            },
+            {
+              label: "Surat Jalan Needed",
+              value: String(deliveryNotesNeeded.length),
+              description: "Eligible invoices without delivery note",
+              icon: Truck
+            },
+            {
+              label: "Planned Collection Tasks",
+              value: String(plannedCollectionTasks.length),
+              description: "Admin collection queue",
+              icon: Handshake,
+              tone: "good"
+            }
+          ]}
+        />
 
         <section className="mt-5 grid gap-4 xl:grid-cols-2">
           <AdminListPanel
@@ -342,35 +367,37 @@ export default async function DashboardPage() {
         }
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label="Total Sales Value"
-          value={formatCurrency(totalSalesOrderValue)}
-          description="Sales Order value"
-          icon={TrendingUp}
-        />
-        <KpiCard
-          label="Paid Amount"
-          value={formatCurrency(totalPaidAmount)}
-          description="Recorded payment"
-          icon={Banknote}
-          tone="good"
-        />
-        <KpiCard
-          label="Outstanding Receivables"
-          value={formatCurrency(outstandingAmount)}
-          description="Open invoice balance"
-          icon={ReceiptText}
-          tone="warning"
-        />
-        <KpiCard
-          label="Need Attention"
-          value={String(needCollectionTaskCount)}
-          description={`${overdueCount} overdue + ${plannedCollectionTasks.length} collection tasks`}
-          icon={AlertTriangle}
-          tone="danger"
-        />
-      </section>
+      <DashboardSummary
+        items={[
+          {
+            label: "Total Sales Value",
+            value: formatCurrency(totalSalesOrderValue),
+            description: "Sales Order value",
+            icon: TrendingUp
+          },
+          {
+            label: "Paid Amount",
+            value: formatCurrency(totalPaidAmount),
+            description: "Recorded payment",
+            icon: Banknote,
+            tone: "good"
+          },
+          {
+            label: "Outstanding Receivables",
+            value: formatCurrency(outstandingAmount),
+            description: "Open invoice balance",
+            icon: ReceiptText,
+            tone: "warning"
+          },
+          {
+            label: "Need Attention",
+            value: String(needCollectionTaskCount),
+            description: `${overdueCount} overdue + ${plannedCollectionTasks.length} collection tasks`,
+            icon: AlertTriangle,
+            tone: "danger"
+          }
+        ]}
+      />
 
       <section className="mt-5 rounded-md border border-line bg-white p-4 shadow-card">
         <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -664,7 +691,30 @@ function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function KpiCard({
+type DashboardMetric = {
+  label: string;
+  value: string;
+  description: string;
+  icon: LucideIcon;
+  tone?: "neutral" | "good" | "warning" | "danger";
+};
+
+function DashboardSummary({ items }: { items: DashboardMetric[] }) {
+  return (
+    <section className="overflow-hidden rounded-md border border-line bg-white shadow-card">
+      <div className="border-b border-line px-4 py-3">
+        <h2 className="text-base font-semibold text-ink">Dashboard Summary</h2>
+      </div>
+      <div className="dashboard-summary-grid">
+        {items.map((item) => (
+          <KpiMetric key={item.label} {...item} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function KpiMetric({
   label,
   value,
   description,
@@ -685,18 +735,18 @@ function KpiCard({
   }[tone];
 
   return (
-    <section className="rounded-md border border-line bg-white p-4 shadow-card">
+    <article className="dashboard-summary-metric">
       <div className="flex items-center gap-4">
         <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md ${toneClass}`}>
           <Icon aria-hidden="true" className="h-5 w-5" />
         </span>
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{label}</p>
-          <p className="mt-1 truncate text-xl font-semibold tracking-normal text-ink">{value}</p>
-          <p className="mt-1 text-xs text-ink/70">{description}</p>
+          <p className="mt-1 text-xl font-semibold tracking-normal text-ink">{value}</p>
+          <p className="mt-1 text-xs leading-5 text-ink/70">{description}</p>
         </div>
       </div>
-    </section>
+    </article>
   );
 }
 
