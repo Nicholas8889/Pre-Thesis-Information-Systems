@@ -1,27 +1,32 @@
 import { clsx } from "clsx";
 
 const statusStyles: Record<string, string> = {
-  Active: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  Inactive: "bg-slate-100 text-slate-600 ring-slate-200",
-  Draft: "bg-slate-100 text-slate-700 ring-slate-200",
-  Confirmed: "bg-blue-50 text-blue-700 ring-blue-200",
-  Shipped: "bg-slate-100 text-slate-700 ring-slate-200",
-  Invoiced: "bg-cyan-50 text-cyan-700 ring-cyan-200",
-  Issued: "bg-blue-50 text-blue-700 ring-blue-200",
-  Delivered: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  Cancelled: "bg-slate-100 text-slate-500 ring-slate-200",
-  Unpaid: "bg-amber-50 text-amber-800 ring-amber-200",
-  Partial: "bg-blue-50 text-blue-700 ring-blue-200",
-  Paid: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  Overdue: "bg-rose-50 text-rose-700 ring-rose-200",
-  Planned: "bg-amber-50 text-amber-800 ring-amber-200",
-  Done: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  Pending: "bg-amber-50 text-amber-800 ring-amber-200",
-  Approved: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  Rejected: "bg-rose-50 text-rose-700 ring-rose-200",
-  NotRequired: "bg-slate-100 text-slate-600 ring-slate-200",
-  "Late Payment": "bg-rose-50 text-rose-700 ring-rose-200",
-  "Historically Late": "bg-amber-50 text-amber-800 ring-amber-200"
+  Active: "bg-success text-white",
+  Inactive: "bg-canvas text-ink",
+  Draft: "bg-canvas text-ink",
+  Open: "bg-info text-white",
+  Confirmed: "bg-info text-white",
+  Shipped: "bg-info text-white",
+  Invoiced: "bg-info text-white",
+  Issued: "bg-info text-white",
+  Partial: "bg-info text-white",
+  Delivered: "bg-success text-white",
+  Paid: "bg-success text-white",
+  Done: "bg-success text-white",
+  Approved: "bg-success text-white",
+  "Converted to Customer PO": "bg-success text-white",
+  "Converted to SO": "bg-success text-white",
+  Unpaid: "bg-warning text-strong",
+  Planned: "bg-warning text-strong",
+  Pending: "bg-warning text-strong",
+  "Historically Late": "bg-warning text-strong",
+  Overdue: "bg-danger text-white",
+  Rejected: "bg-danger text-white",
+  Cancelled: "bg-danger text-white",
+  "Late Payment": "bg-danger text-white",
+  "Payment risk": "bg-danger text-white",
+  Closed: "bg-canvas text-ink",
+  NotRequired: "bg-canvas text-ink"
 };
 
 const statusDescriptions: Record<string, string> = {
@@ -53,8 +58,8 @@ export function StatusBadge({ status }: { status: string }) {
     <span
       title={statusDescriptions[status] ?? status}
       className={clsx(
-        "inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ring-1 ring-inset",
-        statusStyles[status] ?? "bg-slate-100 text-slate-700 ring-slate-200"
+        "inline-flex rounded-md px-2.5 py-1 text-xs font-semibold",
+        statusStyles[status] ?? "bg-canvas text-ink"
       )}
     >
       {status}

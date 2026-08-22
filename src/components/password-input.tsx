@@ -21,7 +21,7 @@ export function PasswordInput({ className }: { className: string }) {
         onClick={() => setVisible((current) => !current)}
         aria-label={visible ? "Hide password" : "Show password"}
         title={visible ? "Hide password" : "Show password"}
-        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 transition hover:text-brand"
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-ink/70 transition hover:text-brand"
       >
         {visible ? (
           <EyeOff aria-hidden="true" className="h-4 w-4" />

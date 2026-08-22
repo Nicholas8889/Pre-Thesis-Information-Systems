@@ -142,7 +142,7 @@ export default async function ProductsPage({
       <FlashMessage success={success} error={error} />
 
       {(mode === "add" || productToEdit) && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <h2 className="mb-4 text-lg font-semibold">
             {productToEdit ? "Edit Product" : "Add Product"}
           </h2>
@@ -151,15 +151,15 @@ export default async function ProductsPage({
       )}
 
       {selectedProduct && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-blue-50 text-brand ring-1 ring-inset ring-blue-200">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-accent text-strong">
                 <Package aria-hidden="true" className="h-5 w-5" />
               </span>
               <div>
                 <h2 className="text-lg font-semibold">{selectedProduct.productName}</h2>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-ink/80">
                   {formatCurrency(selectedProduct.listPrice)}
                 </p>
               </div>
@@ -176,8 +176,8 @@ export default async function ProductsPage({
                 <button
                   className={
                     selectedProduct.status === "Active"
-                      ? "inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                      : "inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                      ? "inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:bg-soft"
+                      : "inline-flex h-9 items-center justify-center gap-2 rounded-md bg-success px-3 text-sm font-semibold text-white transition hover:bg-success/90"
                   }
                 >
                   {selectedProduct.status === "Active" ? (
@@ -203,8 +203,8 @@ export default async function ProductsPage({
           </div>
 
           <div className="mt-4">
-            <p className="text-xs font-semibold uppercase text-slate-400">Notes</p>
-            <p className="mt-1 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+            <p className="text-xs font-semibold uppercase text-ink/50">Notes</p>
+            <p className="mt-1 whitespace-pre-wrap rounded-md bg-soft p-3 text-sm text-ink/80">
               {selectedProduct.notes || "-"}
             </p>
           </div>
@@ -221,12 +221,12 @@ export default async function ProductsPage({
         </section>
       )}
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-5 flex items-center gap-2 border-b border-line pb-4">
           <h2 className="text-lg font-semibold">Product Records</h2>
         </div>
         <form className="mb-4 flex max-w-md items-center gap-2 rounded-md border border-line bg-white px-3 py-2">
-          <Search aria-hidden="true" className="h-4 w-4 text-slate-400" />
+          <Search aria-hidden="true" className="h-4 w-4 text-ink/50" />
           <input
             name="q"
             className="w-full outline-none"
@@ -243,7 +243,7 @@ export default async function ProductsPage({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Product Name</th>
                   <th className="py-3 pr-4 text-right">List Price</th>
@@ -253,7 +253,7 @@ export default async function ProductsPage({
                         query,
                         averagePriceSort === "desc" ? "asc" : "desc"
                       )}
-                      className="inline-flex items-center justify-end gap-1 font-semibold text-slate-500 hover:text-brand"
+                      className="inline-flex items-center justify-end gap-1 font-semibold text-ink/70 hover:text-brand"
                     >
                       Avg. Sold Price (This Month)
                       <ArrowUpDown aria-hidden="true" className="h-3.5 w-3.5" />
@@ -266,14 +266,14 @@ export default async function ProductsPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {sortedProducts.map((product) => (
-                  <tr key={product.id} className="transition hover:bg-slate-50">
+                  <tr key={product.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{product.productName}</td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(product.listPrice)}
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {product.average.averageSoldPrice === null ? (
-                        <span className="text-xs font-normal text-slate-500">
+                        <span className="text-xs font-normal text-ink/70">
                           No sales this month
                         </span>
                       ) : (
@@ -283,7 +283,7 @@ export default async function ProductsPage({
                     <td className="py-3 pr-4">
                       <StatusBadge status={product.status} />
                     </td>
-                    <td className="max-w-80 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                    <td className="max-w-80 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {product.notes || "-"}
                     </td>
                     <td className="py-3">
@@ -334,7 +334,7 @@ function ProductForm({ product }: { product?: Product }) {
           min="0"
           required
         />
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Status
           <select
             name="status"
@@ -346,7 +346,7 @@ function ProductForm({ product }: { product?: Product }) {
           </select>
         </label>
       </div>
-      <label className="block text-sm font-medium text-slate-700">
+      <label className="block text-sm font-medium text-ink">
         Notes
         <textarea
           name="notes"
@@ -360,7 +360,7 @@ function ProductForm({ product }: { product?: Product }) {
         </button>
         <Link
           href="/products"
-          className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-slate-600"
+          className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-ink/80"
         >
           Cancel
         </Link>
@@ -385,7 +385,7 @@ function FormField({
   required?: boolean;
 }) {
   return (
-    <label className="text-sm font-medium text-slate-700">
+    <label className="text-sm font-medium text-ink">
       {label}
       <input
         name={name}
@@ -411,9 +411,9 @@ function Detail({
 }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
+      <p className="text-xs font-semibold uppercase text-ink/50">{label}</p>
       <p className="mt-1 text-sm font-medium text-ink">{value}</p>
-      {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
+      {description && <p className="mt-1 text-xs text-ink/70">{description}</p>}
     </div>
   );
 }

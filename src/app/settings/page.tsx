@@ -47,26 +47,26 @@ export default async function SettingsPage({
 
       <FlashMessage success={success} error={error} />
 
-      <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
         <h2 className="mb-4 text-lg font-semibold">Account Management</h2>
         <form action={createAccount}>
           <fieldset disabled={!canCreateAccount} className="grid gap-4 disabled:cursor-not-allowed disabled:opacity-60 md:grid-cols-2 xl:grid-cols-3">
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-ink">
             Username
             <input name="username" required className={`${inputClass} mt-1`} />
           </label>
 
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-ink">
             Display Name
             <input name="displayName" required className={`${inputClass} mt-1`} />
           </label>
 
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-ink">
             Password
             <input name="password" type="password" required className={`${inputClass} mt-1`} />
           </label>
 
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-ink">
             Role
             <select name="role" defaultValue="SALES" className={`${inputClass} mt-1`}>
               <option value="ADMIN">Admin</option>
@@ -75,7 +75,7 @@ export default async function SettingsPage({
             </select>
           </label>
 
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-ink">
             Status
             <select name="status" defaultValue="Active" className={`${inputClass} mt-1`}>
               <option value="Active">Active</option>
@@ -90,7 +90,7 @@ export default async function SettingsPage({
               </button>
             ) : (
               <RestrictedAction message={accountRestriction} className="w-full">
-                <button disabled className="inline-flex h-10 w-full items-center justify-center rounded-md bg-slate-200 px-4 text-sm font-semibold text-slate-500">
+                <button disabled className="inline-flex h-10 w-full items-center justify-center rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
                   Save Account
                 </button>
               </RestrictedAction>
@@ -100,14 +100,14 @@ export default async function SettingsPage({
         </form>
       </section>
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <h2 className="mb-4 text-lg font-semibold">Existing Accounts</h2>
         {users.length === 0 ? (
           <EmptyState message="No accounts found. Seed the database or add an account." />
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Username</th>
                   <th className="py-3 pr-4">Display Name</th>
@@ -118,14 +118,14 @@ export default async function SettingsPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {users.map((user) => (
-                  <tr key={user.id} className="transition hover:bg-slate-50">
+                  <tr key={user.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{user.username}</td>
-                    <td className="py-3 pr-4 text-slate-600">{user.displayName}</td>
-                    <td className="py-3 pr-4 text-slate-600">{roleLabel(user.role)}</td>
+                    <td className="py-3 pr-4 text-ink/80">{user.displayName}</td>
+                    <td className="py-3 pr-4 text-ink/80">{roleLabel(user.role)}</td>
                     <td className="py-3 pr-4">
                       <StatusBadge status={user.status} />
                     </td>
-                    <td className="py-3 text-slate-600">{formatDate(user.createdAt)}</td>
+                    <td className="py-3 text-ink/80">{formatDate(user.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -26,7 +26,7 @@ export function DeleteSalesOrderButton({
         name="returnPath"
         value={orderLabel === "Customer PO" ? "/customer-purchase-orders" : "/sales-orders"}
       />
-      <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">
+      <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-danger px-4 text-sm font-semibold text-white transition hover:bg-danger/90">
         <Trash2 aria-hidden="true" className="h-4 w-4" />
         Delete {orderLabel} ({relatedRecordCount} related records)
       </button>

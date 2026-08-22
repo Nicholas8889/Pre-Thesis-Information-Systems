@@ -44,15 +44,15 @@ export default async function SuratJalanPrintPage({
         <PrintButton />
       </div>
 
-      <article className="print-page rounded-md border border-slate-300 bg-white p-6 text-slate-900 shadow-soft sm:p-8">
-        <header className="border-b-2 border-slate-900 pb-5">
+      <article className="print-page rounded-md border border-line bg-white p-6 text-strong shadow-card sm:p-8">
+        <header className="border-b-2 border-strong pb-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-lg font-bold tracking-normal">CV TAJUK</p>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-ink/80">
                 Revenue Cycle Information System MVP
               </p>
-              <p className="mt-3 text-sm leading-6 text-slate-700">
+              <p className="mt-3 text-sm leading-6 text-ink">
                 Local thesis demonstration delivery document
               </p>
             </div>
@@ -68,13 +68,13 @@ export default async function SuratJalanPrintPage({
           </div>
         </header>
 
-        <section className="grid gap-6 border-b border-slate-300 py-5 md:grid-cols-2">
+        <section className="grid gap-6 border-b border-line py-5 md:grid-cols-2">
           <div>
-            <p className="text-xs font-bold uppercase text-slate-500">Kepada</p>
+            <p className="text-xs font-bold uppercase text-ink/70">Kepada</p>
             <p className="mt-2 text-base font-semibold">{deliveryNote.recipientName}</p>
-            <p className="text-sm text-slate-700">{deliveryNote.customer.companyName}</p>
-            <p className="mt-2 text-sm text-slate-700">{deliveryNote.recipientPhone}</p>
-            <p className="mt-1 max-w-md text-sm leading-6 text-slate-700">
+            <p className="text-sm text-ink">{deliveryNote.customer.companyName}</p>
+            <p className="mt-2 text-sm text-ink">{deliveryNote.recipientPhone}</p>
+            <p className="mt-1 max-w-md text-sm leading-6 text-ink">
               {deliveryNote.recipientAddress}
             </p>
           </div>
@@ -122,32 +122,32 @@ export default async function SuratJalanPrintPage({
 
         <section className="py-5">
           <div className="overflow-x-auto">
-            <table className="border border-slate-400 text-sm">
-              <thead className="bg-slate-100 text-left uppercase text-slate-700">
+            <table className="border border-ink/50 text-sm">
+              <thead className="bg-canvas text-left uppercase text-ink">
                 <tr>
-                  <th className="border border-slate-400 px-3 py-2">No.</th>
-                  <th className="border border-slate-400 px-3 py-2">Product Code</th>
-                  <th className="border border-slate-400 px-3 py-2">Product Name</th>
-                  <th className="border border-slate-400 px-3 py-2 text-right">Qty</th>
-                  <th className="border border-slate-400 px-3 py-2">Unit</th>
-                  <th className="border border-slate-400 px-3 py-2">Keterangan</th>
+                  <th className="border border-ink/50 px-3 py-2">No.</th>
+                  <th className="border border-ink/50 px-3 py-2">Product Code</th>
+                  <th className="border border-ink/50 px-3 py-2">Product Name</th>
+                  <th className="border border-ink/50 px-3 py-2 text-right">Qty</th>
+                  <th className="border border-ink/50 px-3 py-2">Unit</th>
+                  <th className="border border-ink/50 px-3 py-2">Keterangan</th>
                 </tr>
               </thead>
               <tbody>
                 {deliveryNote.items.map((item, index) => (
                   <tr key={item.id}>
-                    <td className="border border-slate-400 px-3 py-2">{index + 1}</td>
-                    <td className="border border-slate-400 px-3 py-2">
+                    <td className="border border-ink/50 px-3 py-2">{index + 1}</td>
+                    <td className="border border-ink/50 px-3 py-2">
                       {item.productCode ?? "-"}
                     </td>
-                    <td className="border border-slate-400 px-3 py-2 font-semibold">
+                    <td className="border border-ink/50 px-3 py-2 font-semibold">
                       {item.itemName}
                     </td>
-                    <td className="border border-slate-400 px-3 py-2 text-right">
+                    <td className="border border-ink/50 px-3 py-2 text-right">
                       {item.quantity}
                     </td>
-                    <td className="border border-slate-400 px-3 py-2">{item.unit}</td>
-                    <td className="border border-slate-400 px-3 py-2">
+                    <td className="border border-ink/50 px-3 py-2">{item.unit}</td>
+                    <td className="border border-ink/50 px-3 py-2">
                       {item.description ?? "-"}
                     </td>
                   </tr>
@@ -157,10 +157,10 @@ export default async function SuratJalanPrintPage({
           </div>
         </section>
 
-        <section className="grid gap-6 border-t border-slate-300 pt-5 md:grid-cols-[1fr_320px]">
+        <section className="grid gap-6 border-t border-line pt-5 md:grid-cols-[1fr_320px]">
           <div>
-            <p className="text-xs font-bold uppercase text-slate-500">Attention</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-700">
+            <p className="text-xs font-bold uppercase text-ink/70">Attention</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-ink">
               <li>Barang yang sudah dibeli tidak dapat dikembalikan.</li>
               <li>
                 Barang hanya dapat ditukar apabila terjadi kerusakan karena kesalahan
@@ -171,8 +171,8 @@ export default async function SuratJalanPrintPage({
 
             {deliveryNote.notes && (
               <div className="mt-4">
-                <p className="text-xs font-bold uppercase text-slate-500">Notes</p>
-                <p className="mt-2 text-sm leading-6 text-slate-700">
+                <p className="text-xs font-bold uppercase text-ink/70">Notes</p>
+                <p className="mt-2 text-sm leading-6 text-ink">
                   {deliveryNote.notes}
                 </p>
               </div>
@@ -211,8 +211,8 @@ export default async function SuratJalanPrintPage({
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[120px_1fr] gap-3">
-      <span className="font-semibold text-slate-500">{label}</span>
-      <span className="font-medium text-slate-900">{value}</span>
+      <span className="font-semibold text-ink/70">{label}</span>
+      <span className="font-medium text-strong">{value}</span>
     </div>
   );
 }
@@ -221,7 +221,7 @@ function Signature({ label, name }: { label: string; name: string }) {
   return (
     <div>
       <p className="font-semibold">{label}</p>
-      <div className="mt-16 border-t border-dotted border-slate-500 pt-2">
+      <div className="mt-16 border-t border-dotted border-ink/50 pt-2">
         {name || "........................"}
       </div>
     </div>

@@ -85,12 +85,12 @@ export default async function InvoicesPage({
       />
 
       {selectedInvoice && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <div className="mb-5 flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase text-slate-400">Invoice</p>
+              <p className="text-sm font-semibold uppercase text-ink/50">Invoice</p>
               <h2 className="mt-1 text-2xl font-semibold">{selectedInvoice.invoiceNumber}</h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-ink/80">
                 Sales Order {selectedInvoice.salesOrder.orderNumber}
                 {selectedInvoice.salesOrder.source === "CUSTOMER_PO" &&
                 selectedInvoice.salesOrder.customerPoNumber
@@ -117,7 +117,7 @@ export default async function InvoicesPage({
                   status: selectedInvoice.status
                 }) ? (
                 <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
-                  <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-slate-50 px-4 text-sm font-semibold text-slate-400">
+                  <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-soft px-4 text-sm font-semibold text-ink/50">
                     <FilePlus2 aria-hidden="true" className="h-4 w-4" />
                     Create Surat Jalan
                   </button>
@@ -125,7 +125,7 @@ export default async function InvoicesPage({
               ) : (
                 <span
                   title="An immediate-payment order must be paid before Surat Jalan can be created."
-                  className="inline-flex h-10 items-center justify-center rounded-md border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-800"
+                  className="inline-flex h-10 items-center justify-center rounded-md bg-warning px-4 text-sm font-semibold text-strong"
                 >
                   Payment Required First
                 </span>
@@ -183,7 +183,7 @@ export default async function InvoicesPage({
 
           <div className="mt-6 overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Item</th>
                   <th className="py-3 pr-4 text-right">Qty</th>
@@ -193,10 +193,10 @@ export default async function InvoicesPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {selectedInvoice.salesOrder.items.map((item) => (
-                  <tr key={item.id} className="transition hover:bg-slate-50">
+                  <tr key={item.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{item.itemName}</td>
-                    <td className="py-3 pr-4 text-right text-slate-600">{item.quantity}</td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
+                    <td className="py-3 pr-4 text-right text-ink/80">{item.quantity}</td>
+                    <td className="py-3 pr-4 text-right text-ink/80">
                       {formatCurrency(item.finalUnitPrice)}
                     </td>
                     <td className="py-3 text-right font-medium">
@@ -210,7 +210,7 @@ export default async function InvoicesPage({
 
           <form action={updateInvoiceNotes} className="mt-6 border-t border-line pt-4">
             <input type="hidden" name="id" value={selectedInvoice.id} />
-            <label className="block text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-ink">
               Invoice Notes
               <textarea
                 name="notes"
@@ -226,7 +226,7 @@ export default async function InvoicesPage({
         </section>
       )}
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         {visibleInvoices.length === 0 ? (
           <EmptyState
             message={activeTab === "done" ? "No completed invoices." : "No ongoing invoices."}
@@ -234,7 +234,7 @@ export default async function InvoicesPage({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Customer</th>
@@ -251,12 +251,12 @@ export default async function InvoicesPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {visibleInvoices.map((invoice) => (
-                  <tr key={invoice.id} className="transition hover:bg-slate-50">
+                  <tr key={invoice.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{invoice.invoiceNumber}</td>
-                    <td className="py-3 pr-4 text-slate-600">{invoice.customer.companyName}</td>
-                    <td className="py-3 pr-4 text-slate-600">{formatDate(invoice.issueDate)}</td>
-                    <td className="py-3 pr-4 text-slate-600">{formatDate(invoice.dueDate)}</td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">{invoice.customer.companyName}</td>
+                    <td className="py-3 pr-4 text-ink/80">{formatDate(invoice.issueDate)}</td>
+                    <td className="py-3 pr-4 text-ink/80">{formatDate(invoice.dueDate)}</td>
+                    <td className="py-3 pr-4 text-ink/80">
                       {getPaymentTermLabel({
                         paymentTermType: invoice.paymentTermType,
                         creditTermMonths: invoice.creditTermMonths
@@ -266,7 +266,7 @@ export default async function InvoicesPage({
                       {formatCurrency(invoice.totalAmount)}
                     </td>
                     {activeTab === "done" && (
-                      <td className="py-3 pr-4 text-right text-slate-600">
+                      <td className="py-3 pr-4 text-right text-ink/80">
                         {formatCurrency(invoice.paidAmount)}
                       </td>
                     )}
@@ -276,7 +276,7 @@ export default async function InvoicesPage({
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(invoice.remainingAmount)}
                     </td>
-                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {invoice.notes ?? "-"}
                     </td>
                     <td className="py-3 text-right">
@@ -314,7 +314,7 @@ export default async function InvoicesPage({
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
+      <p className="text-xs font-semibold uppercase text-ink/50">{label}</p>
       <p className="mt-1 text-sm font-medium text-ink">{value || "-"}</p>
     </div>
   );

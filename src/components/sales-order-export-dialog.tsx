@@ -74,7 +74,7 @@ export function SalesOrderExportDialog({
 
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-strong/45 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="sales-order-export-title"
@@ -88,7 +88,7 @@ export function SalesOrderExportDialog({
                 <h2 id="sales-order-export-title" className="text-lg font-semibold text-ink">
                   Ekspor Excel {label}
                 </h2>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-ink/80">
                   Choose the {label} date range to include in the Excel file.
                 </p>
               </div>
@@ -96,7 +96,7 @@ export function SalesOrderExportDialog({
                 type="button"
                 onClick={() => setIsOpen(false)}
                 title="Close"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line text-slate-500"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line text-ink/70"
               >
                 <X aria-hidden="true" className="h-4 w-4" />
               </button>
@@ -104,10 +104,10 @@ export function SalesOrderExportDialog({
 
             <div className="space-y-4 p-5">
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-medium text-slate-700">
+                <label className="text-sm font-medium text-ink">
                   Start Date
                   <span className="relative mt-1 block">
-                    <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink/50" />
                     <input
                       type="date"
                       value={startDate}
@@ -118,10 +118,10 @@ export function SalesOrderExportDialog({
                   </span>
                 </label>
 
-                <label className="text-sm font-medium text-slate-700">
+                <label className="text-sm font-medium text-ink">
                   End Date
                   <span className="relative mt-1 block">
-                    <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink/50" />
                     <input
                       type="date"
                       value={endDate}
@@ -135,12 +135,12 @@ export function SalesOrderExportDialog({
               </div>
 
               {error && (
-                <p className="rounded-md bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-200">
+                <p className="rounded-md bg-danger px-3 py-2 text-sm font-medium text-white">
                   {error}
                 </p>
               )}
 
-              <p className="rounded-md bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800 ring-1 ring-inset ring-blue-200">
+              <p className="rounded-md bg-info/10 px-3 py-2 text-xs leading-5 text-ink">
                 The workbook contains an order summary sheet and an item-detail sheet.
               </p>
             </div>
@@ -149,7 +149,7 @@ export function SalesOrderExportDialog({
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-slate-600"
+                className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-ink/80"
               >
                 Cancel
               </button>

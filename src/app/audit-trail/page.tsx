@@ -70,16 +70,16 @@ export default async function AuditTrailPage({
         description="Central record of who changed data, what changed, which record was affected, and when it happened."
       />
 
-      <div className="mb-4 rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+      <div className="mb-4 rounded-md bg-info/10 px-4 py-3 text-sm text-ink">
         Audit Trail is read-only. Records are created automatically by the system; Admin can review and filter them but cannot create manual entries.
       </div>
 
-      <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
         <form className="grid gap-3 lg:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-ink">
             Search
             <span className="mt-1 flex items-center gap-2 rounded-md border border-line px-3 py-2">
-              <Search aria-hidden="true" className="h-4 w-4 text-slate-400" />
+              <Search aria-hidden="true" className="h-4 w-4 text-ink/50" />
               <input
                 name="q"
                 defaultValue={query}
@@ -127,7 +127,7 @@ export default async function AuditTrailPage({
             </button>
             <a
               href="/audit-trail"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-slate-600"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-ink/80"
             >
               Reset
             </a>
@@ -135,13 +135,13 @@ export default async function AuditTrailPage({
         </form>
       </section>
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         {auditTrailRecords.length === 0 ? (
           <EmptyState message="No audit trail records yet." />
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Date & Time</th>
                   <th className="py-3 pr-4">User</th>
@@ -156,28 +156,28 @@ export default async function AuditTrailPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {auditTrailRecords.map((record) => (
-                  <tr key={record.id} className="align-top transition hover:bg-slate-50">
-                    <td className="whitespace-nowrap py-3 pr-4 text-slate-600">
+                  <tr key={record.id} className="align-top transition hover:bg-soft">
+                    <td className="whitespace-nowrap py-3 pr-4 text-ink/80">
                       {formatDateTime(record.createdAt)}
                     </td>
                     <td className="py-3 pr-4">
                       <span className="block font-medium">
                         {record.actorDisplayName ?? record.actorUsername}
                       </span>
-                      <span className="block text-xs text-slate-500">
+                      <span className="block text-xs text-ink/70">
                         {record.actorUsername}
                       </span>
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">{record.actorRole}</td>
-                    <td className="py-3 pr-4 text-slate-600">{record.moduleName}</td>
+                    <td className="py-3 pr-4 text-ink/80">{record.actorRole}</td>
+                    <td className="py-3 pr-4 text-ink/80">{record.moduleName}</td>
                     <td className="py-3 pr-4 font-medium">{record.recordReference}</td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {formatActionLabel(record.action)}
                     </td>
-                    <td className="min-w-72 py-3 pr-4 text-slate-600">
+                    <td className="min-w-72 py-3 pr-4 text-ink/80">
                       {record.changeSummary}
                     </td>
-                    <td className="min-w-56 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                    <td className="min-w-56 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {record.actionNote ?? "-"}
                     </td>
                     <td className="min-w-64 py-3">
@@ -185,7 +185,7 @@ export default async function AuditTrailPage({
                         <summary className="cursor-pointer text-sm font-semibold text-brand">
                           View
                         </summary>
-                        <div className="mt-3 space-y-3 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
+                        <div className="mt-3 space-y-3 rounded-md bg-soft p-3 text-xs text-ink/80">
                           <Detail label="Entity ID" value={record.entityId} />
                           <Detail label="Entity Type" value={record.entityType} />
                           <Detail label="Full Summary" value={record.changeSummary} />
@@ -218,7 +218,7 @@ function FilterSelect({
   options: Array<{ value: string; label: string }>;
 }) {
   return (
-    <label className="text-sm font-medium text-slate-700">
+    <label className="text-sm font-medium text-ink">
       {label}
       <select name={name} defaultValue={value ?? ""} className={`${inputClass} mt-1`}>
         <option value="">All</option>
@@ -243,7 +243,7 @@ function Detail({
 }) {
   return (
     <div>
-      <p className="font-semibold uppercase text-slate-400">{label}</p>
+      <p className="font-semibold uppercase text-ink/50">{label}</p>
       <p className={preserve ? "mt-1 whitespace-pre-wrap break-words" : "mt-1 break-words"}>
         {value}
       </p>

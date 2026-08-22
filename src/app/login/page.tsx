@@ -4,7 +4,7 @@ import { PasswordInput } from "@/components/password-input";
 type SearchParams = Record<string, string | string[] | undefined>;
 
 const inputClass =
-  "w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/10";
+  "w-full rounded-md border border-line px-3 py-2.5 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/10";
 
 export default async function LoginPage({
   searchParams
@@ -16,7 +16,7 @@ export default async function LoginPage({
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
-      <section className="w-full max-w-md rounded-md border border-slate-200 bg-white p-7 shadow-soft">
+      <section className="w-full max-w-md rounded-md border border-line bg-white p-7 shadow-card">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-md bg-brand text-sm font-bold text-white shadow-sm">
             CT
@@ -24,19 +24,19 @@ export default async function LoginPage({
           <h1 className="text-2xl font-semibold tracking-normal text-ink">
             CV Tajuk Revenue Cycle Information System
           </h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-ink/80">
             Local internal workflow demonstration
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+          <div className="mb-4 rounded-md bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
             {error}
           </div>
         )}
 
         <form action={login} className="space-y-4">
-          <label className="block text-sm font-medium text-slate-700">
+          <label className="block text-sm font-medium text-ink">
             Username
             <input
               name="username"
@@ -47,7 +47,7 @@ export default async function LoginPage({
             />
           </label>
 
-          <label className="block text-sm font-medium text-slate-700">
+          <label className="block text-sm font-medium text-ink">
             Password
             <PasswordInput className={inputClass} />
           </label>

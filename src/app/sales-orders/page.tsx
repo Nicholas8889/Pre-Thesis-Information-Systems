@@ -241,7 +241,7 @@ export async function OrdersBySourcePage({
                 </Link>
               ) : (
                 <RestrictedAction message={salesOrderRestriction}>
-                  <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-200 px-4 text-sm font-semibold text-slate-500">
+                  <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
                     <Plus aria-hidden="true" className="h-4 w-4" />
                     Create {singularLabel}
                   </button>
@@ -267,9 +267,9 @@ export async function OrdersBySourcePage({
       )}
 
       {activeTab === "ongoing" && mode === "create" && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <h2 className="mb-2 text-lg font-semibold">Create {singularLabel}</h2>
-          <p className="mb-4 text-sm leading-6 text-slate-600">
+          <p className="mb-4 text-sm leading-6 text-ink/80">
             {isCustomerPo
               ? "Record the customer PO document and product required date. The system generates both a Sales Order Number and Customer PO Number, then invoice, payment, delivery note, receivable, and collection work continue through the same process as a direct Sales Order."
               : "Start from a direct Sales Order, then the system generates an invoice and connects payment, delivery note, receivable, and collection work. Orders created by Sales for customers with late-payment risk are submitted to a Manager first."}
@@ -296,11 +296,11 @@ export async function OrdersBySourcePage({
       )}
 
       {selectedOrder && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">{selectedOrder.orderNumber}</h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-ink/80">
                 {selectedOrder.customer.companyName} - {formatDate(selectedOrder.orderDate)}
                 {isCustomerPo && selectedOrder.customerPoNumber ? ` - PO ${selectedOrder.customerPoNumber}` : ""}
               </p>
@@ -362,7 +362,7 @@ export async function OrdersBySourcePage({
 
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Product Name</th>
                   <th className="py-3 pr-4 text-right">Qty</th>
@@ -375,19 +375,19 @@ export async function OrdersBySourcePage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {selectedOrder.items.map((item) => (
-                  <tr key={item.id} className="transition hover:bg-slate-50">
+                  <tr key={item.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{item.itemName}</td>
-                    <td className="py-3 pr-4 text-right text-slate-600">{item.quantity}</td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
+                    <td className="py-3 pr-4 text-right text-ink/80">{item.quantity}</td>
+                    <td className="py-3 pr-4 text-right text-ink/80">
                       {formatCurrency(item.baseUnitPrice)}
                     </td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
+                    <td className="py-3 pr-4 text-right text-ink/80">
                       {item.markupPercent ? `${item.markupPercent}%` : "-"}
                     </td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
+                    <td className="py-3 pr-4 text-right text-ink/80">
                       {item.discountPercent ? `${item.discountPercent}%` : "-"}
                     </td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
+                    <td className="py-3 pr-4 text-right text-ink/80">
                       {formatCurrency(item.finalUnitPrice)}
                     </td>
                     <td className="py-3 text-right font-medium">
@@ -416,7 +416,7 @@ export async function OrdersBySourcePage({
                   <button
                     name="decision"
                     value="Rejected"
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 px-4 text-sm font-semibold text-rose-700"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-danger px-4 text-sm font-semibold text-white"
                   >
                     <X aria-hidden="true" className="h-4 w-4" />
                     Reject
@@ -431,7 +431,7 @@ export async function OrdersBySourcePage({
                   </button>
                 </form>
               ) : (
-                <p className="rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                <p className="rounded-md bg-warning px-3 py-2 text-sm font-medium text-strong">
                   Waiting for Manager approval.
                 </p>
               )
@@ -452,7 +452,7 @@ export async function OrdersBySourcePage({
               </form>
             ) : (
               <RestrictedAction message={invoiceRestriction}>
-                <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-200 px-4 text-sm font-semibold text-slate-500">
+                <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
                   <FilePlus2 aria-hidden="true" className="h-4 w-4" />
                   Confirm & Generate Invoice
                 </button>
@@ -468,7 +468,7 @@ export async function OrdersBySourcePage({
         </section>
       )}
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <h2 className="mb-4 text-lg font-semibold">{singularLabel} Records</h2>
         {visibleSalesOrders.length === 0 ? (
           <EmptyState
@@ -483,7 +483,7 @@ export async function OrdersBySourcePage({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Order Number</th>
                   {isCustomerPo && <th className="py-3 pr-4">Customer PO Number</th>}
@@ -503,22 +503,22 @@ export async function OrdersBySourcePage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {visibleSalesOrders.map((order) => (
-                  <tr key={order.id} className="transition hover:bg-slate-50">
+                  <tr key={order.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{order.orderNumber}</td>
                     {isCustomerPo && (
-                      <td className="py-3 pr-4 font-medium text-slate-700">
+                      <td className="py-3 pr-4 font-medium text-ink">
                         {order.customerPoNumber ?? "-"}
                       </td>
                     )}
-                    <td className="py-3 pr-4 text-slate-600">{order.customer.companyName}</td>
-                    <td className="py-3 pr-4 text-slate-600">{formatDate(order.orderDate)}</td>
+                    <td className="py-3 pr-4 text-ink/80">{order.customer.companyName}</td>
+                    <td className="py-3 pr-4 text-ink/80">{formatDate(order.orderDate)}</td>
                     {isCustomerPo && (
-                      <td className="py-3 pr-4 font-medium text-slate-700">
+                      <td className="py-3 pr-4 font-medium text-ink">
                         {order.requiredDate ? formatDate(order.requiredDate) : "-"}
                       </td>
                     )}
                     {isCustomerPo && (
-                      <td className="py-3 pr-4 text-slate-600">
+                      <td className="py-3 pr-4 text-ink/80">
                         {order.customerPoDocumentStoredName ? (
                           <Link
                             href={`/api/customer-purchase-orders/${order.id}/document`}
@@ -531,7 +531,7 @@ export async function OrdersBySourcePage({
                         ) : "-"}
                       </td>
                     )}
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {getPaymentTermLabel({
                         paymentTermType: order.paymentTermType,
                         creditTermMonths: order.creditTermMonths
@@ -548,13 +548,13 @@ export async function OrdersBySourcePage({
                     <td className="py-3 pr-4">
                       {order.invoice ? <StatusBadge status={order.invoice.status} /> : "-"}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {order.deliveryNotes[0]?.status ?? "-"}
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(order.total)}
                     </td>
-                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {order.notes ?? "-"}
                     </td>
                     <td className="py-3">
@@ -583,7 +583,7 @@ export async function OrdersBySourcePage({
                             </form>
                           ) : (
                             <RestrictedAction message={invoiceRestriction}>
-                              <button disabled className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-slate-50 text-slate-400">
+                              <button disabled className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-soft text-ink/50">
                                 <FilePlus2 aria-hidden="true" className="h-4 w-4" />
                               </button>
                             </RestrictedAction>
@@ -604,7 +604,7 @@ export async function OrdersBySourcePage({
 
 function SalesOrderSourceDialog() {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-strong/45 p-4">
       <section
         role="dialog"
         aria-modal="true"
@@ -616,14 +616,14 @@ function SalesOrderSourceDialog() {
             <h2 id="order-source-title" className="text-xl font-semibold text-ink">
               Choose Order Source
             </h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
+            <p className="mt-1 text-sm leading-6 text-ink/80">
               Is this a direct Sales Order or an order received from a customer PO?
             </p>
           </div>
           <Link
             href="/sales-orders"
             title="Close"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line text-slate-500"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line text-ink/70"
           >
             <X aria-hidden="true" className="h-4 w-4" />
           </Link>
@@ -632,21 +632,21 @@ function SalesOrderSourceDialog() {
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <Link
             href="/sales-orders?mode=create"
-            className="rounded-md border border-line p-5 transition hover:border-brand hover:bg-blue-50"
+            className="rounded-md border border-line p-5 transition hover:border-brand hover:bg-info/10"
           >
             <ShoppingCart aria-hidden="true" className="h-7 w-7 text-brand" />
             <h3 className="mt-3 font-semibold text-ink">Direct Sales Order</h3>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
+            <p className="mt-1 text-sm leading-6 text-ink/80">
               Uses an automatically generated Sales Order number.
             </p>
           </Link>
           <Link
             href="/customer-purchase-orders?mode=create"
-            className="rounded-md border border-line p-5 transition hover:border-brand hover:bg-blue-50"
+            className="rounded-md border border-line p-5 transition hover:border-brand hover:bg-info/10"
           >
             <ClipboardList aria-hidden="true" className="h-7 w-7 text-brand" />
             <h3 className="mt-3 font-semibold text-ink">Customer PO</h3>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
+            <p className="mt-1 text-sm leading-6 text-ink/80">
               Generates a Sales Order Number and Customer PO Number, then requires a product required date and customer PO document upload.
             </p>
           </Link>
@@ -663,7 +663,7 @@ function getFirst(value: string | string[] | undefined) {
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
+      <p className="text-xs font-semibold uppercase text-ink/50">{label}</p>
       <p className="mt-1 text-sm font-medium text-ink">{value || "-"}</p>
     </div>
   );

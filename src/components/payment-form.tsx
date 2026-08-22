@@ -60,7 +60,7 @@ export function PaymentForm({
       {disabled && <RestrictionTooltip message={restrictionMessage} />}
       <form id="record-payment" action={action}>
         <fieldset disabled={disabled} className="grid gap-4 disabled:cursor-not-allowed disabled:opacity-60 md:grid-cols-2 xl:grid-cols-5">
-      <label className="text-sm font-medium text-slate-700 xl:col-span-2">
+      <label className="text-sm font-medium text-ink xl:col-span-2">
         Invoice
         <select
           name="invoiceId"
@@ -79,7 +79,7 @@ export function PaymentForm({
         </select>
       </label>
 
-      <label className="text-sm font-medium text-slate-700">
+      <label className="text-sm font-medium text-ink">
         Payment Date
         <input
           name="paymentDate"
@@ -90,7 +90,7 @@ export function PaymentForm({
         />
       </label>
 
-      <label className="text-sm font-medium text-slate-700">
+      <label className="text-sm font-medium text-ink">
         Amount
         <input
           name="amount"
@@ -103,7 +103,7 @@ export function PaymentForm({
         />
       </label>
 
-      <label className="text-sm font-medium text-slate-700">
+      <label className="text-sm font-medium text-ink">
         Payment Method
         <select name="paymentMethod" className={`${inputClass} mt-1`} defaultValue="BankTransfer">
           <option value="Cash">Cash</option>
@@ -113,7 +113,7 @@ export function PaymentForm({
       </label>
 
       {selectedInvoice && (
-        <div className="rounded-md border border-line bg-slate-50 px-3 py-2 text-sm xl:col-span-5">
+        <div className="rounded-md border border-line bg-soft px-3 py-2 text-sm xl:col-span-5">
           <span className="font-semibold">{selectedInvoice.invoiceNumber}</span>{" "}
           {selectedInvoice.paymentTermLabel}, total {formatCurrency(selectedInvoice.totalAmount)}, paid{" "}
           {formatCurrency(selectedInvoice.paidAmount)}, remaining{" "}
@@ -121,7 +121,7 @@ export function PaymentForm({
         </div>
       )}
 
-      <label className="text-sm font-medium text-slate-700 xl:col-span-4">
+      <label className="text-sm font-medium text-ink xl:col-span-4">
         Notes
         <input name="notes" className={`${inputClass} mt-1`} placeholder="Optional" />
       </label>
@@ -139,7 +139,7 @@ export function PaymentForm({
 
 function RestrictionTooltip({ message }: { message: string }) {
   return (
-    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md bg-slate-900 px-3 py-2 text-center text-xs font-medium leading-5 text-white shadow-lg group-hover/form-restriction:block">
+    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md bg-strong px-3 py-2 text-center text-xs font-medium leading-5 text-white shadow-lg group-hover/form-restriction:block">
       {message}
     </span>
   );

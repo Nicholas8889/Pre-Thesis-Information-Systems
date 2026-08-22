@@ -13,8 +13,8 @@ export function FlashMessage({
     <div
       className={`mb-5 rounded-md border px-4 py-3 text-sm font-medium ${
         error
-          ? "border-rose-200 bg-rose-50 text-rose-700"
-          : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          ? "border-transparent bg-danger text-white"
+          : "border-transparent bg-success text-white"
       }`}
     >
       {error || success}

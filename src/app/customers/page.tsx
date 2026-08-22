@@ -135,7 +135,7 @@ export default async function CustomersPage({
       <FlashMessage success={success} error={error} />
 
       {(mode === "add" || customerToEdit) && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <h2 className="mb-4 text-lg font-semibold">
             {customerToEdit ? "Edit Customer" : "Add Customer"}
           </h2>
@@ -144,11 +144,11 @@ export default async function CustomersPage({
       )}
 
       {selectedCustomer && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">{selectedCustomer.companyName}</h2>
-              <p className="mt-1 text-sm text-slate-600">{selectedCustomer.name}</p>
+              <p className="mt-1 text-sm text-ink/80">{selectedCustomer.name}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <StatusBadge status={selectedCustomer.status} />
@@ -162,8 +162,8 @@ export default async function CustomersPage({
                 <button
                   className={
                     selectedCustomer.status === "Active"
-                      ? "inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                      : "inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                      ? "inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:bg-soft"
+                      : "inline-flex h-9 items-center justify-center gap-2 rounded-md bg-success px-3 text-sm font-semibold text-white transition hover:bg-success/90"
                   }
                 >
                   {selectedCustomer.status === "Active" ? (
@@ -185,7 +185,7 @@ export default async function CustomersPage({
             <Detail label="Address" value={selectedCustomer.address} />
           </div>
           {selectedCustomer.notes && (
-            <p className="mt-4 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+            <p className="mt-4 whitespace-pre-wrap rounded-md bg-soft p-3 text-sm text-ink/80">
               {selectedCustomer.notes}
             </p>
           )}
@@ -230,7 +230,7 @@ export default async function CustomersPage({
           <section className="mt-5 border-t border-line pt-5">
             <div className="mb-4">
               <h3 className="text-base font-semibold text-ink">Customer Orders</h3>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-ink/70">
                 Every Sales Order and its connected Invoice and Surat Jalan.
               </p>
             </div>
@@ -239,7 +239,7 @@ export default async function CustomersPage({
             ) : (
               <div className="overflow-x-auto">
                 <table>
-                  <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+                  <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                     <tr>
                       <th className="py-3 pr-4">Order Number</th>
                       <th className="py-3 pr-4">Order Date</th>
@@ -253,12 +253,12 @@ export default async function CustomersPage({
                   </thead>
                   <tbody className="divide-y divide-line text-sm">
                     {selectedCustomer.salesOrders.map((order) => (
-                      <tr key={order.id} className="hover:bg-slate-50">
+                      <tr key={order.id} className="hover:bg-soft">
                         <td className="py-3 pr-4 font-medium">{order.orderNumber}</td>
-                        <td className="py-3 pr-4 text-slate-600">{formatDate(order.orderDate)}</td>
-                        <td className="py-3 pr-4 text-slate-600">{getPaymentTermLabel(order)}</td>
+                        <td className="py-3 pr-4 text-ink/80">{formatDate(order.orderDate)}</td>
+                        <td className="py-3 pr-4 text-ink/80">{getPaymentTermLabel(order)}</td>
                         <td className="py-3 pr-4"><StatusBadge status={order.status} /></td>
-                        <td className="py-3 pr-4 text-slate-600">
+                        <td className="py-3 pr-4 text-ink/80">
                           {order.invoice ? (
                             <span>
                               <span className="block font-medium text-ink">{order.invoice.invoiceNumber}</span>
@@ -266,7 +266,7 @@ export default async function CustomersPage({
                             </span>
                           ) : "-"}
                         </td>
-                        <td className="py-3 pr-4 text-slate-600">
+                        <td className="py-3 pr-4 text-ink/80">
                           {order.deliveryNotes.length > 0
                             ? order.deliveryNotes.map((note) => `${note.deliveryNoteNumber} (${note.status})`).join(", ")
                             : "-"}
@@ -291,12 +291,12 @@ export default async function CustomersPage({
         </section>
       )}
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-5 flex items-center gap-2 border-b border-line pb-4">
           <h2 className="text-lg font-semibold">Customer Records</h2>
         </div>
         <form className="mb-4 flex max-w-md items-center gap-2 rounded-md border border-line bg-white px-3 py-2">
-          <Search aria-hidden="true" className="h-4 w-4 text-slate-400" />
+          <Search aria-hidden="true" className="h-4 w-4 text-ink/50" />
           <input
             name="q"
             className="w-full outline-none"
@@ -310,7 +310,7 @@ export default async function CustomersPage({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Name</th>
                   <th className="py-3 pr-4">Company</th>
@@ -327,17 +327,17 @@ export default async function CustomersPage({
                 {customers.map((customer) => {
                   const category = getCustomerCategory(customer);
                   const paymentRisk = getCustomerPaymentRisk(customer);
-                  return <tr key={customer.id} className="transition hover:bg-slate-50">
+                  return <tr key={customer.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{customer.name}</td>
-                    <td className="py-3 pr-4 text-slate-600">{customer.companyName}</td>
-                    <td className="py-3 pr-4 text-slate-600">{customer.phone}</td>
-                    <td className="py-3 pr-4 text-slate-600">{customer.customerSegment}</td>
+                    <td className="py-3 pr-4 text-ink/80">{customer.companyName}</td>
+                    <td className="py-3 pr-4 text-ink/80">{customer.phone}</td>
+                    <td className="py-3 pr-4 text-ink/80">{customer.customerSegment}</td>
                     <td className="py-3 pr-4"><CustomerCategoryBadge category={category.category} /></td>
                     <td className="py-3 pr-4"><PaymentRiskBadge risk={paymentRisk} /></td>
                     <td className="py-3 pr-4">
                       <StatusBadge status={customer.status} />
                     </td>
-                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {customer.notes ?? "-"}
                     </td>
                     <td className="py-3">
@@ -383,22 +383,22 @@ function CustomerIntelligenceCard({
   tone: "category" | "risk" | "behaviour" | "tax";
 }) {
   const iconStyle = {
-    category: "bg-blue-50 text-blue-700 ring-blue-200",
-    risk: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    behaviour: "bg-amber-50 text-amber-800 ring-amber-200",
-    tax: "bg-violet-50 text-violet-700 ring-violet-200"
+    category: "bg-info text-white",
+    risk: "bg-success text-white",
+    behaviour: "bg-warning text-strong",
+    tax: "bg-accent text-strong"
   }[tone];
 
   return (
-    <article className="rounded-md border border-line bg-slate-50 p-4">
+    <article className="rounded-md border border-line bg-soft p-4">
       <div className="flex items-start gap-3">
-        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ${iconStyle}`}>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${iconStyle}`}>
           <Icon aria-hidden="true" className="h-5 w-5" />
         </span>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{title}</p>
           <p className="mt-1 text-lg font-semibold text-ink">{value}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
+          <p className="mt-1 text-xs leading-5 text-ink/80">{description}</p>
         </div>
       </div>
     </article>
@@ -407,23 +407,23 @@ function CustomerIntelligenceCard({
 
 function CustomerCategoryBadge({ category }: { category: CustomerCategory }) {
   const style = {
-    New: "bg-sky-50 text-sky-700 ring-sky-200",
-    Loyal: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    Normal: "bg-blue-50 text-blue-700 ring-blue-200",
-    Occasional: "bg-amber-50 text-amber-800 ring-amber-200"
+    New: "bg-info text-white",
+    Loyal: "bg-success text-white",
+    Normal: "bg-info text-white",
+    Occasional: "bg-warning text-strong"
   }[category];
 
-  return <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${style}`}>{category}</span>;
+  return <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${style}`}>{category}</span>;
 }
 
 function PaymentRiskBadge({ risk }: { risk: CustomerPaymentRisk }) {
   const style = {
-    "Late Payment": "bg-rose-50 text-rose-700 ring-rose-200",
-    "Historically Late": "bg-amber-50 text-amber-800 ring-amber-200",
-    Clean: "bg-emerald-50 text-emerald-700 ring-emerald-200"
+    "Late Payment": "bg-danger text-white",
+    "Historically Late": "bg-warning text-strong",
+    Clean: "bg-success text-white"
   }[risk];
 
-  return <span className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${style}`}>{risk}</span>;
+  return <span className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-semibold ${style}`}>{risk}</span>;
 }
 
 function getPaymentRiskDescription(risk: CustomerPaymentRisk) {
@@ -463,7 +463,7 @@ function CustomerForm({
           name="customerSegment"
           defaultValue={customer?.customerSegment ?? "Retail"}
         />
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Status
           <select name="status" defaultValue={customer?.status ?? "Active"} className={`${inputClass} mt-1`}>
             <option value="Active">Active</option>
@@ -471,7 +471,7 @@ function CustomerForm({
           </select>
         </label>
       </div>
-      <label className="block text-sm font-medium text-slate-700">
+      <label className="block text-sm font-medium text-ink">
         Notes
         <textarea
           name="notes"
@@ -485,7 +485,7 @@ function CustomerForm({
         </button>
         <Link
           href="/customers"
-          className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-slate-600"
+          className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-ink/80"
         >
           Cancel
         </Link>
@@ -512,7 +512,7 @@ function FormField({
   helper?: string;
 }) {
   return (
-    <label className="text-sm font-medium text-slate-700">
+    <label className="text-sm font-medium text-ink">
       {label}
       <input
         name={name}
@@ -522,7 +522,7 @@ function FormField({
         placeholder={placeholder}
         className={`${inputClass} mt-1`}
       />
-      {helper && <span className="mt-1 block text-xs font-normal text-slate-500">{helper}</span>}
+      {helper && <span className="mt-1 block text-xs font-normal text-ink/70">{helper}</span>}
     </label>
   );
 }
@@ -530,7 +530,7 @@ function FormField({
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
+      <p className="text-xs font-semibold uppercase text-ink/50">{label}</p>
       <p className="mt-1 text-sm font-medium text-ink">{value || "-"}</p>
     </div>
   );

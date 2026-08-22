@@ -138,12 +138,12 @@ export default async function SalesOrderDetailPage({
         }
       />
 
-      <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
         <div className="flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase text-slate-400">{orderLabel}</p>
+            <p className="text-sm font-semibold uppercase text-ink/50">{orderLabel}</p>
             <h1 className="mt-1 text-2xl font-semibold">{salesOrder.orderNumber}</h1>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-ink/80">
               {salesOrder.customer.companyName} - {formatDate(salesOrder.orderDate)}
               {isCustomerPo && salesOrder.customerPoNumber ? ` - PO ${salesOrder.customerPoNumber}` : ""}
             </p>
@@ -154,7 +154,7 @@ export default async function SalesOrderDetailPage({
               <StatusBadge status={salesOrder.approvalStatus} />
             )}
             {invoice && <StatusBadge status={invoice.status} />}
-            <span className="inline-flex rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-200">
+            <span className="inline-flex rounded-md bg-canvas px-2 py-1 text-xs font-semibold text-ink">
               {progressStatus}
             </span>
           </div>
@@ -234,7 +234,7 @@ export default async function SalesOrderDetailPage({
                   </Link>
                 ) : (
                   <RestrictedAction message={getRestrictionMessage("RECORD_PAYMENT")}>
-                    <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-200 px-4 text-sm font-semibold text-slate-500">
+                    <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
                       <Banknote aria-hidden="true" className="h-4 w-4" />
                       Record Payment
                     </button>
@@ -252,7 +252,7 @@ export default async function SalesOrderDetailPage({
             </form>
           ) : canGenerateInvoiceForApproval(salesOrder.approvalStatus) ? (
             <RestrictedAction message={getRestrictionMessage("CREATE_INVOICE")}>
-              <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-200 px-4 text-sm font-semibold text-slate-500">
+              <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
                 <FilePlus2 aria-hidden="true" className="h-4 w-4" />
                 Generate Invoice
               </button>
@@ -260,12 +260,12 @@ export default async function SalesOrderDetailPage({
           ) : salesOrder.approvalStatus === "Pending" ? (
             <Link
               href={`${basePath}?tab=approval&view=${salesOrder.id}`}
-              className="inline-flex h-10 items-center justify-center rounded-md border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-800"
+              className="inline-flex h-10 items-center justify-center rounded-md bg-warning px-4 text-sm font-semibold text-strong"
             >
               Waiting for Manager Approval
             </Link>
           ) : (
-            <p className="inline-flex h-10 items-center rounded-md border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700">
+            <p className="inline-flex h-10 items-center rounded-md bg-danger px-4 text-sm font-semibold text-white">
               Sales Order Rejected
             </p>
           )}
@@ -279,7 +279,7 @@ export default async function SalesOrderDetailPage({
               />
             ) : (
               <RestrictedAction message={getRestrictionMessage("DELETE_SALES_ORDER")}>
-                <button disabled className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-slate-50 px-4 text-sm font-semibold text-slate-400">
+                <button disabled className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-soft px-4 text-sm font-semibold text-ink/50">
                   Delete Sales Order
                 </button>
               </RestrictedAction>
@@ -288,7 +288,7 @@ export default async function SalesOrderDetailPage({
       </section>
 
       <section className="mb-6 grid gap-6 lg:grid-cols-[360px_1fr]">
-        <div className="rounded-md border border-line bg-white p-5 shadow-soft">
+        <div className="rounded-md border border-line bg-white p-5 shadow-card">
           <h2 className="text-lg font-semibold">Customer Information</h2>
           <div className="mt-4 space-y-3 text-sm">
             <Summary label="Company" value={salesOrder.customer.companyName} />
@@ -302,11 +302,11 @@ export default async function SalesOrderDetailPage({
           </div>
         </div>
 
-        <div className="rounded-md border border-line bg-white p-5 shadow-soft">
+        <div className="rounded-md border border-line bg-white p-5 shadow-card">
           <h2 className="text-lg font-semibold">{orderLabel} Item Details</h2>
           <div className="mt-4 overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Product Name</th>
                   <th className="py-3 pr-4 text-right">Qty</th>
@@ -321,33 +321,33 @@ export default async function SalesOrderDetailPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {salesOrder.items.map((item) => (
-                  <tr key={item.id} className="transition hover:bg-slate-50">
+                  <tr key={item.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{item.itemName}</td>
-                    <td className="py-3 pr-4 text-right text-slate-600">{item.quantity}</td>
-                    <td className="py-3 pr-4 text-slate-600">PCS</td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
+                    <td className="py-3 pr-4 text-right text-ink/80">{item.quantity}</td>
+                    <td className="py-3 pr-4 text-ink/80">PCS</td>
+                    <td className="py-3 pr-4 text-right text-ink/80">
                       {formatCurrency(item.baseUnitPrice)}
                     </td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
+                    <td className="py-3 pr-4 text-right text-ink/80">
                       {item.markupPercent ? `${item.markupPercent}%` : "-"}
                     </td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
+                    <td className="py-3 pr-4 text-right text-ink/80">
                       {item.discountPercent ? `${item.discountPercent}%` : "-"}
                     </td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
+                    <td className="py-3 pr-4 text-right text-ink/80">
                       {formatCurrency(item.finalUnitPrice)}
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(item.subtotal)}
                     </td>
-                    <td className="py-3 text-slate-600">-</td>
+                    <td className="py-3 text-ink/80">-</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           {salesOrder.notes && (
-            <p className="mt-4 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+            <p className="mt-4 whitespace-pre-wrap rounded-md bg-soft p-3 text-sm text-ink/80">
               {salesOrder.notes}
             </p>
           )}
@@ -425,7 +425,7 @@ function RelatedSections({
 }) {
   return (
     <div className="space-y-6">
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">Invoice</h2>
           {invoice && (
@@ -443,7 +443,7 @@ function RelatedSections({
             <Summary label="Invoice Date" value={formatDate(invoice.issueDate)} />
             <Summary label="Due Date" value={formatDate(invoice.dueDate)} />
             <div>
-              <p className="text-xs font-semibold uppercase text-slate-400">Payment Status</p>
+              <p className="text-xs font-semibold uppercase text-ink/50">Payment Status</p>
               <div className="mt-1">
                 <StatusBadge status={invoice.status} />
               </div>
@@ -472,7 +472,7 @@ function RelatedSections({
               </form>
             ) : (
               <RestrictedAction message={getRestrictionMessage("CREATE_INVOICE")}>
-                <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-200 px-4 text-sm font-semibold text-slate-500">
+                <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
                   <FilePlus2 aria-hidden="true" className="h-4 w-4" />
                   Generate Invoice
                 </button>
@@ -482,7 +482,7 @@ function RelatedSections({
         )}
       </section>
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">Payments</h2>
           {invoice && remainingAmount > 0 && (
@@ -496,7 +496,7 @@ function RelatedSections({
               </Link>
             ) : (
               <RestrictedAction message={getRestrictionMessage("RECORD_PAYMENT")}>
-                <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-slate-50 px-3 text-sm font-semibold text-slate-400">
+                <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-soft px-3 text-sm font-semibold text-ink/50">
                   <Banknote aria-hidden="true" className="h-4 w-4" />
                   Record Payment
                 </button>
@@ -507,7 +507,7 @@ function RelatedSections({
         {payments.length > 0 ? (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Payment Date</th>
                   <th className="py-3 pr-4">Payment Method</th>
@@ -518,18 +518,18 @@ function RelatedSections({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {payments.map((payment) => (
-                  <tr key={payment.id} className="transition hover:bg-slate-50">
-                    <td className="py-3 pr-4 text-slate-600">
+                  <tr key={payment.id} className="transition hover:bg-soft">
+                    <td className="py-3 pr-4 text-ink/80">
                       {formatDate(payment.paymentDate)}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {formatPaymentMethod(payment.paymentMethod)}
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(payment.amount)}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">{payment.notes ?? "-"}</td>
-                    <td className="py-3 text-slate-600">{formatDate(payment.createdAt)}</td>
+                    <td className="py-3 pr-4 text-ink/80">{payment.notes ?? "-"}</td>
+                    <td className="py-3 text-ink/80">{formatDate(payment.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -540,7 +540,7 @@ function RelatedSections({
         )}
       </section>
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">Surat Jalan / Delivery Note</h2>
           {deliveryNotes.length === 0 && invoice && (
@@ -560,13 +560,13 @@ function RelatedSections({
                 status: invoice.status
               }) ? (
               <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
-                <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-slate-50 px-3 text-sm font-semibold text-slate-400">
+                <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-soft px-3 text-sm font-semibold text-ink/50">
                   <Truck aria-hidden="true" className="h-4 w-4" />
                   Create Surat Jalan
                 </button>
               </RestrictedAction>
             ) : (
-              <span className="inline-flex h-9 items-center justify-center rounded-md border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-800">
+              <span className="inline-flex h-9 items-center justify-center rounded-md bg-warning px-3 text-sm font-semibold text-strong">
                 Payment Required First
               </span>
             )
@@ -579,7 +579,7 @@ function RelatedSections({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h3 className="font-semibold">{deliveryNote.deliveryNoteNumber}</h3>
-                    <p className="mt-1 text-sm text-slate-600">
+                    <p className="mt-1 text-sm text-ink/80">
                       {formatDate(deliveryNote.deliveryDate)} - {deliveryNote.recipientName}
                     </p>
                   </div>
@@ -601,7 +601,7 @@ function RelatedSections({
                 </div>
                 <div className="mt-4 overflow-x-auto">
                   <table>
-                    <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+                    <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                       <tr>
                         <th className="py-3 pr-4">Product Code</th>
                         <th className="py-3 pr-4">Item</th>
@@ -612,16 +612,16 @@ function RelatedSections({
                     </thead>
                     <tbody className="divide-y divide-line text-sm">
                       {deliveryNote.items.map((item) => (
-                        <tr key={item.id} className="transition hover:bg-slate-50">
-                          <td className="py-3 pr-4 text-slate-600">
+                        <tr key={item.id} className="transition hover:bg-soft">
+                          <td className="py-3 pr-4 text-ink/80">
                             {item.productCode ?? "-"}
                           </td>
                           <td className="py-3 pr-4 font-medium">{item.itemName}</td>
-                          <td className="py-3 pr-4 text-right text-slate-600">
+                          <td className="py-3 pr-4 text-right text-ink/80">
                             {item.quantity}
                           </td>
-                          <td className="py-3 pr-4 text-slate-600">{item.unit}</td>
-                          <td className="py-3 text-slate-600">
+                          <td className="py-3 pr-4 text-ink/80">{item.unit}</td>
+                          <td className="py-3 text-ink/80">
                             {item.description ?? "-"}
                           </td>
                         </tr>
@@ -637,7 +637,7 @@ function RelatedSections({
         )}
       </section>
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <h2 className="mb-4 text-lg font-semibold">Receivable</h2>
         {invoice && hasActiveReceivable ? (
           <div className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
@@ -645,7 +645,7 @@ function RelatedSections({
             <Summary label="Receivable Amount" value={formatCurrency(invoice.remainingAmount)} />
             <Summary label="Due Date" value={formatDate(invoice.dueDate)} />
             <div>
-              <p className="text-xs font-semibold uppercase text-slate-400">Receivable Status</p>
+              <p className="text-xs font-semibold uppercase text-ink/50">Receivable Status</p>
               <div className="mt-1">
                 <StatusBadge status={invoice.status} />
               </div>
@@ -658,7 +658,7 @@ function RelatedSections({
         )}
       </section>
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">Collections</h2>
           {invoice && hasActiveReceivable && (
@@ -673,7 +673,7 @@ function RelatedSections({
         {collectionTasks.length > 0 ? (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Scheduled Date</th>
                   <th className="py-3 pr-4">Collection Type</th>
@@ -684,16 +684,16 @@ function RelatedSections({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {collectionTasks.map((collectionTask) => (
-                  <tr key={collectionTask.id} className="transition hover:bg-slate-50">
-                    <td className="py-3 pr-4 text-slate-600">
+                  <tr key={collectionTask.id} className="transition hover:bg-soft">
+                    <td className="py-3 pr-4 text-ink/80">
                       {formatDate(collectionTask.scheduledDate)}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">General Collection</td>
+                    <td className="py-3 pr-4 text-ink/80">General Collection</td>
                     <td className="py-3 pr-4">
                       <StatusBadge status={collectionTask.status} />
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">{collectionTask.notes}</td>
-                    <td className="py-3 text-slate-600">-</td>
+                    <td className="py-3 pr-4 text-ink/80">{collectionTask.notes}</td>
+                    <td className="py-3 text-ink/80">-</td>
                   </tr>
                 ))}
               </tbody>
@@ -710,7 +710,7 @@ function RelatedSections({
 function Summary({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
+      <p className="text-xs font-semibold uppercase text-ink/50">{label}</p>
       <p className="mt-1 text-sm font-medium text-ink">{value || "-"}</p>
     </div>
   );

@@ -12,7 +12,7 @@ export function CardHelpEnhancer() {
 
     const enhanceCards = () => {
       document
-        .querySelectorAll<HTMLElement>("main .shadow-soft:not(.print-page)")
+        .querySelectorAll<HTMLElement>("main .shadow-card:not(.print-page)")
         .forEach((card) => enhanceCard(card, pathname));
     };
 
@@ -44,7 +44,7 @@ function mutationsContainCard(mutations: MutationRecord[]) {
   return mutations.some((mutation) =>
     Array.from(mutation.addedNodes).some((node) => {
       if (!(node instanceof Element)) return false;
-      return node.matches(".shadow-soft") || Boolean(node.querySelector(".shadow-soft"));
+      return node.matches(".shadow-card") || Boolean(node.querySelector(".shadow-card"));
     })
   );
 }

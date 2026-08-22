@@ -3,9 +3,20 @@
 @tailwind utilities;
 
 :root {
+  --color-white: 255 255 255;
+  --color-soft: 248 250 252;
+  --color-canvas: 241 245 249;
+  --color-ink: 51 65 85;
+  --color-strong: 23 33 43;
+  --color-brand: 31 95 111;
+  --color-accent: 183 121 31;
+  --color-info: 37 99 235;
+  --color-success: 4 120 87;
+  --color-warning: 253 230 138;
+  --color-danger: 225 29 72;
   color-scheme: light;
-  background: #f4f6f8;
-  color: #17212b;
+  background: rgb(var(--color-canvas));
+  color: rgb(var(--color-ink));
 }
 
 * {
@@ -21,8 +32,12 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(244, 246, 248, 0) 260px),
-    #f4f6f8;
+    linear-gradient(
+      180deg,
+      rgb(var(--color-white) / 0.65),
+      rgb(var(--color-canvas) / 0) 260px
+    ),
+    rgb(var(--color-canvas));
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -80,7 +95,7 @@ table {
 
 .card-generated-header {
   margin-bottom: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgb(var(--color-ink) / 0.16);
   padding-bottom: 0.75rem;
 }
 
@@ -98,9 +113,9 @@ table {
   flex: none;
   align-items: center;
   justify-content: center;
-  border: 1px solid #94a3b8;
+  border: 1px solid rgb(var(--color-ink) / 0.4);
   border-radius: 9999px;
-  color: #64748b;
+  color: rgb(var(--color-ink) / 0.7);
   font-size: 0.7rem;
   font-style: normal;
   font-weight: 800;
@@ -120,9 +135,9 @@ table {
   transform: translateX(-50%);
   border-radius: 0.375rem;
   padding: 0.55rem 0.7rem;
-  background: #0f172a;
-  color: #ffffff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22);
+  background: rgb(var(--color-strong));
+  color: rgb(var(--color-white));
+  box-shadow: 0 8px 24px rgb(var(--color-strong) / 0.22);
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.25rem;
@@ -139,7 +154,7 @@ table {
 }
 
 thead {
-  background: #f8fafc;
+  background: rgb(var(--color-soft));
 }
 
 tbody tr {
@@ -149,7 +164,7 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background: #f8fafc;
+  background: rgb(var(--color-soft));
 }
 
 .table-cell-limited {
@@ -176,17 +191,17 @@ tbody tr:hover {
 
 .table-cell-toggle {
   margin-top: 0.25rem;
-  color: #64748b;
+  color: rgb(var(--color-ink) / 0.7);
   font-size: 0.75rem;
   font-weight: 600;
   text-decoration: underline;
-  text-decoration-color: #cbd5e1;
+  text-decoration-color: rgb(var(--color-ink) / 0.25);
   text-underline-offset: 2px;
 }
 
 .table-cell-toggle:hover {
-  color: #475569;
-  text-decoration-color: #94a3b8;
+  color: rgb(var(--color-ink));
+  text-decoration-color: rgb(var(--color-ink) / 0.5);
 }
 
 .table-enhancer-toolbar {
@@ -202,7 +217,7 @@ tbody tr:hover {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  color: #64748b;
+  color: rgb(var(--color-ink) / 0.7);
   font-size: 0.75rem;
   font-weight: 700;
 }
@@ -210,10 +225,10 @@ tbody tr:hover {
 .table-enhancer-search input {
   height: 2.25rem;
   width: min(20rem, 70vw);
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgb(var(--color-ink) / 0.16);
   border-radius: 0.375rem;
   padding: 0 0.625rem;
-  color: #334155;
+  color: rgb(var(--color-ink));
   font-size: 0.8125rem;
   font-weight: 500;
   letter-spacing: normal;
@@ -222,15 +237,15 @@ tbody tr:hover {
 
 .table-enhancer-search input:focus,
 .table-filter-popup input:focus {
-  border-color: #1d4ed8;
-  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.1);
+  border-color: rgb(var(--color-brand));
+  box-shadow: 0 0 0 2px rgb(var(--color-brand) / 0.1);
 }
 
 .table-enhancer-count {
   display: inline-flex;
   height: 2.25rem;
   align-items: center;
-  color: #64748b;
+  color: rgb(var(--color-ink) / 0.7);
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -240,11 +255,11 @@ tbody tr:hover {
   align-items: center;
   justify-content: center;
   height: 2.25rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgb(var(--color-ink) / 0.16);
   border-radius: 0.375rem;
   padding: 0 0.75rem;
-  background: #ffffff;
-  color: #1d4ed8;
+  background: rgb(var(--color-white));
+  color: rgb(var(--color-brand));
   font-size: 0.8125rem;
   font-weight: 700;
 }
@@ -256,7 +271,7 @@ tbody tr:hover {
   gap: 0.625rem;
   margin-top: 0.875rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid rgb(var(--color-ink) / 0.16);
 }
 
 .table-enhancer-pagination[hidden] {
@@ -268,23 +283,23 @@ tbody tr:hover {
   height: 2.25rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgb(var(--color-ink) / 0.16);
   border-radius: 0.375rem;
   padding: 0 0.75rem;
-  background: #ffffff;
-  color: #1d4ed8;
+  background: rgb(var(--color-white));
+  color: rgb(var(--color-brand));
   font-size: 0.8125rem;
   font-weight: 700;
 }
 
 .table-enhancer-page-button:disabled {
   cursor: not-allowed;
-  background: #f8fafc;
-  color: #94a3b8;
+  background: rgb(var(--color-soft));
+  color: rgb(var(--color-ink) / 0.45);
 }
 
 .table-enhancer-page-status {
-  color: #64748b;
+  color: rgb(var(--color-ink) / 0.7);
   font-size: 0.8125rem;
   font-weight: 600;
 }
@@ -309,15 +324,15 @@ tbody tr:hover {
   width: 1.5rem;
   height: 1.5rem;
   border-radius: 0.25rem;
-  color: #64748b;
+  color: rgb(var(--color-ink) / 0.7);
   font-size: 0.8rem;
 }
 
 .table-sort-button:hover,
 .table-filter-button:hover,
 .table-filter-button[data-active="true"] {
-  background: #e2e8f0;
-  color: #1d4ed8;
+  background: rgb(var(--color-canvas));
+  color: rgb(var(--color-brand));
 }
 
 .table-filter-button {
@@ -327,7 +342,7 @@ tbody tr:hover {
   width: 1.5rem;
   height: 1.5rem;
   border-radius: 0.25rem;
-  color: #64748b;
+  color: rgb(var(--color-ink) / 0.7);
 }
 
 .table-filter-button svg {
@@ -341,12 +356,12 @@ tbody tr:hover {
   width: 18rem;
   max-height: min(28rem, 75vh);
   overflow: auto;
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgb(var(--color-ink) / 0.16);
   border-radius: 0.5rem;
   padding: 0.875rem;
-  background: #ffffff;
-  color: #334155;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  background: rgb(var(--color-white));
+  color: rgb(var(--color-ink));
+  box-shadow: 0 16px 40px rgb(var(--color-strong) / 0.18);
 }
 
 .table-filter-popup[hidden] {
@@ -356,7 +371,7 @@ tbody tr:hover {
 .table-filter-popup > strong {
   display: block;
   margin-bottom: 0.75rem;
-  color: #17212b;
+  color: rgb(var(--color-strong));
   font-size: 0.875rem;
 }
 
@@ -364,10 +379,10 @@ tbody tr:hover {
 .table-filter-date-field input {
   width: 100%;
   height: 2.25rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgb(var(--color-ink) / 0.16);
   border-radius: 0.375rem;
   padding: 0 0.625rem;
-  color: #334155;
+  color: rgb(var(--color-ink));
   font-size: 0.8125rem;
   outline: none;
 }
@@ -396,21 +411,21 @@ tbody tr[hidden] {
 }
 
 .table-filter-options label:hover {
-  background: #f1f5f9;
+  background: rgb(var(--color-canvas));
 }
 
 .table-filter-options input {
   width: 1rem;
   height: 1rem;
   margin-top: 0.125rem;
-  accent-color: #1d4ed8;
+  accent-color: rgb(var(--color-brand));
 }
 
 .table-filter-date-field {
   display: grid;
   gap: 0.3rem;
   margin-top: 0.625rem;
-  color: #64748b;
+  color: rgb(var(--color-ink) / 0.7);
   font-size: 0.75rem;
   font-weight: 700;
 }
@@ -420,7 +435,7 @@ tbody tr[hidden] {
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 0.875rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid rgb(var(--color-ink) / 0.16);
   padding-top: 0.75rem;
 }
 
@@ -434,25 +449,25 @@ tbody tr[hidden] {
 }
 
 .table-filter-primary {
-  background: #1d4ed8;
-  color: #ffffff;
+  background: rgb(var(--color-brand));
+  color: rgb(var(--color-white));
 }
 
 .table-filter-secondary {
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #475569;
+  border: 1px solid rgb(var(--color-ink) / 0.16);
+  background: rgb(var(--color-white));
+  color: rgb(var(--color-ink));
 }
 
 input,
 select,
 textarea {
-  background: #ffffff;
+  background: rgb(var(--color-white));
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #94a3b8;
+  color: rgb(var(--color-ink) / 0.5);
 }
 
 button,
@@ -465,7 +480,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #1d4ed8;
+  outline: 2px solid rgb(var(--color-brand));
   outline-offset: 2px;
 }
 
@@ -496,8 +511,8 @@ textarea:focus-visible {
 @media print {
   :root,
   body {
-    background: #ffffff;
-    color: #111827;
+    background: rgb(var(--color-white));
+    color: rgb(var(--color-strong));
   }
 
   .no-print {

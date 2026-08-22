@@ -39,20 +39,32 @@ type DonutSegment = {
   color: string;
 };
 
+const chartColors = {
+  neutral: "rgb(var(--color-ink) / 0.35)",
+  line: "rgb(var(--color-ink) / 0.16)",
+  brand: "rgb(var(--color-brand))",
+  accent: "rgb(var(--color-accent))",
+  info: "rgb(var(--color-info))",
+  success: "rgb(var(--color-success))",
+  warning: "rgb(var(--color-warning))",
+  danger: "rgb(var(--color-danger))",
+  canvas: "rgb(var(--color-canvas))"
+} as const;
+
 const salesOrderStatuses = [
-  { label: "Draft", color: "#94a3b8" },
-  { label: "Confirmed", color: "#2563eb" },
-  { label: "Invoiced", color: "#0f766e" },
-  { label: "Shipped", color: "#d97706" },
-  { label: "Cancelled", color: "#ef4444" }
+  { label: "Draft", color: chartColors.neutral },
+  { label: "Confirmed", color: chartColors.info },
+  { label: "Invoiced", color: chartColors.brand },
+  { label: "Shipped", color: chartColors.accent },
+  { label: "Cancelled", color: chartColors.danger }
 ] as const;
 
 const invoiceStatuses = [
-  { label: "Paid", color: "#16a34a" },
-  { label: "Partial", color: "#2563eb" },
-  { label: "Unpaid", color: "#d97706" },
-  { label: "Overdue", color: "#ef4444" },
-  { label: "Cancelled", color: "#94a3b8" }
+  { label: "Paid", color: chartColors.success },
+  { label: "Partial", color: chartColors.info },
+  { label: "Unpaid", color: chartColors.warning },
+  { label: "Overdue", color: chartColors.danger },
+  { label: "Cancelled", color: chartColors.neutral }
 ] as const;
 
 export default async function DashboardPage() {
@@ -151,8 +163,8 @@ export default async function DashboardPage() {
     payments.map((payment) => ({ date: payment.paymentDate, amount: payment.amount }))
   );
   const revenueComposition = [
-    { label: "Paid Amount", value: totalPaidAmount, color: "#2563eb" },
-    { label: "Outstanding", value: outstandingAmount, color: "#f59e0b" }
+    { label: "Paid Amount", value: totalPaidAmount, color: chartColors.success },
+    { label: "Outstanding", value: outstandingAmount, color: chartColors.warning }
   ];
   const salesOrderDistribution = salesOrderStatuses.map((status) => ({
     ...status,
@@ -212,12 +224,12 @@ export default async function DashboardPage() {
             <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
               {invoiceDistribution.filter((item) => item.label !== "Cancelled").map((item) => (
                 <div key={item.label} className="rounded-md border border-line p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{item.label}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{item.label}</p>
                   <p className="mt-2 text-2xl font-semibold">{item.value}</p>
                 </div>
               ))}
             </div>
-            <div className="border-t border-line px-4 py-3 text-sm text-slate-600">
+            <div className="border-t border-line px-4 py-3 text-sm text-ink/80">
               Total invoice value: <strong className="text-ink">{formatCurrency(invoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0))}</strong>
             </div>
           </AdminListPanel>
@@ -277,11 +289,11 @@ export default async function DashboardPage() {
           </AdminListPanel>
         </section>
 
-        <section className="mt-5 rounded-md border border-line bg-white shadow-soft">
+        <section className="mt-5 rounded-md border border-line bg-white shadow-card">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <div>
               <h2 className="text-base font-semibold">Recent Sales Orders</h2>
-              <p className="mt-1 text-xs text-slate-500">A smaller operational snapshot for Admin.</p>
+              <p className="mt-1 text-xs text-ink/70">A smaller operational snapshot for Admin.</p>
             </div>
             <Link href="/sales-orders" className="text-sm font-semibold text-brand">View all</Link>
           </div>
@@ -358,15 +370,15 @@ export default async function DashboardPage() {
         />
       </section>
 
-      <section className="mt-5 rounded-md border border-line bg-white p-4 shadow-soft">
+      <section className="mt-5 rounded-md border border-line bg-white p-4 shadow-card">
         <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-ink">Revenue Cycle Insights</h2>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-ink/80">
               Historical movement and current business status in one compact view.
             </p>
           </div>
-          <p className="text-xs font-medium text-slate-500">
+          <p className="text-xs font-medium text-ink/70">
             Based on Sales Order, Invoice, and Payment data
           </p>
         </div>
@@ -400,11 +412,11 @@ export default async function DashboardPage() {
       </section>
 
       <section className="mt-5 space-y-4">
-        <section className="rounded-md border border-line bg-white shadow-soft">
+        <section className="rounded-md border border-line bg-white shadow-card">
           <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div>
               <h2 className="text-lg font-semibold">Recent Sales Orders</h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-ink/70">
                 Click a row to open the full Sales Order detail page.
               </p>
             </div>
@@ -422,7 +434,7 @@ export default async function DashboardPage() {
           ) : (
             <div className="overflow-x-auto">
               <table>
-                <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+                <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                   <tr>
                     <th className="px-5 py-3">Order</th>
                     <th className="px-5 py-3">Customer</th>
@@ -434,7 +446,7 @@ export default async function DashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-line text-sm">
                   {recentSalesOrders.map((order) => (
-                    <tr key={order.id} className="group cursor-pointer transition hover:bg-slate-50">
+                    <tr key={order.id} className="group cursor-pointer transition hover:bg-soft">
                       <td className="p-0">
                           <Link
                             href={`/sales-orders/${order.id}`}
@@ -446,7 +458,7 @@ export default async function DashboardPage() {
                       <td className="p-0">
                           <Link
                             href={`/sales-orders/${order.id}`}
-                            className="block px-5 py-3.5 text-slate-600"
+                            className="block px-5 py-3.5 text-ink/80"
                           >
                           {order.customer.companyName}
                         </Link>
@@ -454,7 +466,7 @@ export default async function DashboardPage() {
                       <td className="p-0">
                           <Link
                             href={`/sales-orders/${order.id}`}
-                            className="block px-5 py-3.5 text-slate-600"
+                            className="block px-5 py-3.5 text-ink/80"
                           >
                           {formatDate(order.orderDate)}
                         </Link>
@@ -493,7 +505,7 @@ export default async function DashboardPage() {
         </section>
 
         {dashboardRole === "MANAGER" && <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-          <section className="rounded-md border border-line bg-white p-4 shadow-soft">
+          <section className="rounded-md border border-line bg-white p-4 shadow-card">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-base font-semibold">Collection Reminders</h2>
               <Link
@@ -514,13 +526,13 @@ export default async function DashboardPage() {
                         <h3 className="text-sm font-semibold text-ink">
                           {collectionTask.customer.companyName}
                         </h3>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink/80">
                           {collectionTask.notes}
                         </p>
                       </div>
                       <StatusBadge status={collectionTask.status} />
                     </div>
-                    <p className="mt-2 text-xs font-medium text-slate-500">
+                    <p className="mt-2 text-xs font-medium text-ink/70">
                       {collectionTask.invoice?.invoiceNumber ?? "Customer collection"} -{" "}
                       {formatDate(collectionTask.scheduledDate)}
                     </p>
@@ -530,9 +542,9 @@ export default async function DashboardPage() {
             )}
           </section>
 
-          <section className="rounded-md border border-line bg-white p-4 shadow-soft">
+          <section className="rounded-md border border-line bg-white p-4 shadow-card">
             <h2 className="text-base font-semibold">Module Summary</h2>
-            <p className="mt-1 text-xs text-slate-500">Compact count of main modules.</p>
+            <p className="mt-1 text-xs text-ink/70">Compact count of main modules.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {moduleOverview.map((item) => (
                 <ModuleSummaryTile key={item.href} {...item} />
@@ -563,11 +575,11 @@ function AdminListPanel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-md border border-line bg-white shadow-soft">
+    <section className="rounded-md border border-line bg-white shadow-card">
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div>
           <h2 className="text-base font-semibold">{title}</h2>
-          <p className="mt-1 text-xs text-slate-500">{description}</p>
+          <p className="mt-1 text-xs text-ink/70">{description}</p>
         </div>
         <Link href={href} className="shrink-0 text-sm font-semibold text-brand">View all</Link>
       </div>
@@ -600,9 +612,9 @@ function CompactActionList({
         <article key={row.id} className="flex items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-ink">{row.primary}</p>
-            <p className="mt-1 truncate text-xs text-slate-500">{row.secondary}</p>
+            <p className="mt-1 truncate text-xs text-ink/70">{row.secondary}</p>
           </div>
-          <p className="max-w-48 truncate text-right text-xs font-semibold text-slate-700">{row.value}</p>
+          <p className="max-w-48 truncate text-right text-xs font-semibold text-ink">{row.value}</p>
           <Link href={row.href} className="inline-flex h-8 items-center rounded-md border border-line px-3 text-xs font-semibold text-brand">
             {row.action}
           </Link>
@@ -664,22 +676,22 @@ function KpiCard({
   tone?: "neutral" | "good" | "warning" | "danger";
 }) {
   const toneClass = {
-    neutral: "bg-blue-50 text-blue-700 ring-blue-200",
-    good: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    warning: "bg-amber-50 text-amber-700 ring-amber-200",
-    danger: "bg-rose-50 text-rose-700 ring-rose-200"
+    neutral: "bg-info text-white",
+    good: "bg-success text-white",
+    warning: "bg-warning text-strong",
+    danger: "bg-danger text-white"
   }[tone];
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-4 shadow-soft">
+    <section className="rounded-md border border-line bg-white p-4 shadow-card">
       <div className="flex items-center gap-4">
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ${toneClass}`}>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md ${toneClass}`}>
           <Icon aria-hidden="true" className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{label}</p>
           <p className="mt-1 truncate text-xl font-semibold tracking-normal text-ink">{value}</p>
-          <p className="mt-1 text-xs text-slate-500">{description}</p>
+          <p className="mt-1 text-xs text-ink/70">{description}</p>
         </div>
       </div>
     </section>
@@ -696,10 +708,10 @@ function InsightPanel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-md border border-slate-200 p-3">
+    <section className="rounded-md border border-line p-3">
       <h3 className="text-sm font-semibold text-ink">{title}</h3>
       <div className="mt-3 min-h-44">{children}</div>
-      <p className="mt-3 text-xs text-slate-500">{footer}</p>
+      <p className="mt-3 text-xs text-ink/70">{footer}</p>
     </section>
   );
 }
@@ -727,9 +739,9 @@ function RevenueTrendChart({ data }: { data: TrendPoint[] }) {
 
   return (
     <div>
-      <div className="mb-2 flex items-center gap-4 text-xs text-slate-600">
-        <ChartLegend colorClass="bg-blue-600" label="Sales Order" />
-        <ChartLegend colorClass="bg-emerald-600" label="Payment" />
+      <div className="mb-2 flex items-center gap-4 text-xs text-ink/80">
+        <ChartLegend colorClass="bg-info" label="Sales Order" />
+        <ChartLegend colorClass="bg-success" label="Payment" />
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} className="h-40 w-full" role="img" aria-label="Revenue trend chart">
         {[0.25, 0.5, 0.75, 1].map((ratio) => {
@@ -741,14 +753,14 @@ function RevenueTrendChart({ data }: { data: TrendPoint[] }) {
               x2={width - paddingX}
               y1={y}
               y2={y}
-              stroke="#e2e8f0"
+              stroke={chartColors.line}
               strokeDasharray="4 4"
             />
           );
         })}
         <polyline
           fill="none"
-          stroke="#2563eb"
+          stroke={chartColors.info}
           strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -756,22 +768,22 @@ function RevenueTrendChart({ data }: { data: TrendPoint[] }) {
         />
         <polyline
           fill="none"
-          stroke="#16a34a"
+          stroke={chartColors.success}
           strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
           points={paymentPoints.map((point) => `${point.x},${point.y}`).join(" ")}
         />
         {salesPoints.map((point) => (
-          <circle key={`sales-${point.x}`} cx={point.x} cy={point.y} r="3" fill="#2563eb" />
+          <circle key={`sales-${point.x}`} cx={point.x} cy={point.y} r="3" fill={chartColors.info} />
         ))}
         {paymentPoints.map((point) => (
-          <circle key={`payment-${point.x}`} cx={point.x} cy={point.y} r="3" fill="#16a34a" />
+          <circle key={`payment-${point.x}`} cx={point.x} cy={point.y} r="3" fill={chartColors.success} />
         ))}
         {data.map((point, index) => {
           const x = paddingX + (index / Math.max(data.length - 1, 1)) * chartWidth;
           return (
-            <text key={point.label} x={x} y={height - 6} textAnchor="middle" className="fill-slate-500 text-[10px]">
+            <text key={point.label} x={x} y={height - 6} textAnchor="middle" className="fill-ink/70 text-[10px]">
               {point.label}
             </text>
           );
@@ -785,13 +797,13 @@ function PopularProductsChart({ products }: { products: PopularProduct[] }) {
   const maxQuantity = Math.max(...products.map((product) => product.quantity), 0);
 
   return (
-    <section className="mt-4 rounded-md border border-slate-200 px-4 py-3">
+    <section className="mt-4 rounded-md border border-line px-4 py-3">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">Top 5 Popular Products</h3>
-          <p className="text-xs text-slate-500">Highest quantity sold across confirmed sales activity.</p>
+          <p className="text-xs text-ink/70">Highest quantity sold across confirmed sales activity.</p>
         </div>
-        <span className="text-xs font-medium text-slate-500">Quantity sold</span>
+        <span className="text-xs font-medium text-ink/70">Quantity sold</span>
       </div>
 
       {products.length === 0 ? (
@@ -802,11 +814,11 @@ function PopularProductsChart({ products }: { products: PopularProduct[] }) {
         <div className="mt-3 grid gap-y-2">
           {products.map((product, index) => (
             <div key={product.name} className="grid grid-cols-[minmax(7rem,14rem)_1fr_auto] items-center gap-3">
-              <p className="truncate text-xs font-medium text-slate-700" title={product.name}>
-                <span className="mr-2 text-slate-400">{index + 1}.</span>
+              <p className="truncate text-xs font-medium text-ink" title={product.name}>
+                <span className="mr-2 text-ink/50">{index + 1}.</span>
                 {product.name}
               </p>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-2 overflow-hidden rounded-full bg-canvas">
                 <div
                   className="h-full rounded-full bg-brand"
                   style={{ width: `${Math.max((product.quantity / maxQuantity) * 100, 4)}%` }}
@@ -844,14 +856,14 @@ function RevenueCompositionChart({
     <div className="flex items-center gap-4">
       <DonutGraphic segments={segments} total={visibleTotal} />
       <div className="min-w-0 flex-1 space-y-2">
-        <div className="rounded-md bg-slate-50 px-3 py-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <div className="rounded-md bg-soft px-3 py-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink/70">
             Total Sales
           </p>
           <p className="mt-1 text-sm font-semibold text-ink">{formatCurrency(total)}</p>
         </div>
-        <CompositionRow color="#2563eb" label="Paid" value={formatCurrency(paid)} />
-        <CompositionRow color="#f59e0b" label="Outstanding" value={formatCurrency(outstanding)} />
+        <CompositionRow color={chartColors.success} label="Paid" value={formatCurrency(paid)} />
+        <CompositionRow color={chartColors.warning} label="Outstanding" value={formatCurrency(outstanding)} />
       </div>
     </div>
   );
@@ -868,7 +880,7 @@ function StatusDonutChart({ total, segments }: { total: number; segments: DonutS
       <div className="min-w-0 flex-1 space-y-1.5">
         {segments.map((segment) => (
           <div key={segment.label} className="flex items-center justify-between gap-2 text-xs">
-            <span className="flex min-w-0 items-center gap-2 text-slate-600">
+            <span className="flex min-w-0 items-center gap-2 text-ink/80">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: segment.color }} />
               <span className="truncate">{segment.label}</span>
             </span>
@@ -898,7 +910,7 @@ function DonutGraphic({
     >
       <div className="flex h-16 w-16 flex-col items-center justify-center rounded-full bg-white text-center shadow-sm">
         {center && <span className="max-w-14 truncate text-sm font-semibold text-ink">{center}</span>}
-        {label && <span className="text-[10px] uppercase text-slate-500">{label}</span>}
+        {label && <span className="text-[10px] uppercase text-ink/70">{label}</span>}
       </div>
     </div>
   );
@@ -920,14 +932,14 @@ function ModuleSummaryTile({
   return (
     <Link
       href={href}
-      className="group flex min-h-16 items-center gap-3 rounded-md border border-slate-200 p-3 transition hover:border-brand hover:bg-slate-50"
+      className="group flex min-h-16 items-center gap-3 rounded-md border border-line p-3 transition hover:border-brand hover:bg-soft"
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-100 text-brand ring-1 ring-inset ring-slate-200">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-canvas text-brand ring-1 ring-inset ring-line">
         <Icon aria-hidden="true" className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs font-semibold text-ink">{label}</span>
-        <span className="mt-1 block text-xs text-slate-500">{helper}</span>
+        <span className="mt-1 block text-xs text-ink/70">{helper}</span>
       </span>
       <span className="text-base font-semibold text-ink">{value}</span>
     </Link>
@@ -953,8 +965,8 @@ function CompositionRow({
   value: string;
 }) {
   return (
-    <div className="rounded-md bg-slate-50 px-3 py-2">
-      <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+    <div className="rounded-md bg-soft px-3 py-2">
+      <div className="flex items-center gap-2 text-xs font-medium text-ink/80">
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
         {label}
       </div>
@@ -1017,7 +1029,7 @@ function getLinePoint(
 
 function buildConicGradient(segments: DonutSegment[], total: number) {
   if (total === 0) {
-    return "#e2e8f0";
+    return chartColors.canvas;
   }
 
   let start = 0;

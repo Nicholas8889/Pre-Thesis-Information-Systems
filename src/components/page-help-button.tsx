@@ -234,7 +234,7 @@ export function PageHelpButton() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="no-print fixed bottom-4 right-4 z-40 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand px-3 text-sm font-semibold text-white shadow-soft transition hover:bg-brand/95 sm:bottom-5 sm:right-5 sm:px-4"
+        className="no-print fixed bottom-4 right-4 z-40 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand px-3 text-sm font-semibold text-white shadow-card transition hover:bg-brand/95 sm:bottom-5 sm:right-5 sm:px-4"
         title="Page help"
       >
         <HelpCircle aria-hidden="true" className="h-4 w-4" />
@@ -242,9 +242,9 @@ export function PageHelpButton() {
       </button>
 
       {isOpen && (
-        <div className="no-print fixed inset-0 z-50 flex items-end justify-end bg-slate-900/20 p-3 sm:p-6">
-          <section className="max-h-[calc(100vh-1.5rem)] w-full max-w-md overflow-y-auto rounded-md border border-slate-200 bg-white shadow-soft sm:max-h-[calc(100vh-3rem)]">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+        <div className="no-print fixed inset-0 z-50 flex items-end justify-end bg-strong/20 p-3 sm:p-6">
+          <section className="max-h-[calc(100vh-1.5rem)] w-full max-w-md overflow-y-auto rounded-md border border-line bg-white shadow-card sm:max-h-[calc(100vh-3rem)]">
+            <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand">
                   How to use this page
@@ -254,18 +254,18 @@ export function PageHelpButton() {
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-ink"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-ink/70 transition hover:bg-soft hover:text-ink"
                 title="Close help"
               >
                 <X aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
             <div className="px-5 py-4">
-              <p className="text-sm leading-6 text-slate-600">{content.purpose}</p>
-              <ol className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
+              <p className="text-sm leading-6 text-ink/80">{content.purpose}</p>
+              <ol className="mt-4 space-y-3 text-sm leading-6 text-ink">
                 {content.steps.map((step, index) => (
                   <li key={step} className="flex gap-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-brand">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-canvas text-xs font-semibold text-brand">
                       {index + 1}
                     </span>
                     <span>{step}</span>

@@ -192,7 +192,7 @@ export function DeliveryNoteForm({
       <input type="hidden" name="items" value={JSON.stringify(items)} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Invoice
           <select
             name="invoiceId"
@@ -210,7 +210,7 @@ export function DeliveryNoteForm({
           </select>
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Sales Order
           <select
             name="salesOrderId"
@@ -231,7 +231,7 @@ export function DeliveryNoteForm({
           </select>
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Customer
           <select
             name="customerId"
@@ -251,21 +251,21 @@ export function DeliveryNoteForm({
       </div>
 
       {isImmediatePaymentBlocked ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+        <div className="rounded-md bg-warning px-4 py-3 text-sm font-medium text-strong">
           An immediate-payment order must be paid before Surat Jalan can be created.
         </div>
       ) : (
         selectedInvoice &&
         selectedInvoice.paymentTermType === "CREDIT" &&
         selectedInvoice.status !== "Paid" && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          <div className="rounded-md bg-warning px-4 py-3 text-sm font-medium text-strong">
             Credit order: Surat Jalan can be created before full payment.
           </div>
         )
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Recipient Name
           <input
             name="recipientName"
@@ -276,7 +276,7 @@ export function DeliveryNoteForm({
           />
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Recipient Phone
           <input
             name="recipientPhone"
@@ -286,7 +286,7 @@ export function DeliveryNoteForm({
           />
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Delivery Date
           <input
             name="deliveryDate"
@@ -297,7 +297,7 @@ export function DeliveryNoteForm({
           />
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Driver Name
           <select
             name="driverName"
@@ -316,7 +316,7 @@ export function DeliveryNoteForm({
           </select>
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Vehicle Plate Number
           <select
             name="vehiclePlateNumber"
@@ -335,12 +335,12 @@ export function DeliveryNoteForm({
           </select>
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Sender Name
           <input name="senderName" className={`${inputClass} mt-1`} />
         </label>
 
-        <label className="text-sm font-medium text-slate-700 md:col-span-2">
+        <label className="text-sm font-medium text-ink md:col-span-2">
           Recipient Address
           <input
             name="recipientAddress"
@@ -351,17 +351,17 @@ export function DeliveryNoteForm({
           />
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Authorized By
           <input name="authorizedBy" className={`${inputClass} mt-1`} />
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Receiver Name
           <input name="receiverName" className={`${inputClass} mt-1`} />
         </label>
 
-        <label className="text-sm font-medium text-slate-700 md:col-span-2 xl:col-span-4">
+        <label className="text-sm font-medium text-ink md:col-span-2 xl:col-span-4">
           Notes
           <input name="notes" className={`${inputClass} mt-1`} placeholder="Optional" />
         </label>
@@ -373,7 +373,7 @@ export function DeliveryNoteForm({
             key={index}
             className="grid gap-3 rounded-md border border-line p-3 xl:grid-cols-[130px_1fr_100px_120px_1fr_44px]"
           >
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Product Code
               <input
                 value={item.productCode}
@@ -382,7 +382,7 @@ export function DeliveryNoteForm({
               />
             </label>
 
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Product Name
               <input
                 required
@@ -392,7 +392,7 @@ export function DeliveryNoteForm({
               />
             </label>
 
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Qty
               <input
                 required
@@ -406,7 +406,7 @@ export function DeliveryNoteForm({
               />
             </label>
 
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Unit
               <select
                 value={item.unit}
@@ -421,7 +421,7 @@ export function DeliveryNoteForm({
               </select>
             </label>
 
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Keterangan
               <input
                 value={item.description}
@@ -433,7 +433,7 @@ export function DeliveryNoteForm({
             <button
               type="button"
               onClick={() => removeItem(index)}
-              className="mt-6 flex h-10 w-10 items-center justify-center rounded-md border border-line text-slate-500"
+              className="mt-6 flex h-10 w-10 items-center justify-center rounded-md border border-line text-ink/70"
               title="Remove item"
             >
               <Trash2 aria-hidden="true" className="h-4 w-4" />
@@ -454,7 +454,7 @@ export function DeliveryNoteForm({
 
         <button
           disabled={isImmediatePaymentBlocked}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-ink/25"
         >
           Save Surat Jalan
         </button>
@@ -467,7 +467,7 @@ export function DeliveryNoteForm({
 
 function RestrictionTooltip({ message }: { message: string }) {
   return (
-    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md bg-slate-900 px-3 py-2 text-center text-xs font-medium leading-5 text-white shadow-lg group-hover/form-restriction:block">
+    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md bg-strong px-3 py-2 text-center text-xs font-medium leading-5 text-white shadow-lg group-hover/form-restriction:block">
       {message}
     </span>
   );

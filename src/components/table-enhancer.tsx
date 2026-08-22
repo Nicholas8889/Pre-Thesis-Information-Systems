@@ -317,7 +317,7 @@ function enhanceTable(table: HTMLTableElement) {
 }
 
 function findPageSearchInput(table: HTMLTableElement) {
-  const card = table.closest<HTMLElement>(".shadow-soft");
+  const card = table.closest<HTMLElement>(".shadow-card");
   const searchInput = card?.querySelector<HTMLInputElement>('form input[name="q"]');
   return searchInput ?? null;
 }

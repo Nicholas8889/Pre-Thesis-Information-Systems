@@ -38,7 +38,7 @@ export function SalesCustomerInsights({
 
   return (
     <section className="mt-5 space-y-4">
-      <section className="rounded-md border border-line bg-white shadow-soft">
+      <section className="rounded-md border border-line bg-white shadow-card">
         <SectionHeading
           title="Customers with Overdue Payment"
           description="Find customers who need collection attention and review their overdue exposure."
@@ -59,7 +59,7 @@ export function SalesCustomerInsights({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="px-5 py-3">Customer</th>
                   <th className="px-5 py-3">Contact</th>
@@ -71,14 +71,14 @@ export function SalesCustomerInsights({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {visibleOverdueCustomers.map((customer) => (
-                  <tr key={customer.id} className="hover:bg-slate-50">
+                  <tr key={customer.id} className="hover:bg-soft">
                     <td className="px-5 py-3.5 font-medium text-ink">{customer.companyName}</td>
-                    <td className="px-5 py-3.5 text-slate-600">{customer.contactName}</td>
+                    <td className="px-5 py-3.5 text-ink/80">{customer.contactName}</td>
                     <td className="px-5 py-3.5 text-right">{customer.overdueInvoiceCount}</td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-rose-700">
+                    <td className="px-5 py-3.5 text-right font-semibold text-danger">
                       {formatCurrency(customer.overdueAmount)}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600">{formatDate(new Date(customer.oldestDueDate))}</td>
+                    <td className="px-5 py-3.5 text-ink/80">{formatDate(new Date(customer.oldestDueDate))}</td>
                     <td className="px-5 py-3.5 text-right">
                       <Link
                         href={`/receivables?tab=ongoing&status=Overdue`}
@@ -95,7 +95,7 @@ export function SalesCustomerInsights({
         )}
       </section>
 
-      <section className="rounded-md border border-line bg-white shadow-soft">
+      <section className="rounded-md border border-line bg-white shadow-card">
         <SectionHeading
           title="Purchase Frequency Category & Price Markup"
           description="Customer value classification based on average monthly Sales Order activity over the last three months."
@@ -114,7 +114,7 @@ export function SalesCustomerInsights({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="px-5 py-3">Customer</th>
                   {!compact && <th className="px-5 py-3">Customer Segment</th>}
@@ -126,12 +126,12 @@ export function SalesCustomerInsights({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {visibleCustomers.map((customer) => (
-                  <tr key={customer.id} className="hover:bg-slate-50">
+                  <tr key={customer.id} className="hover:bg-soft">
                     <td className="px-5 py-3.5">
                       <p className="font-medium text-ink">{customer.companyName}</p>
-                      <p className="mt-1 text-xs text-slate-500">{customer.contactName}</p>
+                      <p className="mt-1 text-xs text-ink/70">{customer.contactName}</p>
                     </td>
-                    {!compact && <td className="px-5 py-3.5 text-slate-600">{customer.customerSegment}</td>}
+                    {!compact && <td className="px-5 py-3.5 text-ink/80">{customer.customerSegment}</td>}
                     <td className="px-5 py-3.5"><CategoryBadge category={customer.category} /></td>
                     <td className="px-5 py-3.5 text-right">{customer.orderCount}</td>
                     <td className="px-5 py-3.5 text-right">{customer.monthlyOrderRate.toFixed(1)}</td>
@@ -142,7 +142,7 @@ export function SalesCustomerInsights({
             </table>
           </div>
         )}
-        <div className="border-t border-line bg-slate-50 px-5 py-3 text-xs text-slate-600">
+        <div className="border-t border-line bg-soft px-5 py-3 text-xs text-ink/80">
           Markup guide: Normal 5% · Occasional 10–15% · Loyal 0% · New 0%.
         </div>
       </section>
@@ -154,7 +154,7 @@ function SearchField({ value, onChange, placeholder, label }: { value: string; o
   return (
     <label className="relative block max-w-xl">
       <span className="sr-only">{label}</span>
-      <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+      <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-ink/50" />
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -170,25 +170,25 @@ function SectionHeading({ title, description, value }: { title: string; descript
     <div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 className="flex items-center gap-2 text-lg font-semibold"><UserRoundSearch className="h-5 w-5 text-brand" />{title}</h2>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
+        <p className="mt-1 text-sm text-ink/70">{description}</p>
       </div>
-      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{value}</span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-ink/70">{value}</span>
     </div>
   );
 }
 
 function CategoryBadge({ category }: { category: CustomerInsightRow["category"] }) {
   const style = {
-    New: "bg-sky-50 text-sky-700 ring-sky-200",
-    Loyal: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    Normal: "bg-blue-50 text-blue-700 ring-blue-200",
-    Occasional: "bg-amber-50 text-amber-800 ring-amber-200"
+    New: "bg-info text-white",
+    Loyal: "bg-success text-white",
+    Normal: "bg-info text-white",
+    Occasional: "bg-warning text-strong"
   }[category];
-  return <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${style}`}>{category}</span>;
+  return <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${style}`}>{category}</span>;
 }
 
 function EmptyTableMessage({ message }: { message: string }) {
-  return <div className="px-5 py-10 text-center text-sm text-slate-500">{message}</div>;
+  return <div className="px-5 py-10 text-center text-sm text-ink/70">{message}</div>;
 }
 
 function matchesSearch(customer: { companyName: string; contactName: string; [key: string]: unknown }, search: string) {

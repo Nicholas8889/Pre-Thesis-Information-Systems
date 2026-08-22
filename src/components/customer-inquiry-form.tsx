@@ -31,23 +31,23 @@ export function CustomerInquiryForm({
     <form action={action} className="space-y-4">
       <input type="hidden" name="items" value={JSON.stringify(items)} />
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="text-sm font-medium text-slate-700">Customer
+        <label className="text-sm font-medium text-ink">Customer
           <select name="customerId" required className={inputClass}>
             <option value="">Select customer</option>
             {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.companyName} - {customer.name}</option>)}
           </select>
         </label>
-        <label className="text-sm font-medium text-slate-700">Needed By
+        <label className="text-sm font-medium text-ink">Needed By
           <input name="neededBy" type="date" className={inputClass} />
         </label>
-        <label className="text-sm font-medium text-slate-700 md:col-span-2">Inquiry Notes
+        <label className="text-sm font-medium text-ink md:col-span-2">Inquiry Notes
           <input name="notes" placeholder="Optional customer request notes" className={inputClass} />
         </label>
       </div>
       <div className="space-y-3">
         {items.map((item, index) => (
           <div key={index} className="grid gap-3 rounded-md border border-line p-3 lg:grid-cols-[1.4fr_1.2fr_90px_130px_130px_1fr_44px]">
-            <label className="text-sm font-medium text-slate-700">Product
+            <label className="text-sm font-medium text-ink">Product
               <select value={item.productId} onChange={(event) => {
                 const product = products.find((candidate) => candidate.id === event.target.value);
                 updateItem(index, { productId: event.target.value, itemName: product?.productName ?? "", agreedUnitPrice: product?.listPrice ?? item.agreedUnitPrice });
@@ -56,22 +56,22 @@ export function CustomerInquiryForm({
                 {products.map((product) => <option key={product.id} value={product.id}>{product.productName}</option>)}
               </select>
             </label>
-            <label className="text-sm font-medium text-slate-700">Requested Item
+            <label className="text-sm font-medium text-ink">Requested Item
               <input required value={item.itemName} onChange={(event) => updateItem(index, { itemName: event.target.value })} className={inputClass} />
             </label>
-            <label className="text-sm font-medium text-slate-700">Qty
+            <label className="text-sm font-medium text-ink">Qty
               <input required min={1} type="number" value={item.quantity} onChange={(event) => updateItem(index, { quantity: Number(event.target.value) })} className={inputClass} />
             </label>
-            <label className="text-sm font-medium text-slate-700">Requested Unit Price
+            <label className="text-sm font-medium text-ink">Requested Unit Price
               <input min={0} type="number" value={item.requestedUnitPrice} onChange={(event) => updateItem(index, { requestedUnitPrice: event.target.value === "" ? "" : Number(event.target.value) })} className={inputClass} />
             </label>
-            <label className="text-sm font-medium text-slate-700">Agreed Unit Price
+            <label className="text-sm font-medium text-ink">Agreed Unit Price
               <input min={0} type="number" value={item.agreedUnitPrice} onChange={(event) => updateItem(index, { agreedUnitPrice: event.target.value === "" ? "" : Number(event.target.value) })} className={inputClass} />
             </label>
-            <label className="text-sm font-medium text-slate-700">Item Note
+            <label className="text-sm font-medium text-ink">Item Note
               <input value={item.notes} onChange={(event) => updateItem(index, { notes: event.target.value })} className={inputClass} />
             </label>
-            <button type="button" title="Remove item" onClick={() => setItems((current) => current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index))} className="mt-6 flex h-10 w-10 items-center justify-center rounded-md border border-line text-slate-500"><Trash2 className="h-4 w-4" /></button>
+            <button type="button" title="Remove item" onClick={() => setItems((current) => current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index))} className="mt-6 flex h-10 w-10 items-center justify-center rounded-md border border-line text-ink/70"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}
       </div>

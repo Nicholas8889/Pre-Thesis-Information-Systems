@@ -43,14 +43,14 @@ export function ProcessTabs({
             }
             className={clsx(
               "inline-flex h-9 shrink-0 items-center justify-center rounded-md px-3 text-sm font-semibold transition",
-              isActive ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-50 hover:text-ink"
+              isActive ? "bg-brand text-white" : "text-ink/80 hover:bg-soft hover:text-ink"
             )}
           >
             {tab.label}
             <span
               className={clsx(
                 "ml-2 rounded-md px-1.5 py-0.5 text-xs",
-                isActive ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600"
+                isActive ? "bg-white/15 text-white" : "bg-canvas text-ink/80"
               )}
             >
               {tab.count}

@@ -59,9 +59,9 @@ export default async function PaymentsPage({
 
       <FlashMessage success={success} error={error} />
 
-      <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
         <h2 className="mb-2 text-lg font-semibold">Payment Queue</h2>
-        <p className="mb-4 text-sm leading-6 text-slate-600">
+        <p className="mb-4 text-sm leading-6 text-ink/80">
           Open invoices appear here automatically from Sales Order and Invoice data.
           Select Record Payment from a row to reduce repeated input.
         </p>
@@ -70,7 +70,7 @@ export default async function PaymentsPage({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Customer</th>
@@ -85,17 +85,17 @@ export default async function PaymentsPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {openInvoices.map((invoice) => (
-                  <tr key={invoice.id} className="transition hover:bg-slate-50">
+                  <tr key={invoice.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{invoice.invoiceNumber}</td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {invoice.customer.companyName}
                     </td>
                     <td className="py-3 pr-4">
                       <span
-                        className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${
+                        className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${
                           invoice.paymentTermType === "IMMEDIATE"
-                            ? "bg-amber-50 text-amber-800 ring-amber-200"
-                            : "bg-sky-50 text-sky-700 ring-sky-200"
+                            ? "bg-warning text-strong"
+                            : "bg-info text-white"
                         }`}
                       >
                         {getPaymentTermLabel({
@@ -107,13 +107,13 @@ export default async function PaymentsPage({
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(invoice.totalAmount)}
                     </td>
-                    <td className="py-3 pr-4 text-right text-slate-600">
+                    <td className="py-3 pr-4 text-right text-ink/80">
                       {formatCurrency(invoice.paidAmount)}
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(invoice.remainingAmount)}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {formatDate(invoice.dueDate)}
                     </td>
                     <td className="py-3 pr-4">
@@ -125,7 +125,7 @@ export default async function PaymentsPage({
                           <RecordPaymentButton invoiceId={invoice.id} />
                         ) : (
                           <RestrictedAction message={getRestrictionMessage("RECORD_PAYMENT")}>
-                            <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-slate-50 px-3 text-sm font-semibold text-slate-400">
+                            <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-soft px-3 text-sm font-semibold text-ink/50">
                               <Banknote aria-hidden="true" className="h-4 w-4" />
                               Record Payment
                             </button>
@@ -144,7 +144,7 @@ export default async function PaymentsPage({
                           </Link>
                         ) : (
                           <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
-                            <button disabled className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-slate-50 text-slate-400">
+                            <button disabled className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-soft text-ink/50">
                               <Truck aria-hidden="true" className="h-4 w-4" />
                             </button>
                           </RestrictedAction>
@@ -160,7 +160,7 @@ export default async function PaymentsPage({
       </section>
 
       {openInvoices.length > 0 && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <h2 className="mb-4 text-lg font-semibold">Record Payment</h2>
           <PaymentForm
             invoices={openInvoices.map((invoice) => ({
@@ -185,14 +185,14 @@ export default async function PaymentsPage({
         </section>
       )}
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <h2 className="mb-4 text-lg font-semibold">Recorded Payments</h2>
         {payments.length === 0 ? (
           <EmptyState message="No payments recorded yet." />
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Customer</th>
@@ -205,17 +205,17 @@ export default async function PaymentsPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {payments.map((payment) => (
-                  <tr key={payment.id} className="transition hover:bg-slate-50">
+                  <tr key={payment.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">
                       {payment.invoice.invoiceNumber}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {payment.invoice.customer.companyName}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {formatDate(payment.paymentDate)}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {payment.paymentMethod === "BankTransfer"
                         ? "Bank Transfer"
                         : payment.paymentMethod}
@@ -223,7 +223,7 @@ export default async function PaymentsPage({
                     <td className="py-3 text-right font-medium">
                       {formatCurrency(payment.amount)}
                     </td>
-                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {payment.notes ?? "-"}
                     </td>
                     <td className="py-3">
@@ -241,7 +241,7 @@ export default async function PaymentsPage({
                           </Link>
                         ) : (
                           <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
-                            <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-slate-50 px-3 text-sm font-semibold text-slate-400">
+                            <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-soft px-3 text-sm font-semibold text-ink/50">
                               <Truck aria-hidden="true" className="h-4 w-4" />
                               Create Surat Jalan
                             </button>

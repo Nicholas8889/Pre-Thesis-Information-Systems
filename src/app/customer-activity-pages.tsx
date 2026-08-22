@@ -82,13 +82,13 @@ export async function CollectionsPage({
       />
 
       {activeTab === "ongoing" && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <h2 className="mb-4 text-lg font-semibold">Add Collection Task</h2>
           {customers.length === 0 ? (
             <EmptyState message="Add an active customer before creating a collection task." />
           ) : (
             <form action={createCollectionTask} className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <label className="text-sm font-medium text-slate-700">
+              <label className="text-sm font-medium text-ink">
                 Customer
                 <select
                   name="customerId"
@@ -105,7 +105,7 @@ export async function CollectionsPage({
                 </select>
               </label>
 
-              <label className="text-sm font-medium text-slate-700">
+              <label className="text-sm font-medium text-ink">
                 Invoice
                 <select
                   name="invoiceId"
@@ -122,7 +122,7 @@ export async function CollectionsPage({
                 </select>
               </label>
 
-              <label className="text-sm font-medium text-slate-700">
+              <label className="text-sm font-medium text-ink">
                 Scheduled Date
                 <input
                   name="scheduledDate"
@@ -133,7 +133,7 @@ export async function CollectionsPage({
                 />
               </label>
 
-              <label className="text-sm font-medium text-slate-700">
+              <label className="text-sm font-medium text-ink">
                 Status
                 <select name="status" defaultValue="Planned" className={`${inputClass} mt-1`}>
                   <option value="Planned">Planned</option>
@@ -142,7 +142,7 @@ export async function CollectionsPage({
                 </select>
               </label>
 
-              <label className="text-sm font-medium text-slate-700 xl:col-span-3">
+              <label className="text-sm font-medium text-ink xl:col-span-3">
                 Notes
                 <input
                   name="notes"
@@ -168,7 +168,7 @@ export async function CollectionsPage({
         </section>
       )}
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <h2 className="mb-4 text-lg font-semibold">Collection Tasks</h2>
         {visibleCollectionTasks.length === 0 ? (
           <EmptyState
@@ -181,7 +181,7 @@ export async function CollectionsPage({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Customer</th>
                   <th className="py-3 pr-4">Invoice</th>
@@ -194,23 +194,23 @@ export async function CollectionsPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {visibleCollectionTasks.map((collectionTask) => (
-                  <tr key={collectionTask.id} className="transition hover:bg-slate-50">
+                  <tr key={collectionTask.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">
                       {collectionTask.customer.companyName}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {collectionTask.invoice?.invoiceNumber ?? "-"}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {collectionTask.invoice?.salesOrder.orderNumber ?? "-"}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {formatDate(collectionTask.scheduledDate)}
                     </td>
                     <td className="py-3 pr-4">
                       <StatusBadge status={collectionTask.status} />
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">{collectionTask.notes}</td>
+                    <td className="py-3 pr-4 text-ink/80">{collectionTask.notes}</td>
                     <td className="py-3">
                       <div className="flex justify-end">
                         {collectionTask.invoice ? (
@@ -222,7 +222,7 @@ export async function CollectionsPage({
                             View Sales Order
                           </Link>
                         ) : (
-                          <span className="text-sm text-slate-500">Customer only</span>
+                          <span className="text-sm text-ink/70">Customer only</span>
                         )}
                       </div>
                     </td>
@@ -281,10 +281,10 @@ export async function CustomerOutreachPage({
 
       <FlashMessage success={success} error={error} />
 
-      <section id="record-outreach" className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+      <section id="record-outreach" className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-4">
           <h2 className="text-lg font-semibold">Record Customer Contact</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-ink/80">
             Save when the customer was contacted. A note about the product or conversation is optional.
           </p>
         </div>
@@ -297,7 +297,7 @@ export async function CustomerOutreachPage({
             action={recordCustomerOutreach}
             className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr_1.6fr_auto]"
           >
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Customer
               <select
                 name="customerId"
@@ -314,7 +314,7 @@ export async function CustomerOutreachPage({
               </select>
             </label>
 
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Last Contact Date
               <input
                 name="contactDate"
@@ -326,7 +326,7 @@ export async function CustomerOutreachPage({
               />
             </label>
 
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Optional Note
               <input
                 name="notes"
@@ -345,14 +345,14 @@ export async function CustomerOutreachPage({
         )}
       </section>
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold">Customer Outreach</h2>
-            <p className="mt-1 text-sm text-slate-500">All customers and their latest product-information contact.</p>
+            <p className="mt-1 text-sm text-ink/70">All customers and their latest product-information contact.</p>
           </div>
           <form className="flex w-full max-w-sm items-center gap-2 rounded-md border border-line px-3 py-2">
-            <Search aria-hidden="true" className="h-4 w-4 text-slate-400" />
+            <Search aria-hidden="true" className="h-4 w-4 text-ink/50" />
             <input name="q" defaultValue={query} placeholder="Search customer" className="w-full text-sm outline-none" />
           </form>
         </div>
@@ -362,7 +362,7 @@ export async function CustomerOutreachPage({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Company</th>
                   <th className="py-3 pr-4">Contact Person</th>
@@ -376,20 +376,20 @@ export async function CustomerOutreachPage({
                 {customers.map((customer) => {
                   const latestContact = customer.outreachActivities[0];
                   return (
-                    <tr key={customer.id} className="hover:bg-slate-50">
+                    <tr key={customer.id} className="hover:bg-soft">
                       <td className="py-3 pr-4 font-medium text-ink">{customer.companyName}</td>
-                      <td className="py-3 pr-4 text-slate-600">{customer.name}</td>
-                      <td className="py-3 pr-4 text-slate-600">{customer.phone || "-"}</td>
+                      <td className="py-3 pr-4 text-ink/80">{customer.name}</td>
+                      <td className="py-3 pr-4 text-ink/80">{customer.phone || "-"}</td>
                       <td className="py-3 pr-4">
                         {latestContact ? (
                           <span className="font-medium text-ink">{formatDate(latestContact.contactDate)}</span>
                         ) : (
-                          <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
+                          <span className="rounded-md bg-warning px-2 py-1 text-xs font-semibold text-strong">
                             Never contacted
                           </span>
                         )}
                       </td>
-                      <td className="max-w-sm py-3 pr-4 text-slate-600">{latestContact?.notes || "-"}</td>
+                      <td className="max-w-sm py-3 pr-4 text-ink/80">{latestContact?.notes || "-"}</td>
                       <td className="py-3 text-right">
                         <Link
                           href={`/customer-outreach?customerId=${customer.id}#record-outreach`}

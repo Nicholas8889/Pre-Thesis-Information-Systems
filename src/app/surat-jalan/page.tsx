@@ -124,7 +124,7 @@ export default async function SuratJalanPage({
               </Link>
             ) : (
               <RestrictedAction message={suratJalanRestriction}>
-                <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-200 px-4 text-sm font-semibold text-slate-500">
+                <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
                   <Plus aria-hidden="true" className="h-4 w-4" />
                   Add Surat Jalan
                 </button>
@@ -144,7 +144,7 @@ export default async function SuratJalanPage({
       />
 
       {activeTab === "ongoing" && mode === "create" && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <h2 className="mb-4 text-lg font-semibold">Create Surat Jalan</h2>
           {customers.length === 0 ? (
             <EmptyState message="Add a customer before creating Surat Jalan." />
@@ -202,14 +202,14 @@ export default async function SuratJalanPage({
       )}
 
       {activeTab === "ongoing" && selectedDeliveryNote && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-soft">
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <div className="mb-5 flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase text-slate-400">Surat Jalan</p>
+              <p className="text-sm font-semibold uppercase text-ink/50">Surat Jalan</p>
               <h2 className="mt-1 text-2xl font-semibold">
                 {selectedDeliveryNote.deliveryNoteNumber}
               </h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-ink/80">
                 {selectedDeliveryNote.invoice?.invoiceNumber ??
                   selectedDeliveryNote.salesOrder?.orderNumber ??
                   "Manual delivery note"}
@@ -241,10 +241,10 @@ export default async function SuratJalanPage({
           {editStatusId === selectedDeliveryNote.id && (
             <form
               action={updateDeliveryNoteStatus}
-              className="mb-5 grid gap-3 rounded-md border border-line bg-slate-50 p-4 sm:grid-cols-[1fr_auto_auto]"
+              className="mb-5 grid gap-3 rounded-md border border-line bg-soft p-4 sm:grid-cols-[1fr_auto_auto]"
             >
               <input type="hidden" name="id" value={selectedDeliveryNote.id} />
-              <label className="text-sm font-medium text-slate-700">
+              <label className="text-sm font-medium text-ink">
                 Status
                 <select
                   name="status"
@@ -265,7 +265,7 @@ export default async function SuratJalanPage({
               <div className="flex items-end">
                 <Link
                   href={`/surat-jalan?tab=${activeTab}&view=${selectedDeliveryNote.id}`}
-                  className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-slate-600"
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-ink/80"
                 >
                   Cancel
                 </Link>
@@ -312,19 +312,19 @@ export default async function SuratJalanPage({
             <Detail label="Authorized By" value={selectedDeliveryNote.authorizedBy ?? "-"} />
           </div>
 
-          <p className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+          <p className="mt-4 rounded-md bg-soft p-3 text-sm text-ink/80">
             {selectedDeliveryNote.recipientAddress}
           </p>
 
           {selectedDeliveryNote.notes && (
-            <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+            <p className="mt-3 rounded-md bg-soft p-3 text-sm text-ink/80">
               {selectedDeliveryNote.notes}
             </p>
           )}
 
           <div className="mt-6 overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Product Code</th>
                   <th className="py-3 pr-4">Product Name</th>
@@ -335,12 +335,12 @@ export default async function SuratJalanPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {selectedDeliveryNote.items.map((item) => (
-                  <tr key={item.id} className="transition hover:bg-slate-50">
-                    <td className="py-3 pr-4 text-slate-600">{item.productCode ?? "-"}</td>
+                  <tr key={item.id} className="transition hover:bg-soft">
+                    <td className="py-3 pr-4 text-ink/80">{item.productCode ?? "-"}</td>
                     <td className="py-3 pr-4 font-medium">{item.itemName}</td>
-                    <td className="py-3 pr-4 text-right text-slate-600">{item.quantity}</td>
-                    <td className="py-3 pr-4 text-slate-600">{item.unit}</td>
-                    <td className="py-3 text-slate-600">{item.description ?? "-"}</td>
+                    <td className="py-3 pr-4 text-right text-ink/80">{item.quantity}</td>
+                    <td className="py-3 pr-4 text-ink/80">{item.unit}</td>
+                    <td className="py-3 text-ink/80">{item.description ?? "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -349,7 +349,7 @@ export default async function SuratJalanPage({
         </section>
       )}
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         {visibleDeliveryNotes.length === 0 ? (
           <EmptyState
             message={
@@ -361,7 +361,7 @@ export default async function SuratJalanPage({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Surat Jalan No.</th>
                   <th className="py-3 pr-4">Date</th>
@@ -374,23 +374,23 @@ export default async function SuratJalanPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {visibleDeliveryNotes.map((deliveryNote) => (
-                  <tr key={deliveryNote.id} className="transition hover:bg-slate-50">
+                  <tr key={deliveryNote.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">
                       {deliveryNote.deliveryNoteNumber}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {formatDate(deliveryNote.deliveryDate)}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {deliveryNote.recipientName}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {deliveryNote.invoice?.invoiceNumber ?? "-"}
                     </td>
                     <td className="py-3 pr-4">
                       <StatusBadge status={deliveryNote.status} />
                     </td>
-                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-slate-600">
+                    <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-ink/80">
                       {deliveryNote.notes ?? "-"}
                     </td>
                     <td className="py-3">
@@ -436,7 +436,7 @@ export default async function SuratJalanPage({
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
+      <p className="text-xs font-semibold uppercase text-ink/50">{label}</p>
       <p className="mt-1 text-sm font-medium text-ink">{value || "-"}</p>
     </div>
   );

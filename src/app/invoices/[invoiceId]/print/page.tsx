@@ -58,15 +58,15 @@ export default async function InvoicePrintPage({
         <PrintButton />
       </div>
 
-      <article className="print-page rounded-md border border-slate-300 bg-white p-6 text-slate-900 shadow-soft sm:p-8">
-        <header className="border-b-2 border-slate-900 pb-5">
+      <article className="print-page rounded-md border border-line bg-white p-6 text-strong shadow-card sm:p-8">
+        <header className="border-b-2 border-strong pb-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-lg font-bold tracking-normal">CV TAJUK</p>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-ink/80">
                 Revenue Cycle Information System MVP
               </p>
-              <p className="mt-3 text-sm leading-6 text-slate-700">
+              <p className="mt-3 text-sm leading-6 text-ink">
                 Local thesis demonstration invoice
               </p>
             </div>
@@ -80,17 +80,17 @@ export default async function InvoicePrintPage({
           </div>
         </header>
 
-        <section className="grid gap-6 border-b border-slate-300 py-5 md:grid-cols-2">
+        <section className="grid gap-6 border-b border-line py-5 md:grid-cols-2">
           <div>
-            <p className="text-xs font-bold uppercase text-slate-500">Bill To</p>
+            <p className="text-xs font-bold uppercase text-ink/70">Bill To</p>
             <p className="mt-2 text-base font-semibold">{invoice.customer.name}</p>
-            <p className="text-sm text-slate-700">{invoice.customer.companyName}</p>
-            <p className="mt-2 text-sm text-slate-700">{invoice.customer.phone}</p>
-            <p className="mt-1 max-w-md text-sm leading-6 text-slate-700">
+            <p className="text-sm text-ink">{invoice.customer.companyName}</p>
+            <p className="mt-2 text-sm text-ink">{invoice.customer.phone}</p>
+            <p className="mt-1 max-w-md text-sm leading-6 text-ink">
               {invoice.customer.address}
             </p>
             {invoice.customerNpwpSnapshot && (
-              <p className="mt-2 text-sm font-semibold text-slate-800">
+              <p className="mt-2 text-sm font-semibold text-strong">
                 NPWP: {formatNpwp(invoice.customerNpwpSnapshot)}
               </p>
             )}
@@ -117,30 +117,30 @@ export default async function InvoicePrintPage({
 
         <section className="py-5">
           <div className="overflow-x-auto">
-            <table className="border border-slate-400 text-sm">
-              <thead className="bg-slate-100 text-left uppercase text-slate-700">
+            <table className="border border-ink/50 text-sm">
+              <thead className="bg-canvas text-left uppercase text-ink">
                 <tr>
-                  <th className="border border-slate-400 px-3 py-2">No.</th>
-                  <th className="border border-slate-400 px-3 py-2">Product / Item</th>
-                  <th className="border border-slate-400 px-3 py-2 text-right">Qty</th>
-                  <th className="border border-slate-400 px-3 py-2">Unit</th>
-                  <th className="border border-slate-400 px-3 py-2 text-right">Final Unit Price</th>
-                  <th className="border border-slate-400 px-3 py-2 text-right">Line Total</th>
+                  <th className="border border-ink/50 px-3 py-2">No.</th>
+                  <th className="border border-ink/50 px-3 py-2">Product / Item</th>
+                  <th className="border border-ink/50 px-3 py-2 text-right">Qty</th>
+                  <th className="border border-ink/50 px-3 py-2">Unit</th>
+                  <th className="border border-ink/50 px-3 py-2 text-right">Final Unit Price</th>
+                  <th className="border border-ink/50 px-3 py-2 text-right">Line Total</th>
                 </tr>
               </thead>
               <tbody>
                 {invoice.salesOrder.items.map((item, index) => (
                   <tr key={item.id}>
-                    <td className="border border-slate-400 px-3 py-2">{index + 1}</td>
-                    <td className="border border-slate-400 px-3 py-2">{item.itemName}</td>
-                    <td className="border border-slate-400 px-3 py-2 text-right">
+                    <td className="border border-ink/50 px-3 py-2">{index + 1}</td>
+                    <td className="border border-ink/50 px-3 py-2">{item.itemName}</td>
+                    <td className="border border-ink/50 px-3 py-2 text-right">
                       {item.quantity}
                     </td>
-                    <td className="border border-slate-400 px-3 py-2">PCS</td>
-                    <td className="border border-slate-400 px-3 py-2 text-right">
+                    <td className="border border-ink/50 px-3 py-2">PCS</td>
+                    <td className="border border-ink/50 px-3 py-2 text-right">
                       {formatInvoiceCurrency(item.finalUnitPrice)}
                     </td>
-                    <td className="border border-slate-400 px-3 py-2 text-right font-semibold">
+                    <td className="border border-ink/50 px-3 py-2 text-right font-semibold">
                       {formatInvoiceCurrency(item.subtotal)}
                     </td>
                   </tr>
@@ -150,23 +150,23 @@ export default async function InvoicePrintPage({
           </div>
         </section>
 
-        <section className="grid gap-6 border-t border-slate-300 pt-5 md:grid-cols-[1fr_340px]">
+        <section className="grid gap-6 border-t border-line pt-5 md:grid-cols-[1fr_340px]">
           <div>
-            <p className="text-xs font-bold uppercase text-slate-500">Amount in Words</p>
-            <p className="mt-2 rounded-md border border-slate-300 bg-slate-50 p-3 text-sm font-semibold leading-6">
+            <p className="text-xs font-bold uppercase text-ink/70">Amount in Words</p>
+            <p className="mt-2 rounded-md border border-line bg-soft p-3 text-sm font-semibold leading-6">
               {amountToWords(invoice.totalAmount)}
             </p>
 
             {invoice.notes && (
               <div className="mt-4">
-                <p className="text-xs font-bold uppercase text-slate-500">Notes</p>
-                <p className="mt-2 text-sm leading-6 text-slate-700">{invoice.notes}</p>
+                <p className="text-xs font-bold uppercase text-ink/70">Notes</p>
+                <p className="mt-2 text-sm leading-6 text-ink">{invoice.notes}</p>
               </div>
             )}
 
             <div className="mt-4">
-              <p className="text-xs font-bold uppercase text-slate-500">Payment Information</p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">
+              <p className="text-xs font-bold uppercase text-ink/70">Payment Information</p>
+              <p className="mt-2 text-sm leading-6 text-ink">
                 Bank Transfer: Bank Demo CV Tajuk
                 <br />
                 Account No.: 123-456-7890
@@ -190,7 +190,7 @@ export default async function InvoicePrintPage({
             <AmountRow label="Invoice Total" value={invoice.totalAmount} strong />
             <AmountRow label="Paid Amount" value={invoice.paidAmount} />
             <AmountRow label="Remaining Amount" value={invoice.remainingAmount} strong />
-            <div className="flex items-center justify-between border-t border-slate-300 pt-3">
+            <div className="flex items-center justify-between border-t border-line pt-3">
               <span className="font-semibold">Payment Status</span>
               <StatusBadge status={invoice.status} />
             </div>
@@ -198,13 +198,13 @@ export default async function InvoicePrintPage({
         </section>
 
         <footer className="mt-12 grid gap-8 sm:grid-cols-[1fr_260px]">
-          <div className="text-xs leading-6 text-slate-500">
+          <div className="text-xs leading-6 text-ink/70">
             This invoice is generated from the local CV Tajuk Revenue Cycle MVP for
             thesis demonstration purposes.
           </div>
           <div className="text-center text-sm">
             <p className="font-semibold">Authorized Signature</p>
-            <div className="mt-16 border-t border-slate-500 pt-2">CV TAJUK</div>
+            <div className="mt-16 border-t border-ink/50 pt-2">CV TAJUK</div>
           </div>
         </footer>
       </article>
@@ -215,8 +215,8 @@ export default async function InvoicePrintPage({
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[130px_1fr] gap-3">
-      <span className="font-semibold text-slate-500">{label}</span>
-      <span className="font-medium text-slate-900">{value}</span>
+      <span className="font-semibold text-ink/70">{label}</span>
+      <span className="font-medium text-strong">{value}</span>
     </div>
   );
 }
@@ -232,7 +232,7 @@ function AmountRow({
 }) {
   return (
     <div
-      className={`flex items-center justify-between border-b border-slate-200 py-2 ${
+      className={`flex items-center justify-between border-b border-line py-2 ${
         strong ? "text-base font-bold" : ""
       }`}
     >

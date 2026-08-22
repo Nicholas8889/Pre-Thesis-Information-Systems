@@ -78,18 +78,18 @@ export default async function ReceivablesPage({
 
       {activeTab === "ongoing" && (
         <section className="mb-6 grid gap-4 md:grid-cols-3">
-          <div className="rounded-md border border-line bg-white p-4 shadow-soft">
-            <p className="text-sm font-medium text-slate-500">Active Receivables</p>
+          <div className="rounded-md border border-line bg-white p-4 shadow-card">
+            <p className="text-sm font-medium text-ink/70">Active Receivables</p>
             <p className="mt-2 text-2xl font-semibold">{receivables.length}</p>
           </div>
-          <div className="rounded-md border border-line bg-white p-4 shadow-soft md:col-span-2">
-            <p className="text-sm font-medium text-slate-500">Remaining Amount</p>
+          <div className="rounded-md border border-line bg-white p-4 shadow-card md:col-span-2">
+            <p className="text-sm font-medium text-ink/70">Remaining Amount</p>
             <p className="mt-2 text-2xl font-semibold">{formatCurrency(totalRemaining)}</p>
           </div>
         </section>
       )}
 
-      <section className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Filter aria-hidden="true" className="h-4 w-4 text-brand" />
           {statusOptions.map((item) => (
@@ -103,7 +103,7 @@ export default async function ReceivablesPage({
               className={`rounded-md border px-3 py-2 text-sm font-semibold ${
                 (activeStatus ?? "All") === item
                   ? "border-brand bg-brand text-white"
-                  : "border-line text-slate-600"
+                  : "border-line text-ink/80"
               }`}
             >
               {item}
@@ -120,7 +120,7 @@ export default async function ReceivablesPage({
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-slate-500">
+              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Sales Order</th>
@@ -134,30 +134,30 @@ export default async function ReceivablesPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {receivables.map((invoice) => (
-                  <tr key={invoice.id} className="transition hover:bg-slate-50">
+                  <tr key={invoice.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{invoice.invoiceNumber}</td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {invoice.salesOrder.orderNumber}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {invoice.customer.companyName}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-ink/80">
                       {getPaymentTermLabel({
                         paymentTermType: invoice.paymentTermType,
                         creditTermMonths: invoice.creditTermMonths
                       })}
                       {activeTab === "ongoing" && invoice.paymentTermType === "CREDIT" && (
-                        <span className="mt-1 block text-xs font-medium text-sky-700">
+                        <span className="mt-1 block text-xs font-medium text-info">
                           Collection reminder suggested near due date
                         </span>
                       )}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">{formatDate(invoice.dueDate)}</td>
+                    <td className="py-3 pr-4 text-ink/80">{formatDate(invoice.dueDate)}</td>
                     <td className="py-3 pr-4">
                       <StatusBadge status={invoice.status} />
                       {invoice.status === "Overdue" && (
-                        <span className="ml-2 inline-flex rounded-md bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
+                        <span className="ml-2 inline-flex rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white">
                           Needs Collection
                         </span>
                       )}

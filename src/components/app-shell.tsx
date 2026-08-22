@@ -103,7 +103,7 @@ export function AppShell({
 
   if (pathname === "/login") {
     return (
-      <div className="min-h-screen bg-surface text-ink">
+      <div className="min-h-screen bg-canvas text-ink">
         {children}
         <PageHelpButton />
       </div>
@@ -111,20 +111,20 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-screen bg-surface text-ink">
-      <aside className="no-print fixed inset-y-0 left-0 hidden w-72 flex-col overflow-y-auto border-r border-slate-200 bg-white px-5 py-6 lg:flex">
+    <div className="min-h-screen bg-canvas text-ink">
+      <aside className="no-print fixed inset-y-0 left-0 hidden w-72 flex-col overflow-y-auto border-r border-line bg-white px-5 py-6 lg:flex">
         <Link href="/" className="mb-8 flex shrink-0 items-center gap-3 rounded-md px-1">
           <span className="flex h-11 w-11 items-center justify-center rounded-md bg-brand text-sm font-bold text-white shadow-sm">
             CT
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-base font-semibold tracking-normal text-ink">CV Tajuk</span>
-            <span className="block text-xs font-medium uppercase tracking-wide text-slate-500">
+            <span className="block text-xs font-medium uppercase tracking-wide text-ink/70">
               Revenue Cycle MVP
             </span>
           </span>
           {userRole && (
-            <span className="shrink-0 rounded-md bg-blue-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-brand ring-1 ring-inset ring-blue-200">
+            <span className="shrink-0 rounded-md bg-accent px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-strong">
               {userRole}
             </span>
           )}
@@ -133,7 +133,7 @@ export function AppShell({
         <nav className="flex-1 space-y-2" aria-label="Main navigation">
           {navigationSections.map((section) => (
             <details key={section.title} open className="group">
-              <summary className="flex h-9 cursor-pointer list-none items-center justify-between rounded-md px-3 text-xs font-semibold uppercase tracking-wide text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 [&::-webkit-details-marker]:hidden">
+              <summary className="flex h-9 cursor-pointer list-none items-center justify-between rounded-md px-3 text-xs font-semibold uppercase tracking-wide text-ink/50 transition hover:bg-soft hover:text-ink/80 [&::-webkit-details-marker]:hidden">
                 <span>{section.title}</span>
                 <ChevronDown
                   aria-hidden="true"
@@ -153,7 +153,7 @@ export function AppShell({
                         "flex h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition",
                         isActive
                           ? "bg-brand text-white shadow-sm"
-                          : "text-slate-600 hover:bg-slate-50 hover:text-ink"
+                          : "text-ink/80 hover:bg-soft hover:text-ink"
                       )}
                     >
                       <Icon aria-hidden="true" className="h-4 w-4" />
@@ -166,8 +166,8 @@ export function AppShell({
           ))}
         </nav>
 
-        <form action={logout} data-no-action-confirmation="true" className="mt-6 shrink-0 border-t border-slate-200 pt-4">
-          <button className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-ink">
+        <form action={logout} data-no-action-confirmation="true" className="mt-6 shrink-0 border-t border-line pt-4">
+          <button className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-ink/80 transition hover:bg-soft hover:text-ink">
             <LogOut aria-hidden="true" className="h-4 w-4" />
             Logout
           </button>
@@ -175,12 +175,12 @@ export function AppShell({
       </aside>
 
       <div className="lg:pl-72">
-        <header className="no-print sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+        <header className="no-print sticky top-0 z-10 border-b border-line bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               CV Tajuk
               {userRole && (
-                <span className="rounded-md bg-blue-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-brand ring-1 ring-inset ring-blue-200">
+                <span className="rounded-md bg-accent px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-strong">
                   {userRole}
                 </span>
               )}
@@ -201,7 +201,7 @@ export function AppShell({
                     "flex h-10 min-w-10 items-center justify-center rounded-md border px-3 text-sm",
                     isActive
                       ? "border-brand bg-brand text-white"
-                      : "border-slate-200 bg-white text-slate-600"
+                      : "border-line bg-white text-ink/80"
                   )}
                 >
                   <Icon aria-hidden="true" className="h-4 w-4" />
@@ -210,7 +210,7 @@ export function AppShell({
               );
             })}
             <form action={logout} data-no-action-confirmation="true">
-              <button title="Logout" className="flex h-10 min-w-10 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-600">
+              <button title="Logout" className="flex h-10 min-w-10 items-center justify-center rounded-md border border-line bg-white px-3 text-sm text-ink/80">
                 <LogOut aria-hidden="true" className="h-4 w-4" />
                 <span className="sr-only">Logout</span>
               </button>

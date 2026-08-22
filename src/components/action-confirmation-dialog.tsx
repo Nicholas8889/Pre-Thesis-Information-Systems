@@ -94,7 +94,7 @@ export function ActionConfirmationDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-strong/50 p-4"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) cancel();
@@ -109,16 +109,16 @@ export function ActionConfirmationDialog() {
         <h2 id="action-confirmation-title" className="text-lg font-semibold text-ink">
           Confirm {pending.title}
         </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
+        <p className="mt-2 text-sm leading-6 text-ink/80">
           Review this action before submitting. Your note will be saved with the record and
           shown in the Audit Trail.
         </p>
         {pending.summary && (
-          <div className="mt-4 whitespace-pre-line rounded-md border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold leading-7 text-slate-700">
+          <div className="mt-4 whitespace-pre-line rounded-md bg-accent/15 px-4 py-3 text-sm font-semibold leading-7 text-ink">
             {pending.summary}
           </div>
         )}
-        <label className="mt-4 block text-sm font-semibold text-slate-700">
+        <label className="mt-4 block text-sm font-semibold text-ink">
           Confirmation Note {pending.requiresNote ? "(required)" : "(optional)"}
           <textarea
             ref={textareaRef}
@@ -135,11 +135,11 @@ export function ActionConfirmationDialog() {
             className="mt-1 w-full rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-brand"
           />
         </label>
-        <p className="mt-1 text-right text-xs font-medium text-slate-500">
+        <p className="mt-1 text-right text-xs font-medium text-ink/70">
           {note.length}/{MAX_ACTION_NOTE_LENGTH} characters
         </p>
         {pending.requiresNote && !trimmedNote && (
-          <p className="mt-2 text-xs font-medium text-rose-600">
+          <p className="mt-2 text-xs font-medium text-danger">
             A note is required for destructive actions.
           </p>
         )}
@@ -147,7 +147,7 @@ export function ActionConfirmationDialog() {
           <button
             type="button"
             onClick={cancel}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-slate-700"
+            className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-ink"
           >
             Cancel
           </button>
@@ -155,7 +155,7 @@ export function ActionConfirmationDialog() {
             type="button"
             onClick={submit}
             disabled={pending.requiresNote && !trimmedNote}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-ink/25"
           >
             Submit
           </button>

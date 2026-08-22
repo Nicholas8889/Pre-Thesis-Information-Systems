@@ -143,18 +143,18 @@ export function SalesOrderForm({
       <input type="hidden" name="source" value={source} />
 
       {isCustomerPo && (
-        <div className="grid gap-4 rounded-md border border-blue-200 bg-blue-50 p-4 md:grid-cols-2">
-          <div className="text-sm font-medium text-slate-700">
+        <div className="grid gap-4 rounded-md border border-line bg-accent/10 p-4 md:grid-cols-2">
+          <div className="text-sm font-medium text-ink">
             Generated IDs
-            <div className="mt-1 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+            <div className="mt-1 rounded-md border border-line bg-white px-3 py-2 text-sm font-semibold text-ink">
               Sales Order Number and Customer PO Number are generated after save.
             </div>
-            <span className="mt-1 block text-xs font-normal text-slate-500">
+            <span className="mt-1 block text-xs font-normal text-ink/70">
               Customer Purchase Orders receive both an SO number and a PO number.
             </span>
           </div>
 
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-ink">
             Product Required Date
             <input
               name="requiredDate"
@@ -162,24 +162,24 @@ export function SalesOrderForm({
               required
               className={`${inputClass} mt-1 bg-white`}
             />
-            <span className="mt-1 block text-xs font-normal text-slate-500">
+            <span className="mt-1 block text-xs font-normal text-ink/70">
               The system will remind users as this processing date approaches.
             </span>
           </label>
 
-          <label className="text-sm font-medium text-slate-700 md:col-span-2">
+          <label className="text-sm font-medium text-ink md:col-span-2">
             Customer PO Document
-            <span className="mt-1 flex min-h-12 items-center gap-3 rounded-md border border-dashed border-blue-300 bg-white px-3 py-2">
+            <span className="mt-1 flex min-h-12 items-center gap-3 rounded-md border border-dashed border-line bg-white px-3 py-2">
               <FileUp aria-hidden="true" className="h-5 w-5 shrink-0 text-brand" />
               <input
                 name="customerPoDocument"
                 type="file"
                 required
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                className="w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+                className="w-full text-sm text-ink/80 file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
               />
             </span>
-            <span className="mt-1 block text-xs font-normal text-slate-500">
+            <span className="mt-1 block text-xs font-normal text-ink/70">
               PDF, JPG, PNG, DOC, or DOCX. Maximum file size 8 MB.
             </span>
           </label>
@@ -187,7 +187,7 @@ export function SalesOrderForm({
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Customer
           <select
             name="customerId"
@@ -205,12 +205,12 @@ export function SalesOrderForm({
           </select>
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Notes
           <input name="notes" className={`${inputClass} mt-1`} placeholder="Optional" />
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-ink">
           Payment Terms
           <select
             name="paymentTermType"
@@ -225,7 +225,7 @@ export function SalesOrderForm({
         </label>
 
         {paymentTermType === "CREDIT" && (
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-ink">
             Credit Term
             <select name="creditTermMonths" required className={`${inputClass} mt-1`}>
               {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
@@ -241,16 +241,16 @@ export function SalesOrderForm({
       {selectedCustomer && (
         <section
           aria-live="polite"
-          className="rounded-md border border-blue-200 bg-blue-50/70 p-4"
+          className="rounded-md bg-info/10 p-4"
         >
           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div>
               <h3 className="text-sm font-semibold text-ink">Customer Insight</h3>
-              <p className="mt-1 text-xs leading-5 text-slate-600">
+              <p className="mt-1 text-xs leading-5 text-ink/80">
                 Historical guidance only. It does not change payment terms, markup, discounts, or approval.
               </p>
             </div>
-            <span className="w-fit rounded-full border border-blue-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand">
+            <span className="w-fit rounded-full bg-info px-2.5 py-1 text-xs font-semibold text-white">
               {selectedCustomer.ppnApplied ? "PPN included" : "No PPN for this order"}
             </span>
           </div>
@@ -294,7 +294,7 @@ export function SalesOrderForm({
           return (
           <div key={index} className="space-y-3 rounded-md border border-line p-3">
             <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-[minmax(180px,1.4fr)_90px_140px_110px_110px_150px_150px_44px]">
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Product Name
               <select
                 required
@@ -311,7 +311,7 @@ export function SalesOrderForm({
               </select>
             </label>
 
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Qty
               <input
                 required
@@ -325,7 +325,7 @@ export function SalesOrderForm({
               />
             </label>
 
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Base Unit Price
               <input
                 required
@@ -340,7 +340,7 @@ export function SalesOrderForm({
               />
             </label>
 
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Markup (%)
               <input
                 min={0}
@@ -358,7 +358,7 @@ export function SalesOrderForm({
               />
             </label>
 
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-sm font-medium text-ink">
               Discount (%)
               <input
                 min={0}
@@ -376,7 +376,7 @@ export function SalesOrderForm({
               />
             </label>
 
-            <div className="text-sm font-medium text-slate-700">
+            <div className="text-sm font-medium text-ink">
               <span className="flex items-center gap-1.5">
                 Final Unit Price
                 <span
@@ -384,20 +384,20 @@ export function SalesOrderForm({
                   tabIndex={0}
                   aria-label={`Customer category: ${selectedCustomer?.category ?? "Select a customer first"}`}
                 >
-                  <CircleHelp aria-hidden="true" className="h-4 w-4 text-slate-400" />
-                  <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-slate-900 px-3 py-2 text-center text-xs font-medium text-white shadow-lg group-hover/price-help:block group-focus/price-help:block">
+                  <CircleHelp aria-hidden="true" className="h-4 w-4 text-ink/50" />
+                  <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-strong px-3 py-2 text-center text-xs font-medium text-white shadow-lg group-hover/price-help:block group-focus/price-help:block">
                     Customer category: {selectedCustomer?.category ?? "Select a customer first"}
                   </span>
                 </span>
               </span>
-              <div className="mt-1 flex h-10 items-center rounded-md border border-line bg-slate-50 px-3">
+              <div className="mt-1 flex h-10 items-center rounded-md border border-line bg-soft px-3">
                 {formatCurrency(getFinalUnitPrice(item))}
               </div>
             </div>
 
-            <div className="text-sm font-medium text-slate-700">
+            <div className="text-sm font-medium text-ink">
               Subtotal
-              <div className="mt-1 flex h-10 items-center rounded-md border border-line bg-slate-50 px-3">
+              <div className="mt-1 flex h-10 items-center rounded-md border border-line bg-soft px-3">
                 {formatCurrency(item.quantity * getFinalUnitPrice(item))}
               </div>
             </div>
@@ -405,7 +405,7 @@ export function SalesOrderForm({
             <button
               type="button"
               onClick={() => removeItem(index)}
-              className="mt-6 flex h-10 w-10 items-center justify-center rounded-md border border-line text-slate-500"
+              className="mt-6 flex h-10 w-10 items-center justify-center rounded-md border border-line text-ink/70"
               title="Remove item"
             >
               <Trash2 aria-hidden="true" className="h-4 w-4" />
@@ -415,13 +415,13 @@ export function SalesOrderForm({
             {selectedProduct && (
               <section
                 aria-live="polite"
-                className="rounded-md border border-slate-200 bg-slate-50 p-3"
+                className="rounded-md border border-line bg-soft p-3"
               >
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">
                     Product Price Insight
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-ink/70">
                     Advisory only; your Base Unit Price, markup, and discount remain unchanged.
                   </p>
                 </div>
@@ -461,16 +461,16 @@ export function SalesOrderForm({
 
       <section
         aria-live="polite"
-        className="rounded-md border border-violet-200 bg-violet-50/70 p-4"
+        className="rounded-md bg-accent/10 p-4"
       >
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div>
             <h3 className="text-sm font-semibold text-ink">Calculation Summary</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-600">
+            <p className="mt-1 text-xs leading-5 text-ink/80">
               Estimated until the order is submitted and recalculated by the server.
             </p>
           </div>
-          <span className="w-fit rounded-full border border-violet-200 bg-white px-2.5 py-1 text-xs font-semibold text-violet-700">
+          <span className="w-fit rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-strong">
             Tax-inclusive customer charge
           </span>
         </div>
@@ -581,18 +581,18 @@ function InsightMetric({
 }) {
   return (
     <div className="min-w-0 rounded-md border border-white/80 bg-white p-3 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink/50">
         {label}
       </p>
       <p className="mt-1 break-words text-sm font-semibold text-ink">{value}</p>
-      {help && <p className="mt-1 text-xs leading-5 text-slate-500">{help}</p>}
+      {help && <p className="mt-1 text-xs leading-5 text-ink/70">{help}</p>}
     </div>
   );
 }
 
 function RestrictionTooltip({ message }: { message: string }) {
   return (
-    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md bg-slate-900 px-3 py-2 text-center text-xs font-medium leading-5 text-white shadow-lg group-hover/form-restriction:block">
+    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md bg-strong px-3 py-2 text-center text-xs font-medium leading-5 text-white shadow-lg group-hover/form-restriction:block">
       {message}
     </span>
   );
