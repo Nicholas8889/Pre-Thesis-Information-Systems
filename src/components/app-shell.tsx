@@ -114,26 +114,31 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-canvas text-ink">
       <aside className="no-print fixed inset-y-0 left-0 hidden w-72 flex-col overflow-y-auto border-r border-line bg-white px-5 py-6 lg:flex">
-        <Link href="/" className="mb-8 flex shrink-0 items-center gap-3 rounded-md px-1">
+        <Link
+          href="/"
+          className="mb-8 grid shrink-0 grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3 rounded-md px-1"
+        >
           <Image
             src="/tajuk-logo.png"
             alt="TAJUK"
             width={612}
             height={407}
-            className="h-10 w-24 shrink-0 object-contain"
+            className="h-9 w-20 object-contain"
             priority
           />
-          <span className="min-w-0 flex-1">
-            <span className="block text-base font-semibold tracking-normal text-ink">CV Tajuk</span>
-            <span className="block text-xs font-medium uppercase tracking-wide text-ink/70">
+          <span className="min-w-0">
+            <span className="flex items-center justify-between gap-2">
+              <span className="text-base font-semibold tracking-normal text-ink">CV Tajuk</span>
+              {userRole && (
+                <span className="shrink-0 rounded-md bg-brand px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                  {userRole}
+                </span>
+              )}
+            </span>
+            <span className="mt-0.5 block whitespace-nowrap text-[10px] font-medium uppercase leading-4 tracking-wide text-ink/70">
               Revenue Cycle MVP
             </span>
           </span>
-          {userRole && (
-            <span className="shrink-0 rounded-md bg-brand px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-              {userRole}
-            </span>
-          )}
         </Link>
 
         <nav className="flex-1 space-y-2" aria-label="Main navigation">
