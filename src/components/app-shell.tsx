@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -114,9 +115,14 @@ export function AppShell({
     <div className="min-h-screen bg-canvas text-ink">
       <aside className="no-print fixed inset-y-0 left-0 hidden w-72 flex-col overflow-y-auto border-r border-line bg-white px-5 py-6 lg:flex">
         <Link href="/" className="mb-8 flex shrink-0 items-center gap-3 rounded-md px-1">
-          <span className="flex h-11 w-11 items-center justify-center rounded-md bg-brand text-sm font-bold text-white shadow-sm">
-            CT
-          </span>
+          <Image
+            src="/tajuk-logo.png"
+            alt="TAJUK"
+            width={612}
+            height={407}
+            className="h-10 w-24 shrink-0 object-contain"
+            priority
+          />
           <span className="min-w-0 flex-1">
             <span className="block text-base font-semibold tracking-normal text-ink">CV Tajuk</span>
             <span className="block text-xs font-medium uppercase tracking-wide text-ink/70">
@@ -124,7 +130,7 @@ export function AppShell({
             </span>
           </span>
           {userRole && (
-            <span className="shrink-0 rounded-md bg-accent px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-strong">
+            <span className="shrink-0 rounded-md bg-brand px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
               {userRole}
             </span>
           )}
@@ -178,9 +184,16 @@ export function AppShell({
         <header className="no-print sticky top-0 z-10 border-b border-line bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 font-semibold">
-              CV Tajuk
+              <Image
+                src="/tajuk-logo.png"
+                alt="TAJUK"
+                width={612}
+                height={407}
+                className="h-8 w-20 object-contain"
+                priority
+              />
               {userRole && (
-                <span className="rounded-md bg-accent px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-strong">
+                <span className="rounded-md bg-brand px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
                   {userRole}
                 </span>
               )}

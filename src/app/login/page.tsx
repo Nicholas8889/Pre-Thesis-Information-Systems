@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { login } from "@/lib/auth-actions";
 import { PasswordInput } from "@/components/password-input";
 
@@ -18,9 +19,14 @@ export default async function LoginPage({
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
       <section className="w-full max-w-md rounded-md border border-line bg-white p-7 shadow-card">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-md bg-brand text-sm font-bold text-white shadow-sm">
-            CT
-          </div>
+          <Image
+            src="/tajuk-logo.png"
+            alt="TAJUK"
+            width={612}
+            height={407}
+            className="mx-auto mb-4 h-auto w-40"
+            priority
+          />
           <h1 className="text-2xl font-semibold tracking-normal text-ink">
             CV Tajuk Revenue Cycle Information System
           </h1>
