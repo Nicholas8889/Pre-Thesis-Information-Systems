@@ -51,7 +51,7 @@ export function NotificationButton({
       <button
         type="button"
         onClick={openNotifications}
-        className="no-print fixed bottom-4 right-[4.75rem] z-40 inline-flex h-11 items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-brand shadow-card transition hover:bg-soft sm:bottom-5 sm:right-[7.25rem] sm:px-4"
+        className="no-print fixed bottom-4 right-4 z-40 inline-flex h-11 items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-brand shadow-card transition hover:bg-soft sm:bottom-5 sm:right-5 sm:px-4"
         title="Notifications"
       >
         <span className="relative">

@@ -25,7 +25,6 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { clsx } from "clsx";
 import { logout } from "@/lib/auth-actions";
-import { PageHelpButton } from "@/components/page-help-button";
 import { NotificationButton } from "@/components/notification-button";
 import type { AppNotification } from "@/lib/notifications";
 import { TableEnhancer } from "@/components/table-enhancer";
@@ -106,7 +105,6 @@ export function AppShell({
     return (
       <div className="min-h-screen bg-canvas text-ink">
         {children}
-        <PageHelpButton />
       </div>
     );
   }
@@ -243,7 +241,6 @@ export function AppShell({
         <CardHelpEnhancer />
         <ActionConfirmationDialog />
         {userId && <NotificationButton notifications={notifications} userId={userId} />}
-        <PageHelpButton />
       </div>
     </div>
   );
