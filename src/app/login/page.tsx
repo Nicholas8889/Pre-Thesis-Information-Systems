@@ -31,7 +31,7 @@ export default async function LoginPage({
             CV Tajuk Revenue Cycle Information System
           </h1>
           <p className="mt-2 text-sm text-ink/80">
-            Local internal workflow demonstration
+            Internal Revenue Cycle Information Systems
           </p>
         </div>
 
@@ -49,7 +49,7 @@ export default async function LoginPage({
               required
               autoComplete="username"
               className={`${inputClass} mt-1`}
-              placeholder="admin"
+              placeholder="Enter username"
             />
           </label>
 
