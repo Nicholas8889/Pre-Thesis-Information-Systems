@@ -5,6 +5,7 @@ import {
   haveSameOrderedReferences,
   parseTableDate,
   parseTableNumber,
+  shouldRefreshTableEnhancements,
   shouldOfferCheckboxFilter,
   shouldOfferTableTextExpansion
 } from "../../src/lib/table-utils";
@@ -62,4 +63,43 @@ describe("table sorting and filtering utilities", () => {
     expect(haveSameOrderedReferences([firstRow, secondRow], [{}, {}])).toBe(false);
     expect(haveSameOrderedReferences([firstRow, secondRow], [secondRow, firstRow])).toBe(false);
   });
+
+  it("refreshes table enhancements when React changes rows inside an existing table", () => {
+    const tableBody = elementLike({ closestTable: true });
+    const unrelatedContainer = elementLike();
+    const addedTable = elementLike({ matchesTable: true });
+
+    expect(
+      shouldRefreshTableEnhancements([
+        { target: tableBody, addedNodes: [{}], removedNodes: [{}] }
+      ])
+    ).toBe(true);
+    expect(
+      shouldRefreshTableEnhancements([
+        { target: unrelatedContainer, addedNodes: [addedTable], removedNodes: [] }
+      ])
+    ).toBe(true);
+    expect(
+      shouldRefreshTableEnhancements([
+        { target: unrelatedContainer, addedNodes: [{}], removedNodes: [{}] }
+      ])
+    ).toBe(false);
+  });
 });
+
+function elementLike({
+  matchesTable = false,
+  containsTable = false,
+  closestTable = false
+}: {
+  matchesTable?: boolean;
+  containsTable?: boolean;
+  closestTable?: boolean;
+} = {}) {
+  return {
+    matches: (selector: string) => selector === "table" && matchesTable,
+    querySelector: (selector: string) =>
+      selector === "table" && containsTable ? {} : null,
+    closest: (selector: string) => (selector === "table" && closestTable ? {} : null)
+  };
+}

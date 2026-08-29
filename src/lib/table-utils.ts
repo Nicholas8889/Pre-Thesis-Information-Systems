@@ -84,3 +84,48 @@ export function shouldOfferTableTextExpansion(value: string, minimumLength = 40)
 export function haveSameOrderedReferences<T>(left: T[], right: T[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
+
+type TableMutationLike = {
+  target: unknown;
+  addedNodes: ArrayLike<unknown>;
+  removedNodes: ArrayLike<unknown>;
+};
+
+type ElementLike = {
+  matches: (selector: string) => boolean;
+  querySelector: (selector: string) => unknown;
+  closest: (selector: string) => unknown;
+};
+
+export function shouldRefreshTableEnhancements(
+  mutations: ArrayLike<TableMutationLike>
+) {
+  return Array.from(mutations).some((mutation) => {
+    const target = asElementLike(mutation.target);
+    if (target?.closest("table")) return true;
+
+    return [...Array.from(mutation.addedNodes), ...Array.from(mutation.removedNodes)].some(
+      (node) => {
+        const element = asElementLike(node);
+        return Boolean(
+          element && (element.matches("table") || element.querySelector("table"))
+        );
+      }
+    );
+  });
+}
+
+function asElementLike(value: unknown): ElementLike | null {
+  if (!value || typeof value !== "object") return null;
+
+  const candidate = value as Partial<ElementLike>;
+  if (
+    typeof candidate.matches !== "function" ||
+    typeof candidate.querySelector !== "function" ||
+    typeof candidate.closest !== "function"
+  ) {
+    return null;
+  }
+
+  return candidate as ElementLike;
+}

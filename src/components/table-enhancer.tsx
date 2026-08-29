@@ -7,6 +7,7 @@ import {
   getTablePageRange,
   haveSameOrderedReferences,
   parseTableDate,
+  shouldRefreshTableEnhancements,
   shouldOfferCheckboxFilter,
   shouldOfferTableTextExpansion
 } from "@/lib/table-utils";
@@ -51,7 +52,7 @@ export function TableEnhancer() {
     enhanceTables();
     let enhancementScheduled = false;
     const observer = new MutationObserver((mutations) => {
-      if (!mutationsContainTable(mutations)) return;
+      if (!shouldRefreshTableEnhancements(mutations)) return;
       if (enhancementScheduled) return;
       enhancementScheduled = true;
       requestAnimationFrame(() => {
@@ -71,15 +72,6 @@ export function TableEnhancer() {
   }, [pathname]);
 
   return null;
-}
-
-function mutationsContainTable(mutations: MutationRecord[]) {
-  return mutations.some((mutation) =>
-    Array.from(mutation.addedNodes).some((node) => {
-      if (!(node instanceof Element)) return false;
-      return node.matches("table") || Boolean(node.querySelector("table"));
-    })
-  );
 }
 
 function enhanceTable(table: HTMLTableElement) {
