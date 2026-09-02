@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Check, ClipboardList, Eye, FilePlus2, FileText, Plus, ShoppingCart, X } from "lucide-react";
+import { ArrowLeft, Check, ClipboardList, Eye, FilePlus2, Plus, ShoppingCart, X } from "lucide-react";
 import {
   decideSalesOrderApproval,
   generateInvoice,
@@ -517,7 +517,6 @@ export async function OrdersBySourcePage({
                   <th className="py-3 pr-4">Customer</th>
                   <th className="py-3 pr-4">Order Date</th>
                   {isCustomerPo && <th className="py-3 pr-4">Required Date</th>}
-                  {isCustomerPo && <th className="py-3 pr-4">Customer PO Document</th>}
                   <th className="py-3 pr-4">Payment Terms</th>
                   <th className="py-3 pr-4">Status</th>
                   {activeTab === "approval" && <th className="py-3 pr-4">Payment Risk</th>}
@@ -542,20 +541,6 @@ export async function OrdersBySourcePage({
                     {isCustomerPo && (
                       <td className="py-3 pr-4 font-medium text-ink">
                         {order.requiredDate ? formatDate(order.requiredDate) : "-"}
-                      </td>
-                    )}
-                    {isCustomerPo && (
-                      <td className="py-3 pr-4 text-ink/80">
-                        {order.customerPoDocumentStoredName ? (
-                          <Link
-                            href={`/api/customer-purchase-orders/${order.id}/document`}
-                            title="Unduh customer PO document"
-                            className="inline-flex items-center gap-2 font-semibold text-brand"
-                          >
-                            <FileText aria-hidden="true" className="h-4 w-4" />
-                            Unduh {order.customerPoDocumentName ?? "Customer PO document"}
-                          </Link>
-                        ) : "-"}
                       </td>
                     )}
                     <td className="py-3 pr-4 text-ink/80">
