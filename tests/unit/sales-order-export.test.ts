@@ -1,8 +1,28 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
-import { createSalesOrderWorkbook } from "../../src/app/api/sales-orders/export/route";
+import {
+  createSalesOrderWorkbook,
+  getSalesOrderExportTabFilter
+} from "../../src/app/api/sales-orders/export/route";
 
 describe("sales order Excel export", () => {
+  it("maps each process tab to the matching database filter", () => {
+    expect(getSalesOrderExportTabFilter("approval")).toEqual({
+      approvalStatus: "Pending"
+    });
+    expect(getSalesOrderExportTabFilter("ongoing")).toEqual({
+      approvalStatus: { not: "Pending" },
+      status: { in: ["Draft", "Confirmed", "Invoiced"] },
+      deliveryNotes: { none: {} }
+    });
+    expect(getSalesOrderExportTabFilter("done")).toEqual({
+      OR: [
+        { status: { in: ["Shipped", "Cancelled"] } },
+        { deliveryNotes: { some: {} } }
+      ]
+    });
+  });
+
   it("produces a valid xlsx workbook with canonical pricing headers", async () => {
     const workbook = createSalesOrderWorkbook({
       salesOrders: [

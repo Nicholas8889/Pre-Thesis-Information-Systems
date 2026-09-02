@@ -250,7 +250,7 @@ export function SalesOrderForm({
                 Historical guidance only. It does not change payment terms, markup, discounts, or approval.
               </p>
             </div>
-            <span className="w-fit rounded-full bg-info px-2.5 py-1 text-xs font-semibold text-white">
+            <span className="w-fit rounded-md bg-info px-2.5 py-1 text-xs font-semibold text-white">
               {selectedCustomer.ppnApplied ? "PPN included" : "No PPN for this order"}
             </span>
           </div>
@@ -470,7 +470,7 @@ export function SalesOrderForm({
               Estimated until the order is submitted and recalculated by the server.
             </p>
           </div>
-          <span className="w-fit rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-strong">
+          <span className="w-fit rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-strong">
             Tax-inclusive customer charge
           </span>
         </div>
@@ -496,7 +496,7 @@ export function SalesOrderForm({
             }
             help={
               !estimatedTax
-                ? "Customer selection determines the MVP tax treatment."
+                ? "Customer selection determines the configured tax treatment."
                 : estimatedTax.ppnApplied
                   ? `Separated from Total Price at the configured ${ppnRateLabel} effective rate.`
                   : "Customer NPWP not provided."

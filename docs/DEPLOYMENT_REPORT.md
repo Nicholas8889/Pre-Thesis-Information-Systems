@@ -83,7 +83,7 @@ Overall result: **Successful**
 
 ## Remaining risks
 
-- Existing lookup indexes are still absent for `customer_inquiry_items.customer_inquiry_id` and `sales_order_items.sales_order_id`; this is non-blocking at the current MVP data volume.
+- Existing lookup indexes are still absent for `customer_inquiry_items.customer_inquiry_id` and `sales_order_items.sales_order_id`; this is non-blocking at the current system data volume.
 - Demo authentication/session handling requires hardening before use as a high-risk production system.
 - Formal backup-restore and lock-contention drills remain operational follow-up work.
 - The two clearly labeled QA customer records are intentionally retained and should only be removed later through an approved data-cleanup process.

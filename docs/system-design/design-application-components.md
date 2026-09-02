@@ -85,7 +85,7 @@ Dashboard membaca data operasional dari Sales Order, Invoice, Payment, Delivery 
 
 ## 6. Component Design Summary
 
-Struktur komponen aplikasi cukup sesuai untuk skala UMKM CV Tajuk karena sederhana, langsung mengikuti proses bisnis revenue cycle, dan tidak menambah kompleksitas microservices. Layered modular monolith memudahkan pengembangan thesis MVP: UI, proses bisnis, akses data, database, dan audit trail masih berada dalam satu repository, tetapi tanggung jawabnya tetap dapat dijelaskan secara terpisah.
+Struktur komponen aplikasi cukup sesuai untuk skala UMKM CV Tajuk karena sederhana, langsung mengikuti proses bisnis revenue cycle, dan tidak menambah kompleksitas microservices. Layered modular monolith memudahkan pengembangan proyek tesis: UI, proses bisnis, akses data, database, dan audit trail masih berada dalam satu repository, tetapi tanggung jawabnya tetap dapat dijelaskan secara terpisah.
 
 Keunggulan struktur saat ini adalah alur transaksi yang mudah dipahami, integrasi audit trail pada action bisnis penting, role-based access pada aksi sensitif, serta penggunaan Prisma schema sebagai sumber utama struktur data. Untuk konteks UMKM, pendekatan ini membantu menjaga biaya pemeliharaan tetap rendah dan membuat proses operasional seperti inquiry, order, invoice, payment, delivery, receivable, dan customer outreach dapat dilacak dari satu aplikasi.
 

@@ -1,8 +1,8 @@
-# CRUD Table - CV Tajuk Revenue Cycle MVP
+# CRUD Table - CV Tajuk Revenue Cycle Information System
 
 Updated: 18 July 2026
 
-This CRUD matrix maps the active application modules to the class names shown in the current class diagram. It is based on the current MVP scope: Customer -> CustomerInquiry -> SalesOrder / CustomerPO -> Invoice -> DeliveryNote -> Payment -> CollectionTask.
+This CRUD matrix maps the active application modules to the class names shown in the current class diagram. It is based on the current system scope: Customer -> CustomerInquiry -> SalesOrder / CustomerPO -> Invoice -> DeliveryNote -> Payment -> CollectionTask.
 
 ## Legend
 
@@ -40,7 +40,7 @@ This CRUD matrix maps the active application modules to the class names shown in
 - Receivable is not a separate class. It is derived from `Invoice.remainingAmount`, `Invoice.status`, and `Invoice.dueDate`.
 - Sales Order deletion is limited to eligible ongoing transactions. The application deletes the related `SalesOrderItem`, `Invoice`, `Payment`, `CollectionTask`, `DeliveryNote`, and `DeliveryNoteItem` records in one controlled workflow.
 - `AuditTrail` exists in the application, but it is not included in this matrix because it is not shown in the provided class diagram.
-- `Product` and `Customer` records use active/inactive status changes instead of hard delete in the current MVP.
+- `Product` and `Customer` records use active/inactive status changes instead of hard delete in the current system.
 
 ## Generated Image
 

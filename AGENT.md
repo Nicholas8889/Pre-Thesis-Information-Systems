@@ -1,20 +1,20 @@
-# BUILD_MVP.md — End-to-End MVP Build Instruction
+# BUILD_SYSTEM.md — End-to-End System Build Instruction
 
 ## 1. Goal
 
-Build an end-to-end local MVP web application for:
+Build an end-to-end local web application for:
 
 **CV Tajuk Revenue Cycle Information System**
 
-This is a thesis MVP, not a production system. The application should be simple, usable, and complete enough to demonstrate the revenue cycle flow from customer data to sales order, invoice, payment, receivable monitoring, follow-up, dashboard, and testing evidence.
+This is a thesis project, not a production system. The application should be simple, usable, and complete enough to demonstrate the revenue cycle flow from customer data to sales order, invoice, payment, receivable monitoring, follow-up, dashboard, and testing evidence.
 
 > Historical naming note (13 August 2026): this original project brief is retained as requirements history. Current canonical names are Customer Purchase Orders, Collections / CollectionTask, Customer Outreach, Customer Segment, contextual unit-price fields, and the canonical routes documented in `README.md`. Old terms below are not current UI or Prisma API names.
 
-The MVP must run locally and be easy to explain during thesis defense.
+The system must run locally and be easy to explain during thesis defense.
 
 ## 2. Main Objective
 
-Create a working end-to-end MVP where a user can:
+Create a working end-to-end system where a user can:
 
 1. Manage customer data.
 2. Create sales orders.
@@ -40,7 +40,7 @@ The app must run locally using:
 npm run dev
 ```
 
-Use Supabase PostgreSQL because the MVP can be demonstrated locally and deployed through Vercel for online demo or limited internal pilot review.
+Use Supabase PostgreSQL because the system can be demonstrated locally and deployed through Vercel for online demo or limited internal pilot review.
 
 ## 4. App Pages
 
@@ -405,7 +405,7 @@ The seed data should make the dashboard, receivables, and follow-up pages meanin
 
 ## 9. Testing Requirement
 
-Add basic tests or testing documentation for the MVP.
+Add basic tests or testing documentation for the system.
 
 Prioritize these:
 
@@ -477,7 +477,7 @@ Create or update `README.md` with:
 * How to run locally
 * How to run tests
 * Main modules
-* MVP scope limitation
+* System scope limitation
 
 ## 11. Important Constraints
 
@@ -496,11 +496,11 @@ Do not add:
 * AI features
 * External API dependency
 
-Only build the end-to-end MVP needed for thesis demonstration.
+Only build the end-to-end system needed for thesis demonstration.
 
 ## 12. Completion Criteria
 
-The MVP is considered complete when:
+The system is considered complete when:
 
 * The app runs locally.
 * All main pages are accessible.

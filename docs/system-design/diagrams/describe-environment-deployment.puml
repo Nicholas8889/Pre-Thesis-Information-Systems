@@ -1,5 +1,5 @@
 @startuml
-title Describe Environment Deployment Diagram - CV Tajuk Revenue Cycle MVP
+title Describe Environment Deployment Diagram - CV Tajuk Revenue Cycle Information System
 
 skinparam componentStyle rectangle
 skinparam shadowing false

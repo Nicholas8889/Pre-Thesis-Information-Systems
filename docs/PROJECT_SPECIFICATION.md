@@ -1,6 +1,6 @@
 # CV Tajuk Revenue Cycle Information System
 
-## Project specification — MVP / internal pilot
+## Project specification — System / internal pilot
 
 ### 1. Purpose
 
@@ -130,9 +130,9 @@ The internal-pilot release is acceptable when:
 7. Audit records preserve the user, role, action, module, and record reference.
 8. Lint, automated tests, database migrations, and production build pass in the release environment.
 
-### 10. MVP boundaries and excluded scope
+### 10. System boundaries and excluded scope
 
-This system is not yet a full ERP or production-grade enterprise platform. The current MVP excludes:
+This system is not yet a full ERP or production-grade enterprise platform. The current system excludes:
 
 - Payment gateway, bank, ERP, accounting/general-ledger, e-commerce, or external API integrations.
 - Inventory, stock movement, warehouse, courier-tracking, and procurement management.

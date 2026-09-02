@@ -1,6 +1,6 @@
-# CV Tajuk Revenue Cycle Information System MVP
+# CV Tajuk Revenue Cycle Information System
 
-This is a thesis MVP for demonstrating the revenue cycle flow at CV Tajuk. It covers customer inquiries, customer and product data, Sales Orders, Customer Purchase Orders (PO), invoices, payments, Surat Jalan, receivables, collection reminders, dashboard insight, and testing evidence.
+This is a thesis project for demonstrating the revenue cycle flow at CV Tajuk. It covers customer inquiries, customer and product data, Sales Orders, Customer Purchase Orders (PO), invoices, payments, Surat Jalan, receivables, collection reminders, dashboard insight, and testing evidence.
 
 The app can be run locally for thesis demonstration and can also be deployed to Vercel with Supabase PostgreSQL for online demo or limited company-side pilot review.
 
@@ -89,7 +89,7 @@ Open the local URL shown in the terminal, normally `http://localhost:3000`.
 For a non-developer Windows user, open PowerShell in the project folder, then run:
 
 ```powershell
-cd "D:\Pre Thesis MVP Iterative Development"
+cd "C:\path\to\cv-tajuk-revenue-cycle-system"
 npm.cmd run dev
 ```
 
@@ -192,7 +192,7 @@ The reset restores customers with and without NPWP, all five Customer Payment Be
 3. Fill username, display name, password, role, and status.
 4. Select Save Account.
 
-Roles control operational actions in this MVP. Sales can create Sales Orders and Customer Inquiries; Admin manages invoices, payments, and delivery; Manager can use all operational actions and approve risky Sales Orders.
+Roles control operational actions in this system. Sales can create Sales Orders and Customer Inquiries; Admin manages invoices, payments, and delivery; Manager can use all operational actions and approve risky Sales Orders.
 
 ### Recommended Demo Flow
 
@@ -219,9 +219,9 @@ npm run test
 npm run build
 ```
 
-### MVP Limitations
+### System Limitations
 
-This is a thesis MVP. It now supports local demo usage and Vercel/Supabase deployment, but it does not include production-grade authentication, full page-level access isolation, payment gateway integration, bank integration, ERP integration, inventory management, stock movement, courier tracking, warehouse management, accounting journals, general ledger, or automated external API integration.
+This is a thesis project. It now supports local demo usage and Vercel/Supabase deployment, but it does not include production-grade authentication, full page-level access isolation, payment gateway integration, bank integration, ERP integration, inventory management, stock movement, courier tracking, warehouse management, accounting journals, general ledger, or automated external API integration.
 
 ## Manual Demo Flow
 
@@ -255,9 +255,9 @@ This is a thesis MVP. It now supports local demo usage and Vercel/Supabase deplo
 - Customer Outreach
 - Settings
 
-## MVP Scope Limitation
+## System Scope Limitation
 
-This project is intentionally limited to a thesis MVP and controlled internal demo/pilot scope. It does not include payment gateway integration, bank integration, ERP features, full accounting journals, general ledger, inventory management, e-commerce checkout, advanced authentication, complex page-level role isolation, AI features, or automated external API dependencies.
+This project is intentionally limited to the scope of a thesis project and controlled internal demo/pilot. It does not include payment gateway integration, bank integration, ERP features, full accounting journals, general ledger, inventory management, e-commerce checkout, advanced authentication, complex page-level role isolation, AI features, or automated external API dependencies.
 
 ## Surat Jalan Module
 
@@ -273,7 +273,7 @@ To create Surat Jalan:
 6. Select View / Print to open the printable document.
 7. Select Print Surat Jalan to print or save as PDF. The print view shows the saved driver and vehicle plate, with the driver under Delivered by.
 
-For this MVP, Surat Jalan does not move inventory stock, calculate shipping cost, connect to couriers, or manage warehouse operations. It is only a delivery-note document for thesis demonstration.
+For this system, Surat Jalan does not move inventory stock, calculate shipping cost, connect to couriers, or manage warehouse operations. It is only a delivery-note document for thesis demonstration.
 
 ## Second Iteration Connected Flow
 
@@ -321,4 +321,4 @@ Important rules:
 
 ## Current Base Structure
 
-The current MVP includes database-backed pages, shared layout, Prisma schema, seed script, testing documentation, unit tests, and a clickable revenue cycle demo flow.
+The current system includes database-backed pages, shared layout, Prisma schema, seed script, testing documentation, unit tests, and a clickable revenue cycle demo flow.

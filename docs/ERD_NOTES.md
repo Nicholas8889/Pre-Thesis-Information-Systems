@@ -35,8 +35,8 @@ Customer
 
 An Admin or Manager can delete an eligible ongoing Sales Order after entering a mandatory confirmation note. The application removes the connected Delivery Notes and items, Collection Tasks, Payments, Invoice, Sales Order Items, and Sales Order in one database transaction. The Customer remains, and AuditTrail retains evidence of the deletion. Paid, delivered, or cancelled chains cannot be deleted.
 
-## MVP Design Notes
+## System Design Notes
 
 - Monetary values are whole-Rupiah integers.
-- User trace fields on SalesOrder and AuditTrail are not declared as physical Prisma relations in this MVP.
+- User trace fields on SalesOrder and AuditTrail are not declared as physical Prisma relations in this system.
 - `HistoryLog` is retained as a legacy physical table from an earlier migration, but current application activity uses AuditTrail.

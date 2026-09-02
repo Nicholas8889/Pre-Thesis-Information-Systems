@@ -1,4 +1,4 @@
-# CV Tajuk Revenue Cycle MVP - Complete User Flows
+# CV Tajuk Revenue Cycle Information System - Complete User Flows
 
 Updated: 19 July 2026
 
@@ -55,7 +55,7 @@ Admin users can view Sales Orders but cannot create them. Every operational crea
 | Sales | Manage customers, create Sales Orders, and maintain customer relationships | Cannot create Invoices, Payments, Surat Jalan, or accounts |
 
 The application identity area shows the current role beside **CV Tajuk / Revenue
-Cycle MVP**. Every role can open and inspect every module. Restricted fields and
+Cycle system**. Every role can open and inspect every module. Restricted fields and
 buttons remain visible but disabled; hovering them shows which role is allowed to
 use the action.
 
@@ -508,7 +508,7 @@ Customer Outreach is for sales relationship activity. Collections is a separate 
 5. Review the new account in Existing Accounts.
 6. An Active account can log in and receives the dashboard, notifications, and approval capability associated with its role.
 
-This MVP supports creating and listing local demo accounts. It does not currently provide account editing, password reset, or advanced permission administration.
+This system supports creating and listing local demo accounts. It does not currently provide account editing, password reset, or advanced permission administration.
 
 Sales can inspect Settings and existing accounts, but all account-creation fields and the Save Account button are disabled.
 

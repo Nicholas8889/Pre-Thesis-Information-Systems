@@ -199,7 +199,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
     match: (pathname) => pathname === "/settings",
     content: {
       title: "Settings Help",
-      purpose: "Use Settings to manage local demo user accounts for the thesis MVP.",
+      purpose: "Use Settings to manage user accounts for the CV Tajuk Revenue Cycle Information System.",
       steps: [
         "Create an account by filling username, display name, password, role, and status.",
         "Use Active or Inactive status to control whether the account can log in.",
@@ -211,7 +211,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
     match: (pathname) => pathname === "/login",
     content: {
       title: "Login Help",
-      purpose: "Use Login to enter the local thesis MVP before accessing the revenue cycle modules.",
+      purpose: "Use Login to access the CV Tajuk Revenue Cycle Information System.",
       steps: [
         "Enter the demo username and password prepared for the thesis demonstration.",
         "After login, the system opens the Dashboard.",

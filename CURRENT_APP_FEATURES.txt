@@ -1,4 +1,4 @@
-CV TAJUK - REVENUE CYCLE MVP
+CV TAJUK - REVENUE CYCLE INFORMATION SYSTEM
 CURRENT APPLICATION FEATURES
 Updated: 19 June 2026
 
@@ -113,5 +113,5 @@ Updated: 19 June 2026
 - The project includes linting, type checking, production build validation, and database migrations.
 
 CURRENT SCOPE
-- This is an MVP focused on the revenue cycle: Customer -> Sales Order -> Invoice -> Delivery -> Payment -> Receivable -> Billing/Follow Up.
+- This is a system focused on the revenue cycle: Customer -> Sales Order -> Invoice -> Delivery -> Payment -> Receivable -> Billing/Follow Up.
 - Roles currently control the dashboard experience and reminders; full page-by-page permission restrictions are not yet implemented.

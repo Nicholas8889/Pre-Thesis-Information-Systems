@@ -2,7 +2,7 @@
 
 ## Role List
 
-The MVP uses three account roles:
+The system uses three account roles:
 
 - `ADMIN` - Admin
 - `SALES` - Sales
@@ -36,7 +36,7 @@ Current behavior:
 | Review Audit Trail | Yes | Yes | Yes |
 | Create user account | Yes | Yes | No |
 
-The MVP primarily uses action-level restriction. Some menus remain visible across roles so users can review related records during thesis demonstration.
+The system primarily uses action-level restriction. Some menus remain visible across roles so users can review related records during thesis demonstration.
 
 ## Demo Accounts
 
@@ -96,7 +96,7 @@ Seed data also creates a few demo audit records for presentation.
 
 ## Limitations
 
-This is intentionally simple for the thesis MVP:
+This is intentionally simple for the thesis project:
 
 - Role control is action-level and not full page-level isolation.
 - Existing pages do not have separate per-module history pages.

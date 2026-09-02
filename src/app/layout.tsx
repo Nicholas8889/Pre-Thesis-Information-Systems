@@ -7,8 +7,8 @@ import { getRoleNotifications } from "@/lib/notifications";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  title: "CV Tajuk Revenue Cycle MVP",
-  description: "Local thesis MVP for CV Tajuk revenue cycle workflows."
+  title: "CV Tajuk Revenue Cycle Information System",
+  description: "Revenue cycle information system for CV Tajuk."
 };
 
 export const preferredRegion = "sin1";

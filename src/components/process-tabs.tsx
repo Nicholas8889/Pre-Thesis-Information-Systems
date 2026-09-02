@@ -23,10 +23,10 @@ export function ProcessTabs({
   approvalCount?: number;
 }) {
   const tabs = [
+    { value: "ongoing" as const, label: "Open", count: ongoingCount },
     ...(approvalCount === undefined
       ? []
       : [{ value: "approval" as const, label: "Need Approval", count: approvalCount }]),
-    { value: "ongoing" as const, label: "Open", count: ongoingCount },
     { value: "done" as const, label: "Completed", count: doneCount }
   ];
 

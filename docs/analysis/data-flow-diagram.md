@@ -12,7 +12,7 @@ Dalam konteks CV Tajuk Revenue Cycle Information System, DFD menjelaskan aliran 
 
 DFD ini mencakup proses revenue cycle CV Tajuk sesuai source code dan dokumentasi project. Aliran yang dicakup meliputi pengelolaan pengguna, master customer/product, customer inquiry, sales order/customer PO, invoice, payment, surat jalan, receivable, customer outreach, dashboard, laporan/export, dan audit trail.
 
-DFD ini tidak mencakup sistem stok existing CV Tajuk, inventory management, stock movement, warehouse management, ERP, accounting journal, bank integration, payment gateway, courier tracking, atau automated external API integration. README menyatakan area tersebut berada di luar scope MVP. Customer ditampilkan sebagai external business entity karena data customer, permintaan barang, PO, dan informasi pembayaran berasal dari customer, tetapi repository tidak menunjukkan customer login atau customer portal.
+DFD ini tidak mencakup sistem stok existing CV Tajuk, inventory management, stock movement, warehouse management, ERP, accounting journal, bank integration, payment gateway, courier tracking, atau automated external API integration. README menyatakan area tersebut berada di luar scope sistem. Customer ditampilkan sebagai external business entity karena data customer, permintaan barang, PO, dan informasi pembayaran berasal dari customer, tetapi repository tidak menunjukkan customer login atau customer portal.
 
 ## 3. Elemen DFD
 

@@ -1,8 +1,8 @@
-# Demo Script: CV Tajuk Revenue Cycle Information System MVP
+# Demo Script: CV Tajuk Revenue Cycle Information System
 
 ## Demo Objective
 
-The objective of this demo is to show how the MVP supports CV Tajuk in managing the revenue cycle from customer request until payment monitoring and customer outreach. The current iteration reduces duplicate manual input by connecting Customer Inquiry, Sales Order/Customer PO, Invoice, Payment, Surat Jalan, Receivable, Collections, and Dashboard data. It also explains customer payment behaviour, compares the proposed final product price with the current-month selling average, snapshots NPWP/PPN values, and records the assigned delivery driver and vehicle.
+The objective of this demo is to show how the system supports CV Tajuk in managing the revenue cycle from customer request until payment monitoring and customer outreach. The current iteration reduces duplicate manual input by connecting Customer Inquiry, Sales Order/Customer PO, Invoice, Payment, Surat Jalan, Receivable, Collections, and Dashboard data. It also explains customer payment behaviour, compares the proposed final product price with the current-month selling average, snapshots NPWP/PPN values, and records the assigned delivery driver and vehicle.
 
 The main flow is:
 
@@ -36,14 +36,14 @@ PO flow: Customer Inquiry -> Convert to Customer PO -> Customer PO Number and re
 | 8 | Invoices | Admin | Open or generate the invoice from the linked order, then select View / Print Invoice. | Invoice exactly copies NPWP, PPN, Net Sales, and Total from the finalized order; non-PPN invoices omit tax identity/rows. | Printed financial values cannot drift from the approved order snapshot. |
 | 9 | Payments | Admin | Select Record Payment from the invoice queue and record a partial payment. | Payment is saved, paid amount increases, remaining amount decreases, and invoice status becomes Partial. | Payment entry starts from the invoice row and avoids searching manually. |
 | 10 | Surat Jalan | Admin | For Immediate Payment, create after full payment; for Credit, create before full payment if needed. Select the required driver and vehicle plate and enter Sender separately. | Delivery note saves allowlisted driver/plate snapshots and remains linked to invoice or order data. | Delivery documentation follows payment rules and identifies operational responsibility. |
-| 11 | Surat Jalan | Admin | Select View / Print, verify Sender and Delivered by are separate, then mark it Delivered when complete. | Printable Surat Jalan shows driver/plate and the linked inquiry becomes Done after delivery. | The MVP links customer request completion to an identifiable delivery. |
+| 11 | Surat Jalan | Admin | Select View / Print, verify Sender and Delivered by are separate, then mark it Delivered when complete. | Printable Surat Jalan shows driver/plate and the linked inquiry becomes Done after delivery. | The system links customer request completion to an identifiable delivery. |
 | 12 | Receivables | Admin | Open Receivables and check the invoice. | Invoice appears because it still has remaining amount. Paid invoices do not appear as active receivables. | Outstanding customer balances are derived automatically from invoices. |
 | 13 | Collections | Admin | Select Create Collection Task from the receivable row and save a planned reminder. | Collections form opens with customer and invoice preselected. | Admin can track collection reminders without re-entering context. |
 | 14 | Dashboard | Manager | Return to Dashboard. | Dashboard totals, Surat Jalan count, receivable summary, and planned reminders reflect the new data. | Management can see updated revenue cycle information after transactions are entered. |
 
 ## Suggested Presentation Script
 
-1. Start by explaining that this is a thesis MVP that can run locally and can be deployed through Vercel with Supabase for online demo or limited company-side pilot review.
+1. Start by explaining that this is a thesis project that can run locally and can be deployed through Vercel with Supabase for online demo or limited company-side pilot review.
 2. Start from Login and explain that this is a simple demo login, not production-grade authentication.
 3. Log in as Admin using `admin` and `Admin123!`.
 4. Open the Dashboard and explain that it gives management a summary of sales, payment collection, open receivables, and customer outreach reminders.
@@ -61,8 +61,8 @@ PO flow: Customer Inquiry -> Convert to Customer PO -> Customer PO Number and re
 16. Return to Dashboard and explain that the dashboard updates to support monitoring and decision-making.
 17. If presenting deployment readiness, explain that the online version depends on Vercel environment variables connected to Supabase.
 
-## How the MVP Supports CV Tajuk Revenue Cycle Improvement
+## How the System Supports CV Tajuk Revenue Cycle Improvement
 
-This MVP improves the revenue cycle by making data flow more connected. Customer Inquiry records early customer requests and negotiation results. A valid inquiry can become a Sales Order or Customer PO without retyping customer and item data. Sales Orders and Customer Purchase Orders generate invoices. Payments update invoice balances. Surat Jalan documents delivery activity after invoice or payment activity. Receivables show unpaid or partial invoices. Collections and Customer Outreach help users remember collection and customer communication. The dashboard summarizes the flow so management can monitor sales, delivery documents, payment collection, overdue invoices, and planned customer outreach actions.
+This system improves the revenue cycle by making data flow more connected. Customer Inquiry records early customer requests and negotiation results. A valid inquiry can become a Sales Order or Customer PO without retyping customer and item data. Sales Orders and Customer Purchase Orders generate invoices. Payments update invoice balances. Surat Jalan documents delivery activity after invoice or payment activity. Receivables show unpaid or partial invoices. Collections and Customer Outreach help users remember collection and customer communication. The dashboard summarizes the flow so management can monitor sales, delivery documents, payment collection, overdue invoices, and planned customer outreach actions.
 
-The system remains simple so it is suitable for a thesis MVP and easy to demonstrate during defense.
+The system remains simple so it is suitable for a thesis project and easy to demonstrate during defense.

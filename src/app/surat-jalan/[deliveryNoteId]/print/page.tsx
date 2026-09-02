@@ -50,7 +50,7 @@ export default async function SuratJalanPrintPage({
             <div>
               <p className="text-lg font-bold tracking-normal">CV TAJUK</p>
               <p className="mt-1 text-sm text-ink/80">
-                Revenue Cycle Information System MVP
+                Revenue Cycle Information System
               </p>
               <p className="mt-3 text-sm leading-6 text-ink">
                 Local thesis demonstration delivery document

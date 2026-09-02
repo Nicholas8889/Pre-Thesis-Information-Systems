@@ -145,6 +145,16 @@ describe("canonical business naming", () => {
     const salesOrderList = projectFile("src/app/sales-orders/page.tsx");
     const paymentsPage = projectFile("src/app/payments/page.tsx");
     const paymentForm = projectFile("src/components/payment-form.tsx");
+    const productBrandingFiles = [
+      projectFile("src/components/app-shell.tsx"),
+      projectFile("src/app/layout.tsx"),
+      projectFile("src/components/page-help-button.tsx"),
+      salesOrderForm,
+      projectFile("src/app/invoices/[invoiceId]/print/page.tsx"),
+      deliveryNotePrint,
+      projectFile("src/app/api/sales-orders/export/route.ts"),
+      projectFile("package.json")
+    ];
 
     expect(exportDialog).toContain("Ekspor Excel");
     expect(exportDialog).not.toContain("Mencetak");
@@ -171,5 +181,9 @@ describe("canonical business naming", () => {
     expect(paymentForm).toContain("Payment Method");
     expect(salesOrderDetail).toContain("Collection Type");
     expect(salesOrderDetail).not.toContain("Type / Method");
+    expect(productBrandingFiles.join("\n")).not.toMatch(/\bMVP\b/i);
+    expect(projectFile("src/app/layout.tsx")).toContain(
+      "CV Tajuk Revenue Cycle Information System"
+    );
   });
 });

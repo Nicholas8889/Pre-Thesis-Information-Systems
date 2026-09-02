@@ -3,7 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { getPaymentTermLabel } from "@/lib/calculations";
 import { prisma } from "@/lib/prisma";
+import {
+  DONE_SALES_ORDER_STATUSES,
+  ONGOING_SALES_ORDER_STATUSES
+} from "@/lib/process-status";
 import { getCurrentUser } from "@/lib/session";
+import type { ProcessTabWithApproval } from "@/components/process-tabs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,8 +40,16 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams.get("source") === "CUSTOMER_PO"
       ? "CUSTOMER_PO"
       : "DIRECT";
+  const tab = parseExportTab(request.nextUrl.searchParams.get("tab"));
   const startDate = parseLocalDate(startDateValue, false);
   const endDate = parseLocalDate(endDateValue, true);
+
+  if (!tab) {
+    return NextResponse.json(
+      { error: "A valid Sales Order tab is required." },
+      { status: 400 }
+    );
+  }
 
   if (!startDate || !endDate) {
     return NextResponse.json(
@@ -58,7 +71,8 @@ export async function GET(request: NextRequest) {
       orderDate: {
         gte: startDate,
         lte: endDate
-      }
+      },
+      ...getSalesOrderExportTabFilter(tab)
     },
     orderBy: [{ orderDate: "asc" }, { orderNumber: "asc" }],
     include: {
@@ -82,7 +96,7 @@ export async function GET(request: NextRequest) {
     source
   });
   const buffer = await workbook.xlsx.writeBuffer();
-  const fileName = `${source === "CUSTOMER_PO" ? "customer-purchase-orders" : "sales-orders"}-${startDateValue}-${endDateValue}.xlsx`;
+  const fileName = `${source === "CUSTOMER_PO" ? "customer-purchase-orders" : "sales-orders"}-${getExportTabFileLabel(tab)}-${startDateValue}-${endDateValue}.xlsx`;
 
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,
@@ -92,6 +106,29 @@ export async function GET(request: NextRequest) {
       "Cache-Control": "no-store"
     }
   });
+}
+
+export function getSalesOrderExportTabFilter(
+  tab: ProcessTabWithApproval
+): Prisma.SalesOrderWhereInput {
+  if (tab === "approval") {
+    return { approvalStatus: "Pending" };
+  }
+
+  if (tab === "done") {
+    return {
+      OR: [
+        { status: { in: [...DONE_SALES_ORDER_STATUSES] } },
+        { deliveryNotes: { some: {} } }
+      ]
+    };
+  }
+
+  return {
+    approvalStatus: { not: "Pending" },
+    status: { in: [...ONGOING_SALES_ORDER_STATUSES] },
+    deliveryNotes: { none: {} }
+  };
 }
 
 export function createSalesOrderWorkbook({
@@ -109,7 +146,7 @@ export function createSalesOrderWorkbook({
 }) {
   const orderLabel = source === "CUSTOMER_PO" ? "CUSTOMER PURCHASE ORDER" : "SALES ORDER";
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "CV Tajuk Revenue Cycle MVP";
+  workbook.creator = "CV Tajuk Revenue Cycle Information System";
   workbook.created = new Date();
   workbook.modified = new Date();
 
@@ -280,6 +317,18 @@ function parseLocalDate(value: string | null, endOfDay: boolean) {
   const parsed = new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
   if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
   return parsed;
+}
+
+function parseExportTab(value: string | null): ProcessTabWithApproval | null {
+  return value === "approval" || value === "ongoing" || value === "done"
+    ? value
+    : null;
+}
+
+function getExportTabFileLabel(tab: ProcessTabWithApproval) {
+  if (tab === "approval") return "need-approval";
+  if (tab === "done") return "completed";
+  return "open";
 }
 
 function formatDateForWorkbook(date: Date) {

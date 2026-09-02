@@ -1,8 +1,8 @@
 # Page Standardization Notes
 
-This document explains the operational page structure used in the current CV Tajuk Revenue Cycle Information System MVP.
+This document explains the operational page structure used in the current CV Tajuk Revenue Cycle Information System.
 
-The purpose is to keep each page simple, consistent, and easy to explain during thesis demonstration. The Invoice page is used as the main reference because it already follows the clearest MVP structure: page title, short purpose text, process tabs where needed, detail area where useful, and one main list/table for records.
+The purpose is to keep each page simple, consistent, and easy to explain during thesis demonstration. The Invoice page is used as the main reference because it already follows the clearest system structure: page title, short purpose text, process tabs where needed, detail area where useful, and one main list/table for records.
 
 ## Standard Page Pattern
 
@@ -94,13 +94,13 @@ The database schema and business logic were not changed. This standardization on
 
 ## History Feature Note
 
-Operational History buttons and routes are not part of the current simple MVP page flow. The current operational pages should present normal revenue cycle work without separate History controls.
+Operational History buttons and routes are not part of the current simple system page flow. The current operational pages should present normal revenue cycle work without separate History controls.
 
-Old documentation or old migration records may still mention History for traceability, but the active page flow should stay focused on the main MVP modules.
+Old documentation or old migration records may still mention History for traceability, but the active page flow should stay focused on the main system modules.
 
 ## Simple Thesis Explanation
 
-The MVP uses a consistent page layout so users can move through the revenue cycle without learning a different screen pattern each time.
+The system uses a consistent page layout so users can move through the revenue cycle without learning a different screen pattern each time.
 
 The standard flow is:
 

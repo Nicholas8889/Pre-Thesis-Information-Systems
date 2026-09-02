@@ -134,7 +134,7 @@ export function AppShell({
               )}
             </span>
             <span className="mt-0.5 block whitespace-nowrap text-[10px] font-medium uppercase leading-4 tracking-wide text-ink/70">
-              Revenue Cycle MVP
+              Revenue Cycle System
             </span>
           </span>
         </Link>

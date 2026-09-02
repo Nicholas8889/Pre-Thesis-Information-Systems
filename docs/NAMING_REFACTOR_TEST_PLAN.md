@@ -4,7 +4,7 @@ Status dokumen: **Executed on authorized Supabase development database — 58 pa
 
 Tanggal audit dan eksekusi: 2026-08-13 sampai 2026-08-14
 
-Workspace: `D:\Pre Thesis MVP Iterative Development`
+Workspace: repository root
 
 ## 1. Scope dan guardrail
 
@@ -252,7 +252,7 @@ Jalankan per blok dan review output sebelum lanjut. Command migration di bawah s
 ### 9.1 Evidence dan baseline
 
 ```powershell
-Set-Location 'D:\Pre Thesis MVP Iterative Development'
+Set-Location 'C:\path\to\cv-tajuk-revenue-cycle-system'
 New-Item -ItemType Directory -Force -Path '.codex\evidence\naming-refactor' | Out-Null
 Start-Transcript -Path '.codex\evidence\naming-refactor\full-transcript.txt' -Force
 git status --short

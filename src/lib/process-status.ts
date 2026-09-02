@@ -1,8 +1,8 @@
 const ongoingInvoiceStatuses = ["Unpaid", "Partial", "Overdue"];
 const doneInvoiceStatuses = ["Paid", "Cancelled"];
 
-const ongoingSalesOrderStatuses = ["Draft", "Confirmed", "Invoiced"];
-const doneSalesOrderStatuses = ["Shipped", "Cancelled"];
+export const ONGOING_SALES_ORDER_STATUSES = ["Draft", "Confirmed", "Invoiced"] as const;
+export const DONE_SALES_ORDER_STATUSES = ["Shipped", "Cancelled"] as const;
 
 const ongoingDeliveryNoteStatuses = ["Draft", "Issued"];
 const doneDeliveryNoteStatuses = ["Delivered", "Cancelled"];
@@ -28,13 +28,13 @@ type SalesOrderProcessInput =
 export function isOngoingSalesOrder(input: SalesOrderProcessInput) {
   const { status, deliveryNoteCount } = normalizeSalesOrderProcessInput(input);
 
-  return ongoingSalesOrderStatuses.includes(status) && deliveryNoteCount === 0;
+  return ONGOING_SALES_ORDER_STATUSES.some((ongoingStatus) => ongoingStatus === status) && deliveryNoteCount === 0;
 }
 
 export function isDoneSalesOrder(input: SalesOrderProcessInput) {
   const { status, deliveryNoteCount } = normalizeSalesOrderProcessInput(input);
 
-  return doneSalesOrderStatuses.includes(status) || deliveryNoteCount > 0;
+  return DONE_SALES_ORDER_STATUSES.some((doneStatus) => doneStatus === status) || deliveryNoteCount > 0;
 }
 
 export function isOngoingDeliveryNote(status: string) {

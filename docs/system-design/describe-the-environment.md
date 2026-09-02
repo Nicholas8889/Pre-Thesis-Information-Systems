@@ -8,7 +8,7 @@ Last verified against repository: 20 July 2026
 
 Describe the Environment bertujuan menjelaskan lingkungan tempat sistem dijalankan dan digunakan. Dalam tahap system design, bagian ini menunjukkan bagaimana aplikasi berinteraksi dengan pengguna, perangkat kerja, teknologi aplikasi, database, jaringan, file storage, serta sistem lain di sekitar organisasi.
 
-Untuk kebutuhan thesis, dokumentasi ini membantu membatasi ruang lingkup sistem agar sesuai dengan implementasi aktual repository. Fokusnya adalah menjelaskan kondisi environment yang ditemukan pada CV Tajuk Revenue Cycle Information System MVP, bukan merancang arsitektur enterprise baru.
+Untuk kebutuhan thesis, dokumentasi ini membantu membatasi ruang lingkup sistem agar sesuai dengan implementasi aktual repository. Fokusnya adalah menjelaskan kondisi environment yang ditemukan pada CV Tajuk Revenue Cycle Information System, bukan merancang arsitektur enterprise baru.
 
 ## 2. Gambaran Lingkungan Sistem
 
@@ -23,7 +23,7 @@ Pengguna -> Browser -> Next.js Web Application -> Business Logic -> Prisma -> Su
                                                             -> Supabase Storage untuk dokumen PO
 ```
 
-Repository tidak menunjukkan integrasi langsung dengan sistem stok existing CV Tajuk. README justru menyatakan bahwa inventory management, stock movement, warehouse management, ERP, payment gateway, bank integration, courier tracking, dan automated external API integration berada di luar scope MVP.
+Repository tidak menunjukkan integrasi langsung dengan sistem stok existing CV Tajuk. README justru menyatakan bahwa inventory management, stock movement, warehouse management, ERP, payment gateway, bank integration, courier tracking, dan automated external API integration berada di luar scope sistem.
 
 ## 3. Pengguna dan Perangkat
 
@@ -75,7 +75,7 @@ External system yang berkaitan berdasarkan repository:
 | Vercel | Didukung untuk deployment | Hosting aplikasi Next.js jika digunakan secara online. |
 | GitHub | Didokumentasikan untuk deployment | Source code repository dan trigger deployment ke Vercel. |
 | Existing Stock System CV Tajuk | External System - Not Integrated | Tidak ada integrasi stok, inventory, warehouse, atau stock movement pada source code. |
-| Bank/payment gateway/courier/ERP/accounting system | Tidak terintegrasi | README menyatakan fitur tersebut berada di luar scope MVP. |
+| Bank/payment gateway/courier/ERP/accounting system | Tidak terintegrasi | README menyatakan fitur tersebut berada di luar scope sistem. |
 
 ## 6. Security Environment
 
@@ -101,7 +101,7 @@ Environment variable menjadi bagian penting security environment. `DATABASE_URL`
 | File persistence PO bergantung pada Supabase Storage | Dokumen PO Customer PO tersimpan di bucket storage; backup dan retensi file perlu ditentukan secara operasional. |
 | Backup belum didefinisikan sebagai fitur aplikasi | Repository tidak menunjukkan prosedur backup/restore khusus aplikasi; perlu kebijakan backup database dan storage sebelum pilot operasional. |
 | Tidak ada integrasi eksternal operasional | Stok existing, bank, payment gateway, courier, ERP, dan accounting system tetap manual atau di luar scope. |
-| Security masih sesuai thesis MVP/pilot terbatas | README menyatakan belum production-grade authentication dan belum full page-level access isolation. |
+| Security masih sesuai kebutuhan proyek tesis/pilot terbatas | README menyatakan belum production-grade authentication dan belum full page-level access isolation. |
 
 ## 8. Kesimpulan
 

@@ -65,17 +65,17 @@ Verdict: Batch 9 feature and regression scope passed. The self-verifying seed is
 - `npm.cmd run test` result: 70 tests passed and 2 Supabase-dependent integration tests failed because the local environment could not reach the configured Supabase database host.
 - Deployment handover checklist is documented in `docs/DEPLOYMENT_GUIDE.md`.
 
-The older sections below are retained as historical testing evidence from earlier MVP iterations.
+The older sections below are retained as historical testing evidence from earlier system iterations.
 
 ## 1. Testing Date
 
 - Date: 14 June 2026
-- Project folder: `D:\Pre Thesis MVP Iterative Development`
-- Purpose: Stability testing for recent MVP changes before continuing thesis demo/testing.
+- Project folder: repository root
+- Purpose: Stability testing for recent system changes before continuing thesis demo/testing.
 
 ## 2. Pre-Test Checks
 
-- [x] Active folder verified as `D:\Pre Thesis MVP Iterative Development`.
+- [x] Active folder verified as the repository root.
 - [x] `package.json` scripts inspected.
 - [x] Temporary write test file was created and deleted successfully.
 - [x] Recent files inspected directly because this folder was not a Git repository at the time of the 14 June 2026 test.
@@ -218,11 +218,11 @@ The older sections below are retained as historical testing evidence from earlie
 
 - The in-app browser console check is still blocked by the Windows sandbox in this Codex environment. Manual visual browser review is recommended by opening `http://localhost:3000` in the normal browser.
 - At the time of the 14 June 2026 test, this folder was not a Git repository, so `git status` / `git diff` could not be used for recent-change inspection. As of 19 July 2026, the project is synced with `origin/main`.
-- No remaining functional blocker was found in the tested MVP flow.
+- No remaining functional blocker was found in the tested system flow.
 
 ## 16. Verdict
 
-- [x] The MVP is safe to continue demo/testing.
+- [x] The system is safe to continue demo/testing.
 - [x] Recent Dashboard, clickable Sales Order rows, Sales Order detail, paid history, audit trails, printable documents, and ERD documentation are stable based on automated and runtime smoke testing.
 
 ## 17. Customer Inquiry and PO Update Test - 18 July 2026

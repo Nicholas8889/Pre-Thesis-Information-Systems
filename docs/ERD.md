@@ -259,7 +259,7 @@ erDiagram
 
 - Receivable is derived from `Invoice.remainingAmount`, `Invoice.status`, and `Invoice.dueDate`; there is no separate Receivable table.
 - Dashboard values and charts are calculated from operational entities and do not require a Dashboard table.
-- `actorUserId`, `createdByUserId`, and `approvalDecidedById` are stored as trace values but are not declared as Prisma foreign-key relations in the current MVP.
+- `actorUserId`, `createdByUserId`, and `approvalDecidedById` are stored as trace values but are not declared as Prisma foreign-key relations in the current system.
 - A Customer PO uses the SalesOrder table with order source `CUSTOMER_PO`; it adds an independent Customer PO Number, required date, and PO document metadata.
 - Audit Trail records retain deletion evidence and the required deletion confirmation note after the operational record has been removed.
 

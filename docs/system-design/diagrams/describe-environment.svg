@@ -19,7 +19,7 @@
 
   <rect width="1180" height="560" fill="#ffffff"/>
   <text class="title" x="590" y="38">Describe the Environment</text>
-  <text class="subtitle" x="590" y="62">CV Tajuk Revenue Cycle Information System - Logical Environment for Thesis MVP</text>
+  <text class="subtitle" x="590" y="62">CV Tajuk Revenue Cycle Information System - Logical Environment for Thesis Project</text>
 
   <rect class="box" x="50" y="155" width="160" height="86" fill="#dbeafe" stroke="#2563eb"/>
   <text class="label" x="130" y="181">Pengguna</text>

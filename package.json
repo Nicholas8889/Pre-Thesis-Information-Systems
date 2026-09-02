@@ -1,8 +1,8 @@
 {
-  "name": "cv-tajuk-revenue-cycle-mvp",
+  "name": "cv-tajuk-revenue-cycle-system",
   "version": "0.1.0",
   "private": true,
-  "description": "Local thesis MVP for CV Tajuk Revenue Cycle Information System.",
+  "description": "CV Tajuk Revenue Cycle Information System.",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",

@@ -4,7 +4,7 @@ Last verified against repository: 19 July 2026
 
 ## 1. Tujuan Describe Environment
 
-Dokumen ini menjelaskan lingkungan tempat CV Tajuk Revenue Cycle Information System MVP dijalankan. Fokusnya adalah hubungan antara user, aplikasi web, deployment platform, database, storage, dan batasan lingkungan untuk kebutuhan thesis serta pilot internal terbatas.
+Dokumen ini menjelaskan lingkungan tempat CV Tajuk Revenue Cycle Information System dijalankan. Fokusnya adalah hubungan antara user, aplikasi web, deployment platform, database, storage, dan batasan lingkungan untuk kebutuhan thesis serta pilot internal terbatas.
 
 ## 2. Ringkasan Lingkungan Sistem
 
@@ -71,7 +71,7 @@ No automated integration is currently implemented for bank systems, payment gate
 | Admin | Invoices, payments, Surat Jalan, receivables, collection, settings/accounts. | Cannot create Sales Orders/Customer Purchase Orders or approve risky orders. |
 | Manager | Full monitoring, all operational actions, approval decisions. | Only role that can approve/reject risky Sales Orders. |
 
-The MVP uses action-level role restrictions. Menus may remain visible across roles for review and demo clarity.
+The system uses action-level role restrictions. Menus may remain visible across roles for review and demo clarity.
 
 ## 7. Communication and Data Flow
 
@@ -121,7 +121,7 @@ Invoice/Surat Jalan print -> printable web page -> browser print dialog
 
 | Constraint | Impact |
 | --- | --- |
-| Thesis MVP scope | Suitable for demonstration and controlled pilot, not final production ERP. |
+| Thesis project scope | Suitable for demonstration and controlled pilot, not final production ERP. |
 | Vercel deployment depends on environment variables | Missing `DATABASE_URL` or `DIRECT_URL` will block build/runtime. |
 | Supabase connectivity is required | The deployed app cannot run business flows if Supabase is unavailable or credentials are wrong. |
 | No external operational integrations | Bank, payment gateway, courier, ERP, accounting, and email remain manual/out of scope. |
@@ -154,7 +154,7 @@ PlantUML source is maintained in `docs/system-design/diagrams/describe-environme
 
 A detailed physical location diagram is not included because the repository does not define actual office branches, warehouse network topology, routers, static IPs, VPN, or internal LAN layout.
 
-The logical network model is sufficient for the current thesis MVP:
+The logical network model is sufficient for the current thesis project:
 
 ```text
 Browser over internet -> Vercel -> Supabase
@@ -164,7 +164,7 @@ If the company moves from pilot to daily operation, a separate deployment/networ
 
 ## 12. Thesis-Ready Summary
 
-Berdasarkan repository terbaru, CV Tajuk Revenue Cycle Information System MVP merupakan aplikasi web berbasis Next.js, TypeScript, Prisma, dan Supabase PostgreSQL yang dapat dijalankan lokal untuk demonstrasi thesis serta dideploy ke Vercel untuk online demo atau pilot internal terbatas. Pengguna dengan role Sales, Admin, dan Manager mengakses sistem melalui browser. Data operasional disimpan di Supabase PostgreSQL, sedangkan dokumen Customer PO disimpan melalui Supabase Storage. Sistem mendukung proses Customer Inquiry, Sales Order, Customer PO, Invoice, Payment, Surat Jalan, Receivable, Collections, Customer Outreach, Dashboard, role-based action control, audit trail, print document, dan Excel export. Sistem belum mencakup integrasi bank, payment gateway, ERP, inventory, accounting journal, courier, email automation, atau production-grade security penuh. Oleh karena itu, sistem layak untuk thesis demonstration dan pilot terbatas, tetapi membutuhkan security hardening, backup procedure, dan keputusan operasional sebelum digunakan sebagai sistem produksi perusahaan.
+Berdasarkan repository terbaru, CV Tajuk Revenue Cycle Information System merupakan aplikasi web berbasis Next.js, TypeScript, Prisma, dan Supabase PostgreSQL yang dapat dijalankan lokal untuk demonstrasi thesis serta dideploy ke Vercel untuk online demo atau pilot internal terbatas. Pengguna dengan role Sales, Admin, dan Manager mengakses sistem melalui browser. Data operasional disimpan di Supabase PostgreSQL, sedangkan dokumen Customer PO disimpan melalui Supabase Storage. Sistem mendukung proses Customer Inquiry, Sales Order, Customer PO, Invoice, Payment, Surat Jalan, Receivable, Collections, Customer Outreach, Dashboard, role-based action control, audit trail, print document, dan Excel export. Sistem belum mencakup integrasi bank, payment gateway, ERP, inventory, accounting journal, courier, email automation, atau production-grade security penuh. Oleh karena itu, sistem layak untuk thesis demonstration dan pilot terbatas, tetapi membutuhkan security hardening, backup procedure, dan keputusan operasional sebelum digunakan sebagai sistem produksi perusahaan.
 
 ## 13. Validation Checklist
 

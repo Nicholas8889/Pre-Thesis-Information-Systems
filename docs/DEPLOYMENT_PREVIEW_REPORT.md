@@ -107,6 +107,6 @@ Sensitive values remain opaque in Vercel CLI output. Runtime login, Supabase-bac
 - Two existing foreign-key lookup indexes are absent: `customer_inquiry_items.customer_inquiry_id` and `sales_order_items.sales_order_id`. Current data volume and tests show no release blocker, but they should be added before material scale-up.
 - A true snapshot from before the first business-label migration was not available; release verification instead used migration history, post-migration schema checks, no-op before/after evidence, and stable checksums.
 - Lock-contention and restore-from-backup drills remain operational follow-up work.
-- Authentication is intentionally demo-oriented; production-grade identity/session hardening remains outside this thesis MVP release.
+- Authentication is intentionally demo-oriented; production-grade identity/session hardening remains outside this thesis project release.
 
 All required Preview gates passed, and the branch is suitable for a normal, non-force merge to the default branch.

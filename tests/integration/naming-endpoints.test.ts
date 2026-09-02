@@ -103,7 +103,7 @@ describe("canonical download endpoints", () => {
     mocks.findSalesOrders.mockResolvedValueOnce(salesOrders);
     const response = await getSalesOrderExport(
       new NextRequest(
-        "http://test.local/api/sales-orders/export?source=CUSTOMER_PO&startDate=2026-08-01&endDate=2026-08-31"
+        "http://test.local/api/sales-orders/export?source=CUSTOMER_PO&startDate=2026-08-01&endDate=2026-08-31&tab=ongoing"
       )
     );
     expect(response.status).toBe(200);
@@ -111,7 +111,7 @@ describe("canonical download endpoints", () => {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
     expect(response.headers.get("content-disposition")).toContain(
-      'attachment; filename="customer-purchase-orders-2026-08-01-2026-08-31.xlsx"'
+      'attachment; filename="customer-purchase-orders-open-2026-08-01-2026-08-31.xlsx"'
     );
     const endpointBytes = new Uint8Array(await response.arrayBuffer());
     expect(String.fromCharCode(endpointBytes[0], endpointBytes[1])).toBe("PK");

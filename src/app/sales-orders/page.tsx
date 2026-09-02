@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, ClipboardList, Eye, FilePlus2, FileText, Plus, ShoppingCart, X } from "lucide-react";
+import { ArrowLeft, Check, ClipboardList, Eye, FilePlus2, FileText, Plus, ShoppingCart, X } from "lucide-react";
 import {
   decideSalesOrderApproval,
   generateInvoice,
@@ -61,8 +61,10 @@ export async function OrdersBySourcePage({
   const isCustomerPo = source === "CUSTOMER_PO";
   const basePath = isCustomerPo ? "/customer-purchase-orders" : "/sales-orders";
   const singularLabel = isCustomerPo ? "Customer PO" : "Sales Order";
+  const createLabel = isCustomerPo ? "Customer Purchase Order" : "Sales Order";
   const pluralLabel = isCustomerPo ? "Customer Purchase Orders" : "Sales Orders";
   const mode = getFirst(params.mode);
+  const isCreateFlow = mode === "create" || (!isCustomerPo && mode === "choose");
   const viewId = getFirst(params.view);
   const inquiryId = getFirst(params.inquiryId);
   const currentUser = await getCurrentUser();
@@ -227,46 +229,64 @@ export async function OrdersBySourcePage({
   return (
     <>
       <PageHeader
-        title={pluralLabel}
+        title={isCreateFlow ? `Create ${createLabel}` : pluralLabel}
         description={
-          isCustomerPo
-            ? "Monitor Customer Purchase Orders and their required dates before invoice, payment, and delivery."
-            : "Start and monitor customer sales orders before invoice, payment, and delivery."
+          isCreateFlow
+            ? mode === "choose"
+              ? "Choose whether the new order is a direct Sales Order or comes from a Customer Purchase Order."
+              : isCustomerPo
+                ? "Record a new Customer Purchase Order and its required delivery details."
+                : "Create a new direct Sales Order and add the ordered products."
+            : isCustomerPo
+              ? "Monitor Customer Purchase Orders and their required dates before invoice, payment, and delivery."
+              : "Start and monitor customer sales orders before invoice, payment, and delivery."
         }
         action={
-          <div className="flex flex-wrap justify-end gap-2">
-            <SalesOrderExportDialog source={source} />
-            {activeTab === "ongoing" && (
-              canCreateSalesOrder ? (
-                <Link
-                  href={isCustomerPo ? "/customer-purchase-orders?mode=create" : "/sales-orders?mode=choose"}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white"
-                >
-                  <Plus aria-hidden="true" className="h-4 w-4" />
-                  Create {singularLabel}
-                </Link>
-              ) : (
-                <RestrictedAction message={salesOrderRestriction}>
-                  <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
+          isCreateFlow ? (
+            <Link
+              href={basePath}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-brand"
+            >
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+              Back to {pluralLabel}
+            </Link>
+          ) : (
+            <div className="flex flex-wrap justify-end gap-2">
+              <SalesOrderExportDialog source={source} tab={activeTab} />
+              {activeTab === "ongoing" && (
+                canCreateSalesOrder ? (
+                  <Link
+                    href={isCustomerPo ? "/customer-purchase-orders?mode=create" : "/sales-orders?mode=choose"}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white"
+                  >
                     <Plus aria-hidden="true" className="h-4 w-4" />
                     Create {singularLabel}
-                  </button>
-                </RestrictedAction>
-              )
-            )}
-          </div>
+                  </Link>
+                ) : (
+                  <RestrictedAction message={salesOrderRestriction}>
+                    <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
+                      <Plus aria-hidden="true" className="h-4 w-4" />
+                      Create {singularLabel}
+                    </button>
+                  </RestrictedAction>
+                )
+              )}
+            </div>
+          )
         }
       />
 
       <FlashMessage success={success} error={error} />
 
-      <ProcessTabs
-        basePath={basePath}
-        activeTab={activeTab}
-        ongoingCount={ongoingSalesOrders.length}
-        doneCount={doneSalesOrders.length}
-        approvalCount={canViewApprovals ? approvalSalesOrders.length : undefined}
-      />
+      {!isCreateFlow && (
+        <ProcessTabs
+          basePath={basePath}
+          activeTab={activeTab}
+          ongoingCount={ongoingSalesOrders.length}
+          doneCount={doneSalesOrders.length}
+          approvalCount={canViewApprovals ? approvalSalesOrders.length : undefined}
+        />
+      )}
 
       {!isCustomerPo && mode === "choose" && (
         <SalesOrderSourceDialog />
@@ -274,7 +294,7 @@ export async function OrdersBySourcePage({
 
       {activeTab === "ongoing" && mode === "create" && (
         <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
-          <h2 className="mb-2 text-lg font-semibold">Create {singularLabel}</h2>
+          <h2 className="mb-2 text-lg font-semibold">Create {createLabel}</h2>
           <p className="mb-4 text-sm leading-6 text-ink/80">
             {isCustomerPo
               ? "Record the customer PO document and product required date. The system generates both a Sales Order Number and Customer PO Number, then invoice, payment, delivery note, receivable, and collection work continue through the same process as a direct Sales Order."
@@ -474,6 +494,7 @@ export async function OrdersBySourcePage({
         </section>
       )}
 
+      {!isCreateFlow && (
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <h2 className="mb-4 text-lg font-semibold">{singularLabel} Records</h2>
         {visibleSalesOrders.length === 0 ? (
@@ -615,6 +636,7 @@ export async function OrdersBySourcePage({
           </div>
         )}
       </section>
+      )}
     </>
   );
 }

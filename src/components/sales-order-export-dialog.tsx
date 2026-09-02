@@ -2,14 +2,18 @@
 
 import { useState } from "react";
 import { CalendarDays, FileSpreadsheet, X } from "lucide-react";
+import type { ProcessTabWithApproval } from "@/components/process-tabs";
 
 export function SalesOrderExportDialog({
-  source = "DIRECT"
+  source = "DIRECT",
+  tab
 }: {
   source?: "DIRECT" | "CUSTOMER_PO";
+  tab: ProcessTabWithApproval;
 }) {
   const isCustomerPo = source === "CUSTOMER_PO";
   const label = isCustomerPo ? "Customer PO" : "Sales Order";
+  const tabLabel = getTabLabel(tab);
   const today = toDateInputValue(new Date());
   const firstDay = toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [isOpen, setIsOpen] = useState(false);
@@ -34,7 +38,7 @@ export function SalesOrderExportDialog({
 
     try {
       const response = await fetch(
-        `/api/sales-orders/export?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&source=${source}`
+        `/api/sales-orders/export?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&source=${source}&tab=${tab}`
       );
 
       if (!response.ok) {
@@ -44,7 +48,7 @@ export function SalesOrderExportDialog({
 
       const blob = await response.blob();
       const contentDisposition = response.headers.get("content-disposition") ?? "";
-      const fileName = contentDisposition.match(/filename="([^"]+)"/)?.[1] ?? `${isCustomerPo ? "customer-purchase-orders" : "sales-orders"}-${startDate}-${endDate}.xlsx`;
+      const fileName = contentDisposition.match(/filename="([^"]+)"/)?.[1] ?? `${isCustomerPo ? "customer-purchase-orders" : "sales-orders"}-${getTabFileLabel(tab)}-${startDate}-${endDate}.xlsx`;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -89,7 +93,7 @@ export function SalesOrderExportDialog({
                   Ekspor Excel {label}
                 </h2>
                 <p className="mt-1 text-sm text-ink/80">
-                  Choose the {label} date range to include in the Excel file.
+                  Choose the date range for {tabLabel} {label} data.
                 </p>
               </div>
               <button
@@ -141,7 +145,7 @@ export function SalesOrderExportDialog({
               )}
 
               <p className="rounded-md bg-info/10 px-3 py-2 text-xs leading-5 text-ink">
-                The workbook contains an order summary sheet and an item-detail sheet.
+                Only data from the {tabLabel} tab will be included. The workbook contains an order summary sheet and an item-detail sheet.
               </p>
             </div>
 
@@ -173,4 +177,16 @@ export function SalesOrderExportDialog({
 function toDateInputValue(date: Date) {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
   return localDate.toISOString().slice(0, 10);
+}
+
+function getTabLabel(tab: ProcessTabWithApproval) {
+  if (tab === "approval") return "Need Approval";
+  if (tab === "done") return "Completed";
+  return "Open";
+}
+
+function getTabFileLabel(tab: ProcessTabWithApproval) {
+  if (tab === "approval") return "need-approval";
+  if (tab === "done") return "completed";
+  return "open";
 }

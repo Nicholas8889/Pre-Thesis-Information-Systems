@@ -1,6 +1,6 @@
 # Product Requirements Document: Customer Tax, Payment Behaviour, Pricing, and Delivery Information
 
-**Product:** CV Tajuk Revenue Cycle Information System MVP
+**Product:** CV Tajuk Revenue Cycle Information System
 **Status:** Draft for product approval
 **Date:** 12 August 2026
 **Primary users:** Sales, Admin, Manager
@@ -37,7 +37,7 @@ Finally, the order form shows a total but does not explain the estimated PPN or 
 3. Expose a product's quantity-weighted average final selling price for the current calendar month.
 4. Provide real-time customer, product, PPN, and net-sales context in Sales Order and Customer PO creation.
 5. Snapshot tax identity and tax amounts when an order is finalized so historical invoices do not change when customer master data or the configured tax rate changes.
-6. Preserve the MVP's current revenue-cycle workflow, roles, approvals, payment terms, and invoice generation behavior.
+6. Preserve the system's current revenue-cycle workflow, roles, approvals, payment terms, and invoice generation behavior.
 7. Rename the `baseUnitPrice` attribute and all user-facing `Base Price` labels to `price` / `Price` without changing stored monetary values or pricing behavior.
 8. Require a driver and vehicle plate selection before creating a Surat Jalan and print those selections on the resulting document.
 
@@ -67,14 +67,14 @@ For this release, the current order total remains the final amount charged to th
 
 The requested `total - PPN` metric is labeled **Net Sales (Margin)** in the UI. It is net sales after separating PPN, not accounting profit. A true profit margin would also require product cost or cost-of-goods data, which is outside this release.
 
-### 5.3 MVP tax trigger
+### 5.3 System tax trigger
 
-The requested MVP rule is:
+The requested system rule is:
 
 - customer has a non-empty NPWP snapshot: PPN applies;
 - customer has no NPWP: PPN does not apply.
 
-This is a configurable product rule for the thesis MVP, not a general statement of Indonesian tax law. Official DJP material describes invoice identity alternatives for a buyer without NPWP, including NIK in applicable cases; the presence of an NPWP alone is therefore not a complete legal test for whether PPN is due. See section 18.
+This is a configurable product rule for the thesis project, not a general statement of Indonesian tax law. Official DJP material describes invoice identity alternatives for a buyer without NPWP, including NIK in applicable cases; the presence of an NPWP alone is therefore not a complete legal test for whether PPN is due. See section 18.
 
 ## 6. User Stories
 
@@ -120,7 +120,7 @@ This is a configurable product rule for the thesis MVP, not a general statement 
 1. Add an optional `NPWP` field to Create Customer and Edit Customer.
 2. The field must not be required.
 3. Trim surrounding whitespace and remove common display separators before persistence.
-4. Accept 15- or 16-digit values for this MVP.
+4. Accept 15- or 16-digit values for this system.
 5. If present, NPWP must contain digits only after normalization.
 6. Duplicate non-empty NPWP values must be rejected to reduce duplicate legal-customer records.
 7. The form must show a concise validation error for an invalid or duplicate NPWP.
@@ -161,7 +161,7 @@ Each eligible historical transaction is assigned to one bucket:
 
 #### Refresh behavior
 
-- Calculate the tag on read from current historical data for the MVP; do not persist it as a customer master field.
+- Calculate the tag on read from current historical data for the system; do not persist it as a customer master field.
 - Recalculate after an eligible order is confirmed, invoiced, shipped, cancelled, restored to an eligible state, or has its payment terms changed.
 - The current draft being created must not affect the displayed historical tag until finalized.
 
@@ -172,7 +172,7 @@ Customer detail must show four clearly separated fields/cards:
 1. Purchase Frequency Category - existing order-frequency category.
 2. Payment Risk - existing late-payment status.
 3. Customer Payment Behaviour - new term-preference tag.
-4. NPWP / Tax Profile - NPWP value or `Not provided`; also show `PPN enabled for new orders` or `PPN not enabled for new orders` according to the MVP rule.
+4. NPWP / Tax Profile - NPWP value or `Not provided`; also show `PPN enabled for new orders` or `PPN not enabled for new orders` according to the system rule.
 
 The existing transaction history remains unchanged except that payment-behaviour evidence may link users to the same history.
 
@@ -218,7 +218,7 @@ After a customer is selected, display a read-only Customer Insight panel immedia
 - Payment Risk;
 - Customer Payment Behaviour, including limited-history note where applicable;
 - NPWP, or `Not provided`;
-- tax status: `PPN included` or `No PPN for this order` under the MVP rule; and
+- tax status: `PPN included` or `No PPN for this order` under the system rule; and
 - the existing recommended markup associated with Purchase Frequency Category.
 
 Changing the customer must refresh all insight values and tax calculations immediately. Clearing the customer must hide/reset the panel and PPN estimate.
@@ -269,7 +269,7 @@ For this release, `total price` is the tax-inclusive amount charged to the custo
 
 #### When the selected customer has NPWP
 
-Use a configurable effective PPN rate. The release default is 11% for the MVP's assumed non-luxury goods.
+Use a configurable effective PPN rate. The release default is 11% under the system's non-luxury-goods assumption.
 
 ```text
 net sales (margin) = round(total price / (1 + PPN rate))
@@ -489,7 +489,7 @@ Do not store Customer Payment Behaviour; derive it from history.
 
 ### Configuration
 
-For this MVP, the default effective PPN rate may be an application constant or environment-backed configuration. It must not be hard-coded independently in client, server, invoice, and test code. Use one shared server-owned source of truth and send the applicable rate to the form.
+For this system, the default effective PPN rate may be an application constant or environment-backed configuration. It must not be hard-coded independently in client, server, invoice, and test code. Use one shared server-owned source of truth and send the applicable rate to the form.
 
 The dummy driver and vehicle plate options must also live in one shared configuration source used by the form and server validation. Do not duplicate independent hard-coded arrays across UI and server files.
 
@@ -543,7 +543,7 @@ The dummy driver and vehicle plate options must also live in one shared configur
 
 - Existing role permissions remain unchanged.
 - Any role currently permitted to create/edit a customer may create/edit NPWP.
-- Any role able to view customer or invoice detail may view the NPWP in this MVP.
+- Any role able to view customer or invoice detail may view the NPWP in this system.
 - Order tax snapshots are server-generated and not directly editable.
 - Audit tax-relevant changes:
   - customer NPWP added, changed, or removed;
@@ -692,7 +692,7 @@ The dummy driver and vehicle plate options must also live in one shared configur
 
 ## 15. Success Metrics
 
-For the thesis MVP, success is demonstrated through completeness and correctness rather than production analytics:
+For the thesis project, success is demonstrated through completeness and correctness rather than production analytics:
 
 - 100% of newly finalized orders have reconciled tax snapshots: `Net Sales + PPN = Total`.
 - 100% of generated invoices match their source order tax snapshot.
@@ -720,17 +720,17 @@ For the thesis MVP, success is demonstrated through completeness and correctness
 
 The PRD proceeds with recommended defaults, but the product owner should explicitly approve these decisions before the feature is treated as legally deployable:
 
-1. **Tax trigger:** keep the thesis-MVP rule "NPWP present means PPN; no NPWP means no PPN," or replace it with a legally reviewed tax-eligibility field independent of NPWP.
+1. **Tax trigger:** keep the current system rule "NPWP present means PPN; no NPWP means no PPN," or replace it with a legally reviewed tax-eligibility field independent of NPWP.
 2. **Tax rate/product scope:** confirm that the catalog is limited to goods using the assumed 11% effective PPN treatment; otherwise product-level tax classification is needed.
 3. **Price semantics:** confirm that entered/final item prices are tax-inclusive. If prices are tax-exclusive, the formulas and Invoice Total must change to add PPN on top.
 4. **Metric label:** approve `Net Sales (Margin)` or rename it to `Net Sales / DPP`; `Margin` alone could be mistaken for profit.
 5. **PO meaning:** confirm that PO means the application's existing Customer PO flow and not a new supplier Purchase Order module.
 6. **Dummy delivery options:** approve the initial drivers (Budi Santoso and Andi Pratama) and plates (B 1234 TJK and B 5678 CVT), or replace the names/plates before implementation.
-7. **Future delivery master data:** confirm that configurable dropdown allowlists are sufficient for the MVP; a relational Driver/Vehicle master and fixed driver-vehicle assignments are deferred.
+7. **Future delivery master data:** confirm that configurable dropdown allowlists are sufficient for the system; a relational Driver/Vehicle master and fixed driver-vehicle assignments are deferred.
 
 ## 18. Tax/Legal Note and Official References
 
-This PRD specifies product behavior, not tax advice. The default 11% effective assumption reflects the post-2025 calculation described by DJP for applicable non-luxury transactions using `12% x 11/12 x DPP`. DJP also describes invoice identity handling where a buyer does not have NPWP, including use of NIK in applicable cases. These points are why NPWP presence should not be treated as a complete legal PPN eligibility rule outside the thesis MVP.
+This PRD specifies product behavior, not tax advice. The default 11% effective assumption reflects the post-2025 calculation described by DJP for applicable non-luxury transactions using `12% x 11/12 x DPP`. DJP also describes invoice identity handling where a buyer does not have NPWP, including use of NIK in applicable cases. These points are why NPWP presence should not be treated as a complete legal PPN eligibility rule outside the thesis project.
 
 - Direktorat Jenderal Pajak, [Pemerintah Terbitkan Aturan DPP Nilai Lain dan Besaran Tertentu PPN](https://pajak.go.id/id/siaran-pers/pemerintah-terbitkan-aturan-dpp-nilai-lain-dan-besaran-tertentu-ppn)
 - Direktorat Jenderal Pajak, [Penggunaan Nomor Pokok Wajib Pajak pada Sistem Administrasi Perpajakan](https://www.pajak.go.id/index.php/id/pengumuman/penggunaan-nomor-pokok-wajib-pajak-pada-sistem-administrasi-perpajakan)

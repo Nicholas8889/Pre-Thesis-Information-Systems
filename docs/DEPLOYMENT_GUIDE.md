@@ -2,11 +2,11 @@
 
 Updated: 19 July 2026
 
-This guide explains how to deploy the CV Tajuk Revenue Cycle Information System MVP using GitHub, Vercel, and Supabase.
+This guide explains how to deploy the CV Tajuk Revenue Cycle Information System using GitHub, Vercel, and Supabase.
 
 ## Deployment Position
 
-The project is a thesis MVP that can be run locally for demonstration and deployed to Vercel for online demo or limited company-side pilot review.
+The project is a thesis project that can be run locally for demonstration and deployed to Vercel for online demo or limited company-side pilot review.
 
 Current deployment target:
 
@@ -159,7 +159,7 @@ Current suggested status:
 
 | Area | Rating | Notes |
 | --- | ---: | --- |
-| Thesis MVP | 84/100 | Strong process coverage and demo value. |
+| Thesis project | 84/100 | Strong process coverage and demo value. |
 | Internal UMKM pilot | 74/100 | Suitable for controlled pilot after deployment and credential rotation. |
 | Deployment readiness | 82/100 after Vercel Ready | Depends on Vercel environment variables and Supabase connectivity. |
 | Production readiness | 60/100 | Needs security hardening, backup plan, and operational procedures. |
