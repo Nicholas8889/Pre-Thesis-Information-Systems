@@ -184,7 +184,7 @@ export function AppShell({
       </aside>
 
       <div className="lg:pl-72">
-        <header className="no-print sticky top-0 z-10 border-b border-line bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+        <header className="no-print sticky top-0 z-10 overflow-x-hidden border-b border-line bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <Image

@@ -24,8 +24,12 @@ import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { buildCustomerInsights } from "@/lib/customer-intelligence";
+import {
+  buildCustomerRelationshipSummary,
+  type CustomerRelationshipSummary
+} from "@/lib/dashboard-insights";
 import { buildPopularProducts, type PopularProduct } from "@/lib/product-insights";
-import { getCurrentUser } from "@/lib/session";
+import { requireCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -69,15 +73,26 @@ const invoiceStatuses = [
   { label: "Cancelled", color: chartColors.neutral }
 ] as const;
 
+const deliveryNoteStatuses = [
+  { label: "Draft", color: chartColors.neutral },
+  { label: "Issued", color: chartColors.info },
+  { label: "Delivered", color: chartColors.success },
+  { label: "Cancelled", color: chartColors.danger }
+] as const;
+
 export default async function DashboardPage() {
-  const currentUser = await getCurrentUser();
-  const dashboardRole = currentUser?.role ?? "SALES";
+  const currentUser = await requireCurrentUser();
+  const dashboardRole = currentUser.role;
+  const isSalesDashboard = dashboardRole === "SALES";
+  const salesOrderWhere = isSalesDashboard
+    ? { createdByUserId: currentUser.id }
+    : undefined;
 
   const [
     invoices,
     salesOrders,
     customers,
-    deliveryNoteCount,
+    deliveryNotes,
     collectionTaskCount,
     payments,
     plannedCollectionTasks,
@@ -85,6 +100,9 @@ export default async function DashboardPage() {
     soldOrderItems
   ] = await Promise.all([
     prisma.invoice.findMany({
+      where: isSalesDashboard
+        ? { salesOrder: { createdByUserId: currentUser.id } }
+        : undefined,
       include: {
         customer: true,
         salesOrder: { select: { id: true, orderNumber: true } },
@@ -92,6 +110,7 @@ export default async function DashboardPage() {
       }
     }),
     prisma.salesOrder.findMany({
+      where: salesOrderWhere,
       select: {
         id: true,
         orderNumber: true,
@@ -107,16 +126,30 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" }
     }),
     prisma.customer.findMany({
+      where: isSalesDashboard
+        ? { salesOrders: { some: { createdByUserId: currentUser.id } } }
+        : undefined,
       orderBy: { companyName: "asc" },
       include: {
         salesOrders: {
-          select: { id: true, orderDate: true }
-        }
+          where: salesOrderWhere,
+          select: { id: true, orderDate: true, status: true }
+        },
+        outreachActivities: { select: { id: true } },
+        inquiries: { select: { status: true } }
       }
     }),
-    prisma.deliveryNote.count(),
+    prisma.deliveryNote.findMany({
+      where: isSalesDashboard
+        ? { salesOrder: { createdByUserId: currentUser.id } }
+        : undefined,
+      select: { id: true, status: true }
+    }),
     prisma.collectionTask.count(),
     prisma.payment.findMany({
+      where: isSalesDashboard
+        ? { invoice: { salesOrder: { createdByUserId: currentUser.id } } }
+        : undefined,
       select: {
         id: true,
         amount: true,
@@ -125,25 +158,33 @@ export default async function DashboardPage() {
       orderBy: { paymentDate: "desc" }
     }),
     prisma.collectionTask.findMany({
-      where: { status: "Planned" },
+      where: {
+        status: "Planned",
+        ...(isSalesDashboard
+          ? { invoice: { salesOrder: { createdByUserId: currentUser.id } } }
+          : {})
+      },
       orderBy: { scheduledDate: "asc" },
       include: { customer: true, invoice: true }
     }),
     prisma.salesOrder.findMany({
+      where: salesOrderWhere,
       orderBy: { createdAt: "desc" },
-      take: 7,
+      take: 10,
       include: { customer: true }
     }),
     prisma.salesOrderItem.findMany({
       where: {
         salesOrder: {
-          status: { in: ["Confirmed", "Shipped", "Invoiced"] }
+          status: { in: ["Confirmed", "Shipped", "Invoiced"] },
+          ...(isSalesDashboard ? { createdByUserId: currentUser.id } : {})
         }
       },
       select: { itemName: true, quantity: true }
     })
   ]);
 
+  const deliveryNoteCount = deliveryNotes.length;
   const customerCount = customers.length;
   const invoiceCount = invoices.length;
   const salesOrderCount = salesOrders.length;
@@ -176,9 +217,19 @@ export default async function DashboardPage() {
     ...status,
     value: invoices.filter((invoice) => invoice.status === status.label).length
   }));
+  const deliveryNoteDistribution = deliveryNoteStatuses.map((status) => ({
+    ...status,
+    value: deliveryNotes.filter((deliveryNote) => deliveryNote.status === status.label).length
+  }));
   const customerInsights = buildCustomerInsights(customers);
   const overdueCustomerInsights = buildOverdueCustomerInsights(invoices);
   const popularProducts = buildPopularProducts(soldOrderItems);
+  const customerRelationshipSummary = buildCustomerRelationshipSummary(customers);
+  const reportingPeriod = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Jakarta"
+  }).format(new Date());
 
   if (dashboardRole === "ADMIN") {
     const openInvoices = invoices
@@ -370,29 +421,29 @@ export default async function DashboardPage() {
       <DashboardSummary
         items={[
           {
-            label: "Total Sales Value",
+            label: isSalesDashboard ? "My Sales Value" : "Total Sales Value",
             value: formatCurrency(totalSalesOrderValue),
-            description: "Sales Order value",
+            description: isSalesDashboard ? "Sales Orders created by you" : "Company Sales Order value",
             icon: TrendingUp
           },
           {
-            label: "Paid Amount",
+            label: isSalesDashboard ? "Collected from My Orders" : "Paid Amount",
             value: formatCurrency(totalPaidAmount),
-            description: "Recorded payment",
+            description: isSalesDashboard ? "Payments linked to your orders" : "Recorded company payments",
             icon: Banknote,
             tone: "good"
           },
           {
-            label: "Outstanding Receivables",
+            label: isSalesDashboard ? "My Order Receivables" : "Outstanding Receivables",
             value: formatCurrency(outstandingAmount),
-            description: "Open invoice balance",
+            description: isSalesDashboard ? "Open balance from your orders" : "Open company invoice balance",
             icon: ReceiptText,
             tone: "warning"
           },
           {
             label: "Need Attention",
             value: String(needCollectionTaskCount),
-            description: `${overdueCount} overdue + ${plannedCollectionTasks.length} collection tasks`,
+            description: `${overdueCount} overdue + ${plannedCollectionTasks.length} planned collection`,
             icon: AlertTriangle,
             tone: "danger"
           }
@@ -402,18 +453,23 @@ export default async function DashboardPage() {
       <section className="mt-5 rounded-md border border-line bg-white p-4 shadow-card">
         <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-ink">Revenue Cycle Insights</h2>
+            <h2 className="text-lg font-semibold text-ink">Revenue Cycle Highlights</h2>
             <p className="text-sm text-ink/80">
-              Historical movement and current business status in one compact view.
+              {isSalesDashboard
+                ? "Your sales movement and current customer portfolio status in one compact view."
+                : "Historical movement and current business status in one compact view."}
             </p>
           </div>
           <p className="text-xs font-medium text-ink/70">
-            Based on Sales Order, Invoice, and Payment data
+            {isSalesDashboard ? "Your portfolio" : "Company-wide"} · {reportingPeriod}
           </p>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1.15fr_0.9fr_0.9fr_0.9fr]">
-          <InsightPanel title="Revenue Trend" footer="Sales Orders and payments by month">
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_2fr]">
+          <InsightPanel
+            title={isSalesDashboard ? "My Revenue Trend" : "Revenue Trend"}
+            footer="Sales Orders and payments by month"
+          >
             <RevenueTrendChart data={trendData} />
           </InsightPanel>
 
@@ -426,13 +482,26 @@ export default async function DashboardPage() {
             />
           </InsightPanel>
 
-          <InsightPanel title="Sales Order Status" footer={`Total ${salesOrderCount} order(s)`}>
-            <StatusDonutChart total={salesOrderCount} segments={salesOrderDistribution} />
-          </InsightPanel>
+          <div className="grid gap-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              <InsightPanel title="Sales Order Status" footer={`Total ${salesOrderCount} order(s)`}>
+                <StatusDonutChart total={salesOrderCount} segments={salesOrderDistribution} />
+              </InsightPanel>
 
-          <InsightPanel title="Invoice Status" footer={`Total ${invoiceCount} invoice(s)`}>
-            <StatusDonutChart total={invoiceCount} segments={invoiceDistribution} />
-          </InsightPanel>
+              <InsightPanel title="Invoice Status" footer={`Total ${invoiceCount} invoice(s)`}>
+                <StatusDonutChart total={invoiceCount} segments={invoiceDistribution} />
+              </InsightPanel>
+
+              <InsightPanel title="Surat Jalan Status" footer={`Total ${deliveryNoteCount} document(s)`}>
+                <StatusDonutChart total={deliveryNoteCount} segments={deliveryNoteDistribution} />
+              </InsightPanel>
+            </div>
+
+            <CustomerRelationshipPanel
+              summary={customerRelationshipSummary}
+              portfolioLabel={isSalesDashboard ? "your customer portfolio" : "all customers"}
+            />
+          </div>
         </div>
 
         {dashboardRole === "MANAGER" && (
@@ -444,7 +513,9 @@ export default async function DashboardPage() {
         <section className="rounded-md border border-line bg-white shadow-card">
           <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div>
-              <h2 className="text-lg font-semibold">Recent Sales Orders</h2>
+              <h2 className="text-lg font-semibold">
+                {isSalesDashboard ? "My Recent Sales Orders" : "Recent Sales Orders"}
+              </h2>
               <p className="mt-1 text-sm text-ink/70">
                 Click a row to open the full Sales Order detail page.
               </p>
@@ -750,6 +821,63 @@ function KpiMetric({
   );
 }
 
+function CustomerRelationshipPanel({
+  summary,
+  portfolioLabel
+}: {
+  summary: CustomerRelationshipSummary;
+  portfolioLabel: string;
+}) {
+  const metrics = [
+    {
+      label: "Total Outreach",
+      value: summary.totalOutreach,
+      helper: "recorded contacts"
+    },
+    {
+      label: "Outreach Converted",
+      value: summary.outreachConverted,
+      helper: "customers with orders"
+    },
+    {
+      label: "Total Inquiry",
+      value: summary.totalInquiries,
+      helper: "recorded inquiries"
+    },
+    {
+      label: "Inquiry Open",
+      value: summary.openInquiries,
+      helper: "awaiting resolution"
+    },
+    {
+      label: "Inquiry Closed",
+      value: summary.closedInquiries,
+      helper: "closed or completed"
+    }
+  ];
+
+  return (
+    <section className="rounded-md border border-line p-3">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <h3 className="text-sm font-semibold text-ink">Customer Relationship</h3>
+        <p className="text-[11px] font-medium text-ink/60">Based on {portfolioLabel}</p>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        {metrics.map((metric) => (
+          <article
+            key={metric.label}
+            className="border-l-4 border-brand bg-soft px-3 py-2.5"
+          >
+            <p className="text-[11px] font-medium text-ink/70">{metric.label}</p>
+            <p className="mt-1 text-lg font-semibold text-ink">{metric.value}</p>
+            <p className="mt-0.5 text-[10px] text-ink/60">{metric.helper}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function InsightPanel({
   title,
   footer,
@@ -905,14 +1033,16 @@ function RevenueCompositionChart({
   }
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-3">
       <DonutGraphic segments={segments} total={visibleTotal} />
       <div className="min-w-0 flex-1 space-y-2">
         <div className="rounded-md bg-soft px-3 py-2">
           <p className="text-xs font-medium uppercase tracking-wide text-ink/70">
             Total Sales
           </p>
-          <p className="mt-1 text-sm font-semibold text-ink">{formatCurrency(total)}</p>
+            <p className="mt-1 whitespace-nowrap text-xs font-semibold tabular-nums text-ink">
+              {formatCurrency(total)}
+            </p>
         </div>
         <CompositionRow color={chartColors.success} label="Paid" value={formatCurrency(paid)} />
         <CompositionRow color={chartColors.warning} label="Outstanding" value={formatCurrency(outstanding)} />
@@ -927,13 +1057,19 @@ function StatusDonutChart({ total, segments }: { total: number; segments: DonutS
   }
 
   return (
-    <div className="flex items-center gap-4">
-      <DonutGraphic segments={segments} total={total} center={String(total)} label="Total" />
+    <div className="flex items-center gap-2">
+      <DonutGraphic
+        segments={segments}
+        total={total}
+        center={String(total)}
+        label="Total"
+        compact
+      />
       <div className="min-w-0 flex-1 space-y-1.5">
         {segments.map((segment) => (
-          <div key={segment.label} className="flex items-center justify-between gap-2 text-xs">
-            <span className="flex min-w-0 items-center gap-2 text-ink/80">
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: segment.color }} />
+          <div key={segment.label} className="flex items-center justify-between gap-1 text-[10px]">
+            <span className="flex min-w-0 items-center gap-1 text-ink/80">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: segment.color }} />
               <span className="truncate">{segment.label}</span>
             </span>
             <span className="font-semibold text-ink">{segment.value}</span>
@@ -948,19 +1084,27 @@ function DonutGraphic({
   segments,
   total,
   center,
-  label
+  label,
+  compact = false
 }: {
   segments: DonutSegment[];
   total: number;
   center?: string;
   label?: string;
+  compact?: boolean;
 }) {
   return (
     <div
-      className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full"
+      className={`relative flex shrink-0 items-center justify-center rounded-full ${
+        compact ? "h-20 w-20" : "h-24 w-24"
+      }`}
       style={{ background: buildConicGradient(segments, total) }}
     >
-      <div className="flex h-16 w-16 flex-col items-center justify-center rounded-full bg-white text-center shadow-sm">
+      <div
+        className={`flex flex-col items-center justify-center rounded-full bg-white text-center shadow-sm ${
+          compact ? "h-12 w-12" : "h-14 w-14"
+        }`}
+      >
         {center && <span className="max-w-14 truncate text-sm font-semibold text-ink">{center}</span>}
         {label && <span className="text-[10px] uppercase text-ink/70">{label}</span>}
       </div>
@@ -1022,7 +1166,7 @@ function CompositionRow({
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
         {label}
       </div>
-      <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
+      <p className="mt-1 whitespace-nowrap text-xs font-semibold tabular-nums text-ink">{value}</p>
     </div>
   );
 }

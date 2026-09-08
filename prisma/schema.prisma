@@ -234,6 +234,7 @@ model SalesOrder {
   @@index([approvalStatus], map: "sales_orders_approval_status_idx")
   @@index([source], map: "sales_orders_source_idx")
   @@index([requiredDate], map: "sales_orders_required_date_idx")
+  @@index([createdByUserId, orderDate], map: "sales_orders_created_by_user_id_order_date_idx")
   @@index([customerId, orderDate], map: "sales_orders_customer_id_order_date_idx")
   @@map("sales_orders")
 }
