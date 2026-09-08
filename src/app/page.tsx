@@ -22,7 +22,6 @@ import {
   buildCustomerRelationshipSummary,
   type CustomerRelationshipSummary
 } from "@/lib/dashboard-insights";
-import { buildPopularProducts, type PopularProduct } from "@/lib/product-insights";
 import { requireCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -89,8 +88,7 @@ export default async function DashboardPage() {
     deliveryNotes,
     payments,
     plannedCollectionTasks,
-    recentSalesOrders,
-    soldOrderItems
+    recentSalesOrders
   ] = await Promise.all([
     prisma.invoice.findMany({
       where: isSalesDashboard
@@ -164,15 +162,6 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 10,
       include: { customer: true }
-    }),
-    prisma.salesOrderItem.findMany({
-      where: {
-        salesOrder: {
-          status: { in: ["Confirmed", "Shipped", "Invoiced"] },
-          ...(isSalesDashboard ? { createdByUserId: currentUser.id } : {})
-        }
-      },
-      select: { itemName: true, quantity: true }
     })
   ]);
 
@@ -206,7 +195,6 @@ export default async function DashboardPage() {
     ...status,
     value: deliveryNotes.filter((deliveryNote) => deliveryNote.status === status.label).length
   }));
-  const popularProducts = buildPopularProducts(soldOrderItems);
   const customerRelationshipSummary = buildCustomerRelationshipSummary(customers);
   const reportingPeriod = new Intl.DateTimeFormat("en-US", {
     month: "long",
@@ -506,9 +494,6 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {dashboardRole === "MANAGER" && (
-          <PopularProductsChart products={popularProducts} />
-        )}
       </section>
 
       <section className="mt-5 rounded-md border border-line bg-white shadow-card">
@@ -907,48 +892,6 @@ function RevenueTrendChart({ data }: { data: TrendPoint[] }) {
         })}
       </svg>
     </div>
-  );
-}
-
-function PopularProductsChart({ products }: { products: PopularProduct[] }) {
-  const maxQuantity = Math.max(...products.map((product) => product.quantity), 0);
-
-  return (
-    <section className="mt-4 rounded-md border border-line px-4 py-3">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-ink">Top 5 Popular Products</h3>
-          <p className="text-xs text-ink/70">Highest quantity sold across confirmed sales activity.</p>
-        </div>
-        <span className="text-xs font-medium text-ink/70">Quantity sold</span>
-      </div>
-
-      {products.length === 0 ? (
-        <div className="mt-3">
-          <EmptyState message="No sold product data available yet." />
-        </div>
-      ) : (
-        <div className="mt-3 grid gap-y-2">
-          {products.map((product, index) => (
-            <div key={product.name} className="grid grid-cols-[minmax(7rem,14rem)_1fr_auto] items-center gap-3">
-              <p className="truncate text-xs font-medium text-ink" title={product.name}>
-                <span className="mr-2 text-ink/50">{index + 1}.</span>
-                {product.name}
-              </p>
-              <div className="h-2 overflow-hidden rounded-full bg-canvas">
-                <div
-                  className="h-full rounded-full bg-brand"
-                  style={{ width: `${Math.max((product.quantity / maxQuantity) * 100, 4)}%` }}
-                />
-              </div>
-              <p className="min-w-12 text-right text-xs font-semibold text-ink">
-                {product.quantity}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }
 
