@@ -6,24 +6,18 @@ import {
   FileText,
   Handshake,
   ReceiptText,
-  ShoppingCart,
   TrendingUp,
-  Truck,
-  Users
+  Truck
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import {
-  SalesCustomerInsights,
-  type OverdueCustomerRow
-} from "@/components/sales-customer-insights";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusStack } from "@/components/status-stack";
 import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { buildCustomerInsights } from "@/lib/customer-intelligence";
+import { canCreateDeliveryNoteForInvoice } from "@/lib/calculations";
 import {
   buildCustomerRelationshipSummary,
   type CustomerRelationshipSummary
@@ -93,7 +87,6 @@ export default async function DashboardPage() {
     salesOrders,
     customers,
     deliveryNotes,
-    collectionTaskCount,
     payments,
     plannedCollectionTasks,
     recentSalesOrders,
@@ -145,7 +138,6 @@ export default async function DashboardPage() {
         : undefined,
       select: { id: true, status: true }
     }),
-    prisma.collectionTask.count(),
     prisma.payment.findMany({
       where: isSalesDashboard
         ? { invoice: { salesOrder: { createdByUserId: currentUser.id } } }
@@ -185,20 +177,13 @@ export default async function DashboardPage() {
   ]);
 
   const deliveryNoteCount = deliveryNotes.length;
-  const customerCount = customers.length;
   const invoiceCount = invoices.length;
   const salesOrderCount = salesOrders.length;
-  const paymentCount = payments.length;
   const totalSalesOrderValue = salesOrders.reduce((sum, order) => sum + order.total, 0);
   const totalPaidAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
   const outstandingAmount = invoices
     .filter((invoice) => invoice.status !== "Cancelled")
     .reduce((sum, invoice) => sum + invoice.remainingAmount, 0);
-  const activeReceivableCount = invoices.filter(
-    (invoice) =>
-      invoice.remainingAmount > 0 &&
-      ["Unpaid", "Partial", "Overdue"].includes(invoice.status)
-  ).length;
   const overdueCount = invoices.filter((invoice) => invoice.status === "Overdue").length;
   const needCollectionTaskCount = overdueCount + plannedCollectionTasks.length;
   const trendData = getRevenueTrendData(
@@ -221,8 +206,6 @@ export default async function DashboardPage() {
     ...status,
     value: deliveryNotes.filter((deliveryNote) => deliveryNote.status === status.label).length
   }));
-  const customerInsights = buildCustomerInsights(customers);
-  const overdueCustomerInsights = buildOverdueCustomerInsights(invoices);
   const popularProducts = buildPopularProducts(soldOrderItems);
   const customerRelationshipSummary = buildCustomerRelationshipSummary(customers);
   const reportingPeriod = new Intl.DateTimeFormat("en-US", {
@@ -238,27 +221,45 @@ export default async function DashboardPage() {
           invoice.remainingAmount > 0 && ["Unpaid", "Partial", "Overdue"].includes(invoice.status)
       )
       .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+    const overdueReceivables = openInvoices.filter((invoice) => invoice.status === "Overdue");
+    const overdueReceivableAmount = overdueReceivables.reduce(
+      (sum, invoice) => sum + invoice.remainingAmount,
+      0
+    );
     const today = startOfDay(new Date());
     const upcomingLimit = new Date(today);
     upcomingLimit.setDate(upcomingLimit.getDate() + 30);
-    const incomingOverdue = openInvoices.filter(
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dueSoonReceivables = openInvoices.filter(
       (invoice) => invoice.dueDate >= today && invoice.dueDate <= upcomingLimit
     );
-    const receivablesToShow = (incomingOverdue.length > 0 ? incomingOverdue : openInvoices).slice(0, 5);
-    const deliveryNotesNeeded = invoices
+    const receivablesToShow = (dueSoonReceivables.length > 0 ? dueSoonReceivables : openInvoices).slice(0, 5);
+    const deliveryNoteCandidates = invoices
       .filter(
         (invoice) =>
           invoice.status !== "Cancelled" &&
           invoice.deliveryNotes.length === 0 &&
-          (invoice.paymentTermType === "CREDIT" || invoice.status === "Paid")
+          canCreateDeliveryNoteForInvoice({
+            paymentTermType: invoice.paymentTermType,
+            status: invoice.status
+          })
       )
-      .slice(0, 5);
+      .sort((a, b) => a.issueDate.getTime() - b.issueDate.getTime());
+    const deliveryNotesToShow = deliveryNoteCandidates.slice(0, 5);
+    const deliveryNoteCandidateValue = deliveryNoteCandidates.reduce(
+      (sum, invoice) => sum + invoice.totalAmount,
+      0
+    );
+    const collectionTasksDue = plannedCollectionTasks.filter(
+      (collectionTask) => collectionTask.scheduledDate < tomorrow
+    ).length;
 
     return (
       <>
         <PageHeader
           title="Admin Dashboard"
-          description={`Welcome, ${currentUser?.displayName ?? "Admin"}. Focus on invoices, delivery documents, receivables, and collection work.`}
+          description={`Welcome, ${currentUser?.displayName ?? "Admin"}. Manage invoices, delivery documents, receivables, and collection work from one operational view.`}
         />
 
         <DashboardSummary
@@ -272,21 +273,21 @@ export default async function DashboardPage() {
             },
             {
               label: "Overdue Receivables",
-              value: String(overdueCount),
-              description: "Requires collection attention",
+              value: String(overdueReceivables.length),
+              description: formatCurrency(overdueReceivableAmount),
               icon: ReceiptText,
               tone: "danger"
             },
             {
               label: "Surat Jalan Needed",
-              value: String(deliveryNotesNeeded.length),
-              description: "Eligible invoices without delivery note",
+              value: String(deliveryNoteCandidates.length),
+              description: `${formatCurrency(deliveryNoteCandidateValue)} eligible`,
               icon: Truck
             },
             {
               label: "Planned Collection Tasks",
               value: String(plannedCollectionTasks.length),
-              description: "Admin collection queue",
+              description: `${collectionTasksDue} due today or earlier`,
               icon: Handshake,
               tone: "good"
             }
@@ -294,23 +295,31 @@ export default async function DashboardPage() {
         />
 
         <section className="mt-5 grid gap-4 xl:grid-cols-2">
-          <AdminListPanel
-            title="Invoice Insight"
-            description="Current invoice status and remaining exposure."
-            href="/invoices"
-          >
-            <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
-              {invoiceDistribution.filter((item) => item.label !== "Cancelled").map((item) => (
-                <div key={item.label} className="rounded-md border border-line p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{item.label}</p>
-                  <p className="mt-2 text-2xl font-semibold">{item.value}</p>
-                </div>
-              ))}
-            </div>
-            <div className="border-t border-line px-4 py-3 text-sm text-ink/80">
-              Total invoice value: <strong className="text-ink">{formatCurrency(invoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0))}</strong>
-            </div>
-          </AdminListPanel>
+          <div className="grid content-start gap-4">
+            <AdminListPanel
+              title="Invoice Insight"
+              description="Current invoice status and remaining exposure."
+              href="/invoices"
+            >
+              <AdminStatusOverview
+                items={invoiceDistribution.filter((item) => item.label !== "Cancelled")}
+                footerLabel="Total invoice value"
+                footerValue={formatCurrency(invoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0))}
+              />
+            </AdminListPanel>
+
+            <AdminListPanel
+              title="Surat Jalan Insight"
+              description="Current delivery document status."
+              href="/surat-jalan"
+            >
+              <AdminStatusOverview
+                items={deliveryNoteDistribution}
+                footerLabel="Total Surat Jalan"
+                footerValue={`${deliveryNoteCount} documents`}
+              />
+            </AdminListPanel>
+          </div>
 
           <AdminListPanel
             title="Surat Jalan to Create"
@@ -319,7 +328,7 @@ export default async function DashboardPage() {
           >
             <CompactActionList
               empty="No Surat Jalan needs to be created."
-              rows={deliveryNotesNeeded.map((invoice) => ({
+              rows={deliveryNotesToShow.map((invoice) => ({
                 id: invoice.id,
                 primary: invoice.invoiceNumber,
                 secondary: `${invoice.customer.companyName} · ${invoice.paymentTermType}`,
@@ -331,8 +340,8 @@ export default async function DashboardPage() {
           </AdminListPanel>
 
           <AdminListPanel
-            title={incomingOverdue.length > 0 ? "Incoming Overdue Receivables" : "Unpaid Receivables"}
-            description={incomingOverdue.length > 0 ? "Balances due within the next 30 days." : "No balances are due in the next 30 days, so open unpaid balances are shown."}
+            title={dueSoonReceivables.length > 0 ? "Receivables Due Soon" : "Open Receivables"}
+            description={dueSoonReceivables.length > 0 ? "Balances due within the next 30 days." : "No balances are due in the next 30 days, so all open receivables are shown."}
             href="/receivables"
           >
             <CompactActionList
@@ -359,7 +368,9 @@ export default async function DashboardPage() {
                 id: collectionTask.id,
                 primary: collectionTask.customer.companyName,
                 secondary: `${collectionTask.invoice?.invoiceNumber ?? "Customer collection"} · ${formatDate(collectionTask.scheduledDate)}`,
-                value: collectionTask.notes,
+                value: collectionTask.invoice
+                  ? formatCurrency(collectionTask.invoice.remainingAmount)
+                  : "Customer follow-up",
                 href: "/collections",
                 action: "Open"
               }))}
@@ -368,21 +379,28 @@ export default async function DashboardPage() {
         </section>
 
         <section className="mt-5 rounded-md border border-line bg-white shadow-card">
-          <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <div>
-              <h2 className="text-base font-semibold">Recent Sales Orders</h2>
-              <p className="mt-1 text-xs text-ink/70">A smaller operational snapshot for Admin.</p>
+          <div className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold">Recent Sales Orders &amp; Customer Purchase Orders</h2>
+              <p className="mt-1 text-xs text-ink/70">The latest commercial documents across both order sources.</p>
             </div>
-            <Link href="/sales-orders" className="text-sm font-semibold text-brand">View all</Link>
+            <nav aria-label="Recent order lists" className="flex shrink-0 gap-3 text-sm font-semibold text-brand">
+              <Link href="/sales-orders">Sales Orders</Link>
+              <Link href="/customer-purchase-orders">Purchase Orders</Link>
+            </nav>
           </div>
           <CompactActionList
-            empty="No recent sales orders."
-            rows={recentSalesOrders.slice(0, 3).map((order) => ({
+            empty="No recent sales orders or customer purchase orders."
+            rows={recentSalesOrders.slice(0, 5).map((order) => ({
               id: order.id,
-              primary: order.orderNumber,
-              secondary: `${order.customer.companyName} · ${formatDate(order.orderDate)}`,
+              primary: order.source === "CUSTOMER_PO"
+                ? order.customerPoNumber ?? order.orderNumber
+                : order.orderNumber,
+              secondary: `${order.source === "CUSTOMER_PO" ? "Customer PO" : "Sales Order"} · ${order.customer.companyName} · ${formatDate(order.orderDate)}`,
               value: formatCurrency(order.total),
-              href: `/sales-orders/${order.id}`,
+              href: order.source === "CUSTOMER_PO"
+                ? `/customer-purchase-orders/${order.id}`
+                : `/sales-orders/${order.id}`,
               action: "View"
             }))}
           />
@@ -390,22 +408,6 @@ export default async function DashboardPage() {
       </>
     );
   }
-
-  const moduleOverview = [
-    { href: "/customers", label: "Customers", value: customerCount, helper: "records", icon: Users },
-    { href: "/sales-orders", label: "Sales Orders", value: salesOrderCount, helper: "orders", icon: ShoppingCart },
-    { href: "/invoices", label: "Invoices", value: invoiceCount, helper: "invoices", icon: FileText },
-    { href: "/payments", label: "Payments", value: paymentCount, helper: "records", icon: Banknote },
-    { href: "/surat-jalan", label: "Surat Jalan", value: deliveryNoteCount, helper: "documents", icon: Truck },
-    { href: "/receivables", label: "Receivables", value: activeReceivableCount, helper: "active", icon: ReceiptText },
-    {
-      href: "/collections",
-      label: "Collections",
-      value: collectionTaskCount,
-      helper: `${plannedCollectionTasks.length} pending`,
-      icon: Handshake
-    }
-  ];
 
   return (
     <>
@@ -509,8 +511,7 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <section className="mt-5 space-y-4">
-        <section className="rounded-md border border-line bg-white shadow-card">
+      <section className="mt-5 rounded-md border border-line bg-white shadow-card">
           <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div>
               <h2 className="text-lg font-semibold">
@@ -602,63 +603,7 @@ export default async function DashboardPage() {
               </table>
             </div>
           )}
-        </section>
-
-        {dashboardRole === "MANAGER" && <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-          <section className="rounded-md border border-line bg-white p-4 shadow-card">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold">Collection Reminders</h2>
-              <Link
-                href="/collections"
-                className="inline-flex h-8 items-center justify-center rounded-md border border-line px-3 text-xs font-semibold text-brand"
-              >
-                View all
-              </Link>
-            </div>
-            {plannedCollectionTasks.length === 0 ? (
-              <EmptyState message="No collection reminders at the moment." />
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                {plannedCollectionTasks.slice(0, 2).map((collectionTask) => (
-                  <article key={collectionTask.id} className="rounded-md border border-line p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-sm font-semibold text-ink">
-                          {collectionTask.customer.companyName}
-                        </h3>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink/80">
-                          {collectionTask.notes}
-                        </p>
-                      </div>
-                      <StatusBadge status={collectionTask.status} />
-                    </div>
-                    <p className="mt-2 text-xs font-medium text-ink/70">
-                      {collectionTask.invoice?.invoiceNumber ?? "Customer collection"} -{" "}
-                      {formatDate(collectionTask.scheduledDate)}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="rounded-md border border-line bg-white p-4 shadow-card">
-            <h2 className="text-base font-semibold">Module Summary</h2>
-            <p className="mt-1 text-xs text-ink/70">Compact count of main modules.</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {moduleOverview.map((item) => (
-                <ModuleSummaryTile key={item.href} {...item} />
-              ))}
-            </div>
-          </section>
-        </div>}
       </section>
-
-      <SalesCustomerInsights
-        customers={customerInsights}
-        overdueCustomers={overdueCustomerInsights}
-        compact={dashboardRole === "MANAGER"}
-      />
     </>
   );
 }
@@ -685,6 +630,32 @@ function AdminListPanel({
       </div>
       {children}
     </section>
+  );
+}
+
+function AdminStatusOverview({
+  items,
+  footerLabel,
+  footerValue
+}: {
+  items: Array<{ label: string; value: number }>;
+  footerLabel: string;
+  footerValue: string;
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+        {items.map((item) => (
+          <article key={item.label} className="border-l-4 border-brand bg-soft px-3 py-2.5">
+            <p className="text-[11px] font-medium text-ink/70">{item.label}</p>
+            <p className="mt-1 text-lg font-semibold text-ink">{item.value}</p>
+          </article>
+        ))}
+      </div>
+      <div className="border-t border-line px-4 py-3 text-sm text-ink/80">
+        {footerLabel}: <strong className="text-ink">{footerValue}</strong>
+      </div>
+    </>
   );
 }
 
@@ -722,40 +693,6 @@ function CompactActionList({
       ))}
     </div>
   );
-}
-
-function buildOverdueCustomerInsights(
-  invoices: Array<{
-    status: string;
-    remainingAmount: number;
-    dueDate: Date;
-    customer: { id: string; companyName: string; name: string };
-  }>
-): OverdueCustomerRow[] {
-  const customerMap = new Map<string, OverdueCustomerRow>();
-
-  for (const invoice of invoices) {
-    if (invoice.status !== "Overdue" || invoice.remainingAmount <= 0) continue;
-    const existing = customerMap.get(invoice.customer.id);
-    if (existing) {
-      existing.overdueInvoiceCount += 1;
-      existing.overdueAmount += invoice.remainingAmount;
-      if (invoice.dueDate < new Date(existing.oldestDueDate)) {
-        existing.oldestDueDate = invoice.dueDate.toISOString();
-      }
-      continue;
-    }
-    customerMap.set(invoice.customer.id, {
-      id: invoice.customer.id,
-      companyName: invoice.customer.companyName,
-      contactName: invoice.customer.name,
-      overdueInvoiceCount: 1,
-      overdueAmount: invoice.remainingAmount,
-      oldestDueDate: invoice.dueDate.toISOString()
-    });
-  }
-
-  return [...customerMap.values()].sort((a, b) => b.overdueAmount - a.overdueAmount);
 }
 
 function startOfDay(date: Date) {
@@ -1109,36 +1046,6 @@ function DonutGraphic({
         {label && <span className="text-[10px] uppercase text-ink/70">{label}</span>}
       </div>
     </div>
-  );
-}
-
-function ModuleSummaryTile({
-  href,
-  label,
-  value,
-  helper,
-  icon: Icon
-}: {
-  href: string;
-  label: string;
-  value: number;
-  helper: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex min-h-16 items-center gap-3 rounded-md border border-line p-3 transition hover:border-brand hover:bg-soft"
-    >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-canvas text-brand ring-1 ring-inset ring-line">
-        <Icon aria-hidden="true" className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-semibold text-ink">{label}</span>
-        <span className="mt-1 block text-xs text-ink/70">{helper}</span>
-      </span>
-      <span className="text-base font-semibold text-ink">{value}</span>
-    </Link>
   );
 }
 
