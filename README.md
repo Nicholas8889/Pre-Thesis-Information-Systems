@@ -192,7 +192,7 @@ The reset restores customers with and without NPWP, all five Customer Payment Be
 3. Fill username, display name, password, role, and status.
 4. Select Save Account.
 
-Roles control operational actions in this system. Sales can create Sales Orders and Customer Inquiries; Admin manages invoices, payments, and delivery; Manager can use all operational actions and approve risky Sales Orders.
+Roles control operational actions in this system. Sales can create Sales Orders, Customer Purchase Orders, and Customer Inquiries; Admin manages invoices, payments, and delivery; Manager can use all operational actions and approve risky Sales Orders or Customer Purchase Orders.
 
 ### Recommended Demo Flow
 
@@ -230,14 +230,15 @@ This is a thesis project. It now supports local demo usage and Vercel/Supabase d
 3. Open Customer Inquiries, select Add Inquiry, choose the customer, and add requested item data.
 4. Convert the inquiry to Sales Order for a normal order or Customer PO when the customer has a PO.
 5. Complete order or PO details, choose Immediate Payment or Credit payment terms, and save.
-6. Use Admin or Manager access to generate the invoice from the eligible order.
-7. Open Invoices and select View / Print Invoice to show the printable invoice output.
-8. Open Payments and use the invoice queue to record a partial or full payment.
-9. Open Surat Jalan or select Create Surat Jalan from the invoice detail, then save the delivery note.
-10. Open the printable Surat Jalan view and use Print Surat Jalan if a paper/PDF copy is needed.
-11. Open Receivables and confirm only invoices with remaining balances appear.
-12. Select Create Collection Task from a receivable row and save the planned reminder.
-13. Return to Dashboard and confirm totals, payment-term counts, Surat Jalan count, receivables, recent orders, and collection updates.
+6. If Sales created the order for a customer with late-payment risk, use Manager access to review it in Need Approval. Review the Customer PO document when applicable, then approve it or provide a required reason to reject it.
+7. Use Admin or Manager access to generate the invoice from an eligible clean-risk order. Manager approval generates the invoice automatically for a risky order.
+8. Open Invoices and select View / Print Invoice to show the printable invoice output.
+9. Open Payments and use the invoice queue to record a partial or full payment.
+10. Open Surat Jalan or select Create Surat Jalan from the invoice detail, then save the delivery note.
+11. Open the printable Surat Jalan view and use Print Surat Jalan if a paper/PDF copy is needed.
+12. Open Receivables and confirm only invoices with remaining balances appear.
+13. Select Create Collection Task from a receivable row and save the planned reminder.
+14. Return to Dashboard and confirm totals, payment-term counts, Surat Jalan count, receivables, recent orders, and collection updates.
 
 ## Main Modules
 
@@ -299,6 +300,8 @@ Important rules:
 
 - One sales order can only have one invoice.
 - Every Customer PO is stored as a Sales Order with order source `CUSTOMER_PO`, a separate Customer PO Number, required date, and PO document metadata.
+- Direct Sales Orders and Customer POs share the same risk-based approval rule: an order entered by Sales for a customer with late-payment risk remains Pending until a Manager decides it.
+- Pending and rejected orders cannot generate invoices. Manager approval atomically claims the pending decision and generates the invoice; rejection requires a reason and cancels the order.
 - Invoice data comes from the sales order and customer.
 - Immediate Payment invoices use immediate due date.
 - Credit invoices use the selected credit term, from 1 to 12 months.

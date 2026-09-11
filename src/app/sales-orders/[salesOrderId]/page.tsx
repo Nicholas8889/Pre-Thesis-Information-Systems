@@ -179,6 +179,18 @@ export default async function SalesOrderDetailPage({
                 : `${salesOrder.approvalStatus}${salesOrder.approvalRisk ? ` · ${salesOrder.approvalRisk}` : ""}`
             }
           />
+          {salesOrder.approvalDecisionNote && (
+            <Summary
+              label="Approval Decision Note"
+              value={salesOrder.approvalDecisionNote}
+            />
+          )}
+          {salesOrder.approvalDecidedAt && (
+            <Summary
+              label="Approval Decision Date"
+              value={formatDate(salesOrder.approvalDecidedAt)}
+            />
+          )}
           <Summary label="Latest Payment Method" value={latestPaymentMethod} />
           <Summary label="Sales Order Total" value={formatCurrency(salesOrder.total)} />
           {salesOrder.customerNpwpSnapshot && (

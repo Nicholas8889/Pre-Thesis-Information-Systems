@@ -39,7 +39,7 @@ export async function GET(
   }
 
   const downloadName = (customerPo.customerPoDocumentName ?? "customer-po-document").replace(
-    /["\r\n]/g,
+    /[\x00-\x1F\x7F"\\]/g,
     "_"
   );
   const asciiDownloadName = downloadName.normalize("NFKD").replace(/[^\x20-\x7E]/g, "_");
@@ -49,7 +49,8 @@ export async function GET(
     headers: {
       "Content-Type": customerPo.customerPoDocumentMimeType ?? "application/octet-stream",
       "Content-Disposition": `attachment; filename="${asciiDownloadName}"; filename*=UTF-8''${encodedDownloadName}`,
-      "Cache-Control": "private, no-store"
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff"
     }
   });
 }

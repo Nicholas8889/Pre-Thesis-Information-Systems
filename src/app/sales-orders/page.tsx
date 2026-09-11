@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Check, ClipboardList, Eye, FilePlus2, Plus, ShoppingCart, X } from "lucide-react";
+import { ArrowLeft, Check, ClipboardList, Eye, FilePlus2, FileText, Plus, ShoppingCart, X } from "lucide-react";
 import {
   decideSalesOrderApproval,
   generateInvoice,
@@ -297,7 +297,7 @@ export async function OrdersBySourcePage({
           <h2 className="mb-2 text-lg font-semibold">Create {createLabel}</h2>
           <p className="mb-4 text-sm leading-6 text-ink/80">
             {isCustomerPo
-              ? "Record the customer PO document and product required date. The system generates both a Sales Order Number and Customer PO Number, then invoice, payment, delivery note, receivable, and collection work continue through the same process as a direct Sales Order."
+              ? "Record the customer PO document and product required date. The system generates both a Sales Order Number and Customer PO Number, then invoice, payment, delivery note, receivable, and collection work continue through the same process as a direct Sales Order. Customer POs entered by Sales for customers with late-payment risk are submitted to a Manager first."
               : "Start from a direct Sales Order, then the system generates an invoice and connects payment, delivery note, receivable, and collection work. Orders created by Sales for customers with late-payment risk are submitted to a Manager first."}
           </p>
           {customers.length === 0 ? (
@@ -342,9 +342,22 @@ export async function OrdersBySourcePage({
             {isCustomerPo && selectedOrder.requiredDate && (
               <Detail label="Product Required Date" value={formatDate(selectedOrder.requiredDate)} />
             )}
-            {isCustomerPo && (
-              <Detail label="Customer PO Document" value={selectedOrder.customerPoDocumentName ?? "Not uploaded"} />
-            )}
+            {isCustomerPo && selectedOrder.customerPoDocumentStoredName ? (
+              <div>
+                <p className="text-xs font-semibold uppercase text-ink/50">
+                  Customer PO Document
+                </p>
+                <Link
+                  href={`/api/customer-purchase-orders/${selectedOrder.id}/document`}
+                  className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline"
+                >
+                  <FileText aria-hidden="true" className="h-4 w-4" />
+                  {selectedOrder.customerPoDocumentName ?? "Download document"}
+                </Link>
+              </div>
+            ) : isCustomerPo ? (
+              <Detail label="Customer PO Document" value="Not uploaded" />
+            ) : null}
             {activeTab === "approval" && (
               <Detail label="Approval Risk" value={selectedOrder.approvalRisk ?? "Payment risk"} />
             )}
@@ -431,14 +444,13 @@ export async function OrdersBySourcePage({
             </p>
             {activeTab === "approval" ? (
               currentUser?.role === "MANAGER" ? (
-                <form action={decideSalesOrderApproval} className="flex flex-1 flex-wrap items-center justify-end gap-2">
+                <form
+                  action={decideSalesOrderApproval}
+                  data-confirm-summary={`${singularLabel} ${selectedOrder.orderNumber}\n${selectedOrder.customer.companyName}\nTotal: ${formatCurrency(selectedOrder.total)}`}
+                  className="flex flex-1 flex-wrap items-center justify-end gap-2"
+                >
                   <input type="hidden" name="salesOrderId" value={selectedOrder.id} />
                   <input type="hidden" name="returnPath" value={basePath} />
-                  <input
-                    name="decisionNote"
-                    placeholder="Decision note (optional)"
-                    className="h-10 min-w-52 flex-1 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
-                  />
                   <button
                     name="decision"
                     value="Rejected"
@@ -671,7 +683,7 @@ function SalesOrderSourceDialog() {
             <ClipboardList aria-hidden="true" className="h-7 w-7 text-brand" />
             <h3 className="mt-3 font-semibold text-ink">Customer PO</h3>
             <p className="mt-1 text-sm leading-6 text-ink/80">
-              Generates a Sales Order Number and Customer PO Number, then requires a product required date and customer PO document upload.
+              Generates a Sales Order Number and Customer PO Number, requires a product required date and document upload, and follows the same risk-based Manager approval as a direct Sales Order.
             </p>
           </Link>
         </div>

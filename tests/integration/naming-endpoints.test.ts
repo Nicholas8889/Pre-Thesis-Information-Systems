@@ -131,8 +131,14 @@ describe("canonical download endpoints", () => {
 
     expect(canonical.status).toBe(200);
     expect(legacy.status).toBe(200);
+    expect(mocks.findCustomerPo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "order-1", source: "CUSTOMER_PO" }
+      })
+    );
     expect(canonical.headers.get("content-disposition")).toContain("attachment;");
     expect(canonical.headers.get("content-disposition")).toContain("purchase-order.pdf");
+    expect(canonical.headers.get("x-content-type-options")).toBe("nosniff");
     expect(legacy.headers.get("content-disposition")).toBe(
       canonical.headers.get("content-disposition")
     );

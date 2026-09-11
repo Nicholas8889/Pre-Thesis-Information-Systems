@@ -12,13 +12,13 @@ Immediate Payment flow: Sales Order -> Invoice -> Payment -> Surat Jalan
 
 Credit flow: Sales Order -> Invoice -> Surat Jalan -> Receivables -> Customer Outreach -> Payment
 
-PO flow: Customer Inquiry -> Convert to Customer PO -> Customer PO Number and required date -> Invoice -> Payment/Surat Jalan -> Inquiry Done after Delivered
+PO flow: Customer Inquiry -> Convert to Customer PO -> Customer PO Number, required date, and document -> Conditional Manager Approval -> Invoice -> Payment/Surat Jalan -> Inquiry Done after Delivered
 
 ## User Roles Involved
 
 | User Role | Main Responsibility in Demo |
 | --- | --- |
-| Manager | Reviews dashboard, sales performance, receivables, and overdue invoices. |
+| Manager | Reviews dashboard, sales performance, risky Sales Order/Customer PO approvals, receivables, and overdue invoices. |
 | Admin | Manages customer data, invoices, payments, and receivables. |
 | Sales | Creates customer inquiries, sales orders, customer purchase orders, and customer outreach notes for customers. |
 
@@ -32,7 +32,7 @@ PO flow: Customer Inquiry -> Convert to Customer PO -> Customer PO Number and re
 | 4 | Customer Inquiry | Sales | Select Add Inquiry, choose customer, add requested items, quantity, Requested Unit Price, Agreed Unit Price, needed-by date, and save. | Inquiry is saved with Open status. | Customer requests are recorded before becoming an order. |
 | 5 | Customer Inquiry Detail | Sales | Open the inquiry and select Convert to Customer PO, or Convert to Sales Order for a direct order. | The destination form is prefilled with customer, item, quantity, and Agreed Unit Price. | Sales does not retype negotiated data. |
 | 6 | Sales Order / Customer PO | Sales | Select customer and product, compare customer insights and Average Sold Price, then complete Base Unit Price/markup/discount and Payment Terms. | Form shows the estimated Total, conditional PPN, and Net Sales (Margin) before save. | Sales can explain pricing, credit, and tax decisions before finalization. |
-| 7 | Customer Purchase Orders | Sales | Complete Customer PO Number, required date, upload the customer PO document, and save. | Customer PO is saved with Sales Order Number, Customer PO Number, the same intelligence/tax snapshot rules, and inquiry status becomes Converted to Customer PO. | Customer PO orders use the connected revenue cycle without a separate calculation path. |
+| 7 | Customer Purchase Orders | Sales, then Manager when required | Complete Customer PO Number, required date, upload the customer PO document, and save. For a late-payment-risk customer, open Need Approval as Manager, review the document and order values, then approve or reject with a required reason. | Clean-risk Customer POs continue normally. Risky Customer POs remain Pending and cannot generate an invoice until approved; approval generates the invoice and rejection cancels the order. | Customer PO orders use the same controlled approval and connected revenue-cycle path as direct Sales Orders. |
 | 8 | Invoices | Admin | Open or generate the invoice from the linked order, then select View / Print Invoice. | Invoice exactly copies NPWP, PPN, Net Sales, and Total from the finalized order; non-PPN invoices omit tax identity/rows. | Printed financial values cannot drift from the approved order snapshot. |
 | 9 | Payments | Admin | Select Record Payment from the invoice queue and record a partial payment. | Payment is saved, paid amount increases, remaining amount decreases, and invoice status becomes Partial. | Payment entry starts from the invoice row and avoids searching manually. |
 | 10 | Surat Jalan | Admin | For Immediate Payment, create after full payment; for Credit, create before full payment if needed. Select the required driver and vehicle plate and enter Sender separately. | Delivery note saves allowlisted driver/plate snapshots and remains linked to invoice or order data. | Delivery documentation follows payment rules and identifies operational responsibility. |
@@ -50,8 +50,8 @@ PO flow: Customer Inquiry -> Convert to Customer PO -> Customer PO Number and re
 5. Open Customers and add a new customer to show how master data is captured.
 6. Open Customer Inquiry and create an inquiry for that customer. Explain that this captures the customer's request before it becomes an official order.
 7. Convert the inquiry to Customer PO if the customer provides a PO, or to Sales Order for a normal transaction. Explain that the customer and item data are copied automatically.
-8. For Customer PO, show the Customer PO Number, required date, and PO document area.
-9. Open Invoices and show the invoice detail. Explain the payment terms, due date, order number, Customer PO Number when applicable, and payment status.
+8. For Customer PO, show the Customer PO Number, required date, PO document link, and the Need Approval tab. If the customer has late-payment risk, switch to Manager and demonstrate approval or explain that rejection requires a reason.
+9. Open Invoices and show the invoice generated from approval or from another eligible order. Explain the payment terms, due date, order number, Customer PO Number when applicable, and payment status.
 10. Select View / Print Invoice and show the printable invoice layout. Explain Bill To, invoice information, item table, payment terms, amount in words, payment information, and authorized signature.
 11. Open Payments and record a partial payment from the invoice queue. Explain that payment cannot exceed the remaining invoice amount.
 12. Open Surat Jalan and create a delivery note from the invoice. Explain the Immediate Payment rule and Credit rule.

@@ -16,3 +16,9 @@ export function requiresManagerApproval(
 export function canGenerateInvoiceForApproval(status: SalesOrderApprovalStatus) {
   return status === "NotRequired" || status === "Approved";
 }
+
+export function requiresApprovalDecisionNote(
+  decision: Extract<SalesOrderApprovalStatus, "Approved" | "Rejected">
+) {
+  return decision === "Rejected";
+}

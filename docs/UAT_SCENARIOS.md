@@ -277,7 +277,20 @@ Steps:
 3. Confirm customer and item data are filled automatically.
 4. Enter required date, attach the required PO document, then save the Customer PO.
 
-Expected result: The Customer PO receives a Sales Order Number and separate Customer PO Number, and inquiry status becomes Converted to Customer PO only after the order is saved.
+Expected result: The Customer PO receives a Sales Order Number and separate Customer PO Number, and inquiry status becomes Converted to Customer PO only after the order is saved. When Sales creates it for a customer with late-payment risk, it appears as Pending in Need Approval and cannot generate an invoice.
+
+## UAT-CI-004A: Manager Reviews a Risky Customer PO
+
+Role: Manager
+
+Steps:
+1. Open Customer Purchase Orders and select Need Approval.
+2. Open a Pending Customer PO and review its customer, payment risk, required date, document, product pricing, total, and payment terms.
+3. Select Reject without entering a confirmation reason and verify submission is blocked.
+4. Cancel the dialog, then select Approve and submit an optional approval note.
+5. Open Invoices and locate the generated invoice.
+
+Expected result: Rejection always requires a reason. Approval changes the Customer PO to Approved/Invoiced and creates exactly one connected invoice. A decision already claimed by another Manager cannot be overwritten.
 
 ## UAT-CI-005: Delivered Order Completes Inquiry
 

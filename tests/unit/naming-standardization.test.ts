@@ -173,8 +173,12 @@ describe("canonical business naming", () => {
     expect(inquiryForm).toContain("Agreed Unit Price");
     expect(customerPoDocumentRoute).toContain('"Content-Disposition": `attachment;');
     expect(salesOrderDetail).toContain("Unduh Customer PO Document");
+    expect(salesOrderDetail).toContain("Approval Decision Note");
     expect(salesOrderList).not.toContain(
       'href={`/api/customer-purchase-orders/${order.id}/document`}'
+    );
+    expect(salesOrderList).toContain(
+      'href={`/api/customer-purchase-orders/${selectedOrder.id}/document`}'
     );
     expect(salesOrderList).toContain("Direct Sales Order");
     expect(salesOrderList).not.toContain("Normal Sales Order");

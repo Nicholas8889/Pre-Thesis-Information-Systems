@@ -7,8 +7,10 @@ describe("action confirmation rules", () => {
     expect(getActionConfirmationRules({ label: "Record Payment" }).requiresNote).toBe(false);
   });
 
-  it("requires notes for deletion actions", () => {
+  it("requires notes for destructive and rejection actions", () => {
     expect(getActionConfirmationRules({ label: "Delete Sales Order" }).requiresNote).toBe(true);
+    expect(getActionConfirmationRules({ label: "Reject Customer PO" }).requiresNote).toBe(true);
+    expect(getActionConfirmationRules({ label: "Approve Customer PO" }).requiresNote).toBe(false);
     expect(
       getActionConfirmationRules({ label: "Submit", forceRequiredNote: true }).requiresNote
     ).toBe(true);

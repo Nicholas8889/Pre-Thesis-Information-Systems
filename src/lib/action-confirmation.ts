@@ -3,6 +3,8 @@ export function getActionConfirmationRules(input: {
   forceRequiredNote?: boolean;
 }) {
   return {
-    requiresNote: Boolean(input.forceRequiredNote || /delete|remove/i.test(input.label))
+    requiresNote: Boolean(
+      input.forceRequiredNote || /delete|remove|reject/i.test(input.label)
+    )
   };
 }

@@ -28,6 +28,7 @@ import { parseOptionalNpwp } from "@/lib/npwp";
 import { canRole } from "@/lib/role-access";
 import {
   canGenerateInvoiceForApproval,
+  requiresApprovalDecisionNote,
   requiresManagerApproval
 } from "@/lib/sales-order-approval";
 import { requireCurrentUser } from "@/lib/session";
@@ -73,6 +74,13 @@ const pathsToRefresh = [
   "/customer-outreach",
   "/audit-trail"
 ];
+
+class SalesOrderApprovalConflictError extends Error {
+  constructor() {
+    super("Sales order approval is no longer pending");
+    this.name = "SalesOrderApprovalConflictError";
+  }
+}
 
 export async function createCustomer(formData: FormData) {
   await requireCurrentUser();
@@ -1107,7 +1115,17 @@ export async function decideSalesOrderApproval(formData: FormData) {
     );
   }
   const decision: SalesOrderApprovalStatus = decisionValue;
-  const decisionNote = mergeActionNotes(getString(formData, "decisionNote"), actionNote);
+  const decisionNote = mergeActionNotes(
+    normalizeActionNote(getString(formData, "decisionNote")),
+    actionNote
+  );
+  if (requiresApprovalDecisionNote(decision) && !decisionNote) {
+    redirectWithMessage(
+      `${requestedBasePath}?tab=approval`,
+      "error",
+      "A rejection reason is required"
+    );
+  }
   const salesOrder = await prisma.salesOrder.findUnique({
     where: { id: salesOrderId },
     include: { invoice: true, customer: true }
@@ -1135,17 +1153,43 @@ export async function decideSalesOrderApproval(formData: FormData) {
   }
 
   if (decision === "Rejected") {
-    const rejectedOrder = await prisma.salesOrder.update({
-      where: { id: salesOrder.id },
-      data: {
-        status: "Cancelled",
-        approvalStatus: "Rejected",
-        approvalDecisionNote: decisionNote || null,
-        approvalDecidedAt: new Date(),
-        approvalDecidedById: currentUser.id,
-        notes: mergeActionNotes(salesOrder.notes, actionNote)
+    const rejectedOrder = await (async () => {
+      try {
+        return await prisma.$transaction(async (tx) => {
+          const claimedDecision = await tx.salesOrder.updateMany({
+            where: {
+              id: salesOrder.id,
+              approvalStatus: "Pending"
+            },
+            data: {
+              status: "Cancelled",
+              approvalStatus: "Rejected",
+              approvalDecisionNote: decisionNote,
+              approvalDecidedAt: new Date(),
+              approvalDecidedById: currentUser.id,
+              notes: mergeActionNotes(salesOrder.notes, actionNote)
+            }
+          });
+
+          if (claimedDecision.count !== 1) {
+            throw new SalesOrderApprovalConflictError();
+          }
+
+          return tx.salesOrder.findUniqueOrThrow({
+            where: { id: salesOrder.id }
+          });
+        });
+      } catch (error) {
+        if (error instanceof SalesOrderApprovalConflictError) {
+          redirectWithMessage(
+            `${basePath}?tab=approval`,
+            "error",
+            "This sales order is no longer waiting for approval"
+          );
+        }
+        throw error;
       }
-    });
+    })();
 
     await createAuditTrailLog({
       moduleName: isCustomerPo ? "Customer Purchase Orders" : "Sales Orders",
@@ -1173,55 +1217,82 @@ export async function decideSalesOrderApproval(formData: FormData) {
     paymentTermType: salesOrder.paymentTermType,
     creditTermMonths: salesOrder.creditTermMonths
   });
-  const invoiceNumber = await nextDocumentNumber("INV");
 
-  const result = await prisma.$transaction(async (tx) => {
-    const invoice = await tx.invoice.create({
-      data: {
-        invoiceNumber,
-        salesOrderId: salesOrder.id,
-        customerId: salesOrder.customerId,
-        issueDate,
-        dueDate,
-        totalAmount: salesOrder.total,
-        paidAmount: 0,
-        remainingAmount: salesOrder.total,
-        customerNpwpSnapshot: salesOrder.customerNpwpSnapshot,
-        ppnApplied: salesOrder.ppnApplied,
-        ppnRateBasisPoints: salesOrder.ppnRateBasisPoints,
-        ppnAmount: salesOrder.ppnAmount,
-        netSalesAmount: salesOrder.netSalesAmount,
-        paymentTermType: salesOrder.paymentTermType,
-        creditTermMonths: salesOrder.creditTermMonths,
-        status: "Unpaid",
-        notes: actionNote || null
-      }
-    });
-    const approvedOrder = await tx.salesOrder.update({
-      where: { id: salesOrder.id },
-      data: {
-        status: "Invoiced",
-        approvalStatus: "Approved",
-        approvalDecisionNote: decisionNote || null,
-        approvalDecidedAt: issueDate,
-        approvalDecidedById: currentUser.id,
-        notes: mergeActionNotes(salesOrder.notes, actionNote)
-      }
-    });
-    const collectionTask =
-      salesOrder.paymentTermType === "CREDIT"
-        ? await tx.collectionTask.create({
-            data: {
-              customerId: salesOrder.customerId,
-              invoiceId: invoice.id,
-              scheduledDate: dueDate,
-              status: "Planned",
-              notes: `Credit payment collection reminder for ${invoiceNumber}`
+  const result = await (async () => {
+    try {
+      return await withDocumentNumberRetry(
+        ({ invoiceNumber }) =>
+          prisma.$transaction(async (tx) => {
+            const claimedDecision = await tx.salesOrder.updateMany({
+              where: {
+                id: salesOrder.id,
+                approvalStatus: "Pending"
+              },
+              data: {
+                status: "Invoiced",
+                approvalStatus: "Approved",
+                approvalDecisionNote: decisionNote,
+                approvalDecidedAt: issueDate,
+                approvalDecidedById: currentUser.id,
+                notes: mergeActionNotes(salesOrder.notes, actionNote)
+              }
+            });
+
+            if (claimedDecision.count !== 1) {
+              throw new SalesOrderApprovalConflictError();
             }
-          })
-        : null;
-    return { invoice, salesOrder: approvedOrder, collectionTask };
-  });
+
+            const invoice = await tx.invoice.create({
+              data: {
+                invoiceNumber: invoiceNumber as string,
+                salesOrderId: salesOrder.id,
+                customerId: salesOrder.customerId,
+                issueDate,
+                dueDate,
+                totalAmount: salesOrder.total,
+                paidAmount: 0,
+                remainingAmount: salesOrder.total,
+                customerNpwpSnapshot: salesOrder.customerNpwpSnapshot,
+                ppnApplied: salesOrder.ppnApplied,
+                ppnRateBasisPoints: salesOrder.ppnRateBasisPoints,
+                ppnAmount: salesOrder.ppnAmount,
+                netSalesAmount: salesOrder.netSalesAmount,
+                paymentTermType: salesOrder.paymentTermType,
+                creditTermMonths: salesOrder.creditTermMonths,
+                status: "Unpaid",
+                notes: actionNote || null
+              }
+            });
+            const approvedOrder = await tx.salesOrder.findUniqueOrThrow({
+              where: { id: salesOrder.id }
+            });
+            const collectionTask =
+              salesOrder.paymentTermType === "CREDIT"
+                ? await tx.collectionTask.create({
+                    data: {
+                      customerId: salesOrder.customerId,
+                      invoiceId: invoice.id,
+                      scheduledDate: dueDate,
+                      status: "Planned",
+                      notes: `Credit payment collection reminder for ${invoiceNumber}`
+                    }
+                  })
+                : null;
+            return { invoice, salesOrder: approvedOrder, collectionTask };
+          }),
+        { includeInvoice: true }
+      );
+    } catch (error) {
+      if (error instanceof SalesOrderApprovalConflictError) {
+        redirectWithMessage(
+          `${basePath}?tab=approval`,
+          "error",
+          "This sales order is no longer waiting for approval"
+        );
+      }
+      throw error;
+    }
+  })();
 
   await createAuditTrailLog({
     moduleName: isCustomerPo ? "Customer Purchase Orders" : "Sales Orders",

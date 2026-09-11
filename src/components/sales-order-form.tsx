@@ -247,7 +247,8 @@ export function SalesOrderForm({
             <div>
               <h3 className="text-sm font-semibold text-ink">Customer Insight</h3>
               <p className="mt-1 text-xs leading-5 text-ink/80">
-                Historical guidance only. It does not change payment terms, markup, discounts, or approval.
+                Pricing guidance does not change payment terms, markup, or discounts automatically.
+                Orders entered by Sales for customers with late-payment risk require Manager approval.
               </p>
             </div>
             <span className="w-fit rounded-md bg-info px-2.5 py-1 text-xs font-semibold text-white">

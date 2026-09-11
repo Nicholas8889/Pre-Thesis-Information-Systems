@@ -129,7 +129,9 @@ export function ActionConfirmationDialog() {
             maxLength={MAX_ACTION_NOTE_LENGTH}
             placeholder={
               pending.requiresNote
-                ? "Explain why this record is being deleted"
+                ? /reject/i.test(pending.title)
+                  ? "Explain why this record is being rejected"
+                  : "Explain why this action is required"
                 : "Add a note for this action"
             }
             className="mt-1 w-full rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-brand"
@@ -140,7 +142,7 @@ export function ActionConfirmationDialog() {
         </p>
         {pending.requiresNote && !trimmedNote && (
           <p className="mt-2 text-xs font-medium text-danger">
-            A note is required for destructive actions.
+            A note is required for this action.
           </p>
         )}
         <div className="mt-5 flex justify-end gap-3">
