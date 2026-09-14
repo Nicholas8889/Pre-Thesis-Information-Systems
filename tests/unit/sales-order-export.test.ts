@@ -13,12 +13,14 @@ describe("sales order Excel export", () => {
     expect(getSalesOrderExportTabFilter("ongoing")).toEqual({
       approvalStatus: { not: "Pending" },
       status: { in: ["Draft", "Confirmed", "Invoiced"] },
-      deliveryNotes: { none: {} }
+      deliveryNotes: { none: {} },
+      deliverySources: { none: {} }
     });
     expect(getSalesOrderExportTabFilter("done")).toEqual({
       OR: [
         { status: { in: ["Shipped", "Cancelled"] } },
-        { deliveryNotes: { some: {} } }
+        { deliveryNotes: { some: {} } },
+        { deliverySources: { some: {} } }
       ]
     });
   });

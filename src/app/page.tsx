@@ -97,7 +97,8 @@ export default async function DashboardPage() {
       include: {
         customer: true,
         salesOrder: { select: { id: true, orderNumber: true } },
-        deliveryNotes: { select: { id: true } }
+        deliveryNotes: { select: { id: true } },
+        deliverySources: { select: { id: true } }
       }
     }),
     prisma.salesOrder.findMany({
@@ -227,7 +228,7 @@ export default async function DashboardPage() {
       .filter(
         (invoice) =>
           invoice.status !== "Cancelled" &&
-          invoice.deliveryNotes.length === 0 &&
+          invoice.deliveryNotes.length === 0 && (invoice.deliverySources?.length ?? 0) === 0 &&
           canCreateDeliveryNoteForInvoice({
             paymentTermType: invoice.paymentTermType,
             status: invoice.status
@@ -310,18 +311,18 @@ export default async function DashboardPage() {
           </div>
 
           <AdminListPanel
-            title="Surat Jalan to Create"
-            description="Invoices currently eligible for delivery documentation."
+            title="Orders Awaiting Warehouse Processing"
+            description="Orders ready for picking, packing, and delivery documentation."
             href="/surat-jalan"
           >
             <CompactActionList
-              empty="No Surat Jalan needs to be created."
+              empty="No orders awaiting warehouse processing."
               rows={deliveryNotesToShow.map((invoice) => ({
                 id: invoice.id,
                 primary: invoice.invoiceNumber,
                 secondary: `${invoice.customer.companyName} · ${invoice.paymentTermType}`,
                 value: formatCurrency(invoice.totalAmount),
-                href: `/surat-jalan?mode=create&invoiceId=${invoice.id}`,
+                href: `/surat-jalan?tab=picking&invoiceId=${invoice.id}`,
                 action: "Create"
               }))}
             />

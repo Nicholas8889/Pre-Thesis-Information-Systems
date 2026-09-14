@@ -9,6 +9,9 @@ const statusStyles: Record<string, string> = {
   Shipped: "bg-info text-white",
   Invoiced: "bg-info text-white",
   Issued: "bg-info text-white",
+  "Ready to Pick": "bg-warning text-strong",
+  "Picking & Packing": "bg-info text-white",
+  Packed: "bg-success text-white",
   Partial: "bg-info text-white",
   Delivered: "bg-success text-white",
   Paid: "bg-success text-white",
@@ -19,12 +22,11 @@ const statusStyles: Record<string, string> = {
   Unpaid: "bg-warning text-strong",
   Planned: "bg-warning text-strong",
   Pending: "bg-warning text-strong",
-  "Historically Late": "bg-warning text-strong",
+  "Outstanding Payment": "bg-warning text-strong",
+  Clean: "bg-success text-white",
   Overdue: "bg-danger text-white",
   Rejected: "bg-danger text-white",
   Cancelled: "bg-danger text-white",
-  "Late Payment": "bg-danger text-white",
-  "Payment risk": "bg-danger text-white",
   Closed: "bg-canvas text-ink",
   NotRequired: "bg-canvas text-ink"
 };
@@ -37,6 +39,9 @@ const statusDescriptions: Record<string, string> = {
   Shipped: "Sales order has been shipped",
   Invoiced: "Sales order already has an invoice",
   Issued: "Surat Jalan has been issued",
+  "Ready to Pick": "Picking List is ready for warehouse preparation",
+  "Picking & Packing": "Picking and packing are in progress",
+  Packed: "All items are verified and ready for Surat Jalan",
   Delivered: "Delivery has been completed",
   Cancelled: "Record is cancelled",
   Unpaid: "No payment has been recorded",
@@ -49,8 +54,8 @@ const statusDescriptions: Record<string, string> = {
   Approved: "Approved by a Manager",
   Rejected: "Rejected by a Manager",
   NotRequired: "Manager approval is not required",
-  "Late Payment": "Customer currently has overdue unpaid receivables",
-  "Historically Late": "Customer has paid an invoice after its due date"
+  "Outstanding Payment": "Customer has an unpaid invoice with a Delivered Surat Jalan, including amounts not yet due",
+  Clean: "Customer has no unpaid invoices with a Delivered Surat Jalan"
 };
 
 export function StatusBadge({ status }: { status: string }) {

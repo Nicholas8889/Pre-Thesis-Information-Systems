@@ -6,11 +6,11 @@ The objective of this demo is to show how the system supports CV Tajuk in managi
 
 The main flow is:
 
-Login -> Customer -> Customer Inquiry -> Sales Order or Customer PO -> Invoice -> Printable Invoice -> Payment -> Surat Jalan -> Receivables -> Collections and Customer Outreach -> Dashboard
+Login -> Customer -> Customer Inquiry -> Sales Order or Customer PO -> Invoice -> Printable Invoice -> Payment -> Picking & Packing -> Surat Jalan -> Receivables -> Collections and Customer Outreach -> Dashboard
 
-Immediate Payment flow: Sales Order -> Invoice -> Payment -> Surat Jalan
+Immediate Payment flow: Sales Order -> Invoice -> Picking & Packing -> Surat Jalan -> Receivables -> Payment
 
-Credit flow: Sales Order -> Invoice -> Surat Jalan -> Receivables -> Customer Outreach -> Payment
+Credit flow: Sales Order -> Invoice -> Picking & Packing -> Surat Jalan -> Receivables -> Customer Outreach -> Payment
 
 PO flow: Customer Inquiry -> Convert to Customer PO -> Customer PO Number, required date, and document -> Conditional Manager Approval -> Invoice -> Payment/Surat Jalan -> Inquiry Done after Delivered
 
@@ -35,7 +35,7 @@ PO flow: Customer Inquiry -> Convert to Customer PO -> Customer PO Number, requi
 | 7 | Customer Purchase Orders | Sales, then Manager when required | Complete Customer PO Number, required date, upload the customer PO document, and save. For a late-payment-risk customer, open Need Approval as Manager, review the document and order values, then approve or reject with a required reason. | Clean-risk Customer POs continue normally. Risky Customer POs remain Pending and cannot generate an invoice until approved; approval generates the invoice and rejection cancels the order. | Customer PO orders use the same controlled approval and connected revenue-cycle path as direct Sales Orders. |
 | 8 | Invoices | Admin | Open or generate the invoice from the linked order, then select View / Print Invoice. | Invoice exactly copies NPWP, PPN, Net Sales, and Total from the finalized order; non-PPN invoices omit tax identity/rows. | Printed financial values cannot drift from the approved order snapshot. |
 | 9 | Payments | Admin | Select Record Payment from the invoice queue and record a partial payment. | Payment is saved, paid amount increases, remaining amount decreases, and invoice status becomes Partial. | Payment entry starts from the invoice row and avoids searching manually. |
-| 10 | Surat Jalan | Admin | For Immediate Payment, create after full payment; for Credit, create before full payment if needed. Select the required driver and vehicle plate and enter Sender separately. | Delivery note saves allowlisted driver/plate snapshots and remains linked to invoice or order data. | Delivery documentation follows payment rules and identifies operational responsibility. |
+| 10 | Surat Jalan | Admin | Create and complete a Picking List first. Immediate Payment and Credit may both be unpaid or partially paid. Select the required driver and vehicle plate and enter Sender separately. | Delivery note saves allowlisted driver/plate snapshots and remains linked to invoice or order data. | Delivery documentation follows approval and packing rules and identifies operational responsibility. |
 | 11 | Surat Jalan | Admin | Select View / Print, verify Sender and Delivered by are separate, then mark it Delivered when complete. | Printable Surat Jalan shows driver/plate and the linked inquiry becomes Done after delivery. | The system links customer request completion to an identifiable delivery. |
 | 12 | Receivables | Admin | Open Receivables and check the invoice. | Invoice appears because it still has remaining amount. Paid invoices do not appear as active receivables. | Outstanding customer balances are derived automatically from invoices. |
 | 13 | Collections | Admin | Select Create Collection Task from the receivable row and save a planned reminder. | Collections form opens with customer and invoice preselected. | Admin can track collection reminders without re-entering context. |
@@ -50,11 +50,11 @@ PO flow: Customer Inquiry -> Convert to Customer PO -> Customer PO Number, requi
 5. Open Customers and add a new customer to show how master data is captured.
 6. Open Customer Inquiry and create an inquiry for that customer. Explain that this captures the customer's request before it becomes an official order.
 7. Convert the inquiry to Customer PO if the customer provides a PO, or to Sales Order for a normal transaction. Explain that the customer and item data are copied automatically.
-8. For Customer PO, show the Customer PO Number, required date, PO document link, and the Need Approval tab. If the customer has late-payment risk, switch to Manager and demonstrate approval or explain that rejection requires a reason.
+8. For Customer PO, show the Customer PO Number, required date, PO document link, and the Need Approval tab. If the customer has outstanding payments, switch to Manager and demonstrate approval or explain that rejection requires a reason.
 9. Open Invoices and show the invoice generated from approval or from another eligible order. Explain the payment terms, due date, order number, Customer PO Number when applicable, and payment status.
 10. Select View / Print Invoice and show the printable invoice layout. Explain Bill To, invoice information, item table, payment terms, amount in words, payment information, and authorized signature.
 11. Open Payments and record a partial payment from the invoice queue. Explain that payment cannot exceed the remaining invoice amount.
-12. Open Surat Jalan and create a delivery note from the invoice. Explain the Immediate Payment rule and Credit rule.
+12. Open Picking List & Surat Jalan. Create a Picking List, record quantities and staff/package details, mark Packed, then issue Surat Jalan. Explain the Immediate Payment and Credit eligibility rules.
 13. Open View / Print Surat Jalan and explain the recipient section, item table, attention notes, and signature lines.
 14. Open Receivables and show that the invoice still appears because it has an outstanding balance.
 15. Select Create Collection Task from the receivable row and create a planned reminder for the unpaid balance.

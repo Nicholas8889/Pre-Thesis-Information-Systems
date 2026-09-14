@@ -1,4 +1,4 @@
-import type { CustomerPaymentRisk } from "@/lib/customer-intelligence";
+import type { CustomerPaymentStatus } from "@/lib/customer-intelligence";
 
 export type SalesOrderApprovalStatus =
   | "NotRequired"
@@ -8,9 +8,14 @@ export type SalesOrderApprovalStatus =
 
 export function requiresManagerApproval(
   role: string,
-  paymentRisk: CustomerPaymentRisk
+  paymentStatus: CustomerPaymentStatus
 ) {
-  return role === "SALES" && paymentRisk !== "Clean";
+  return role === "SALES" && paymentStatus === "Outstanding Payment";
+}
+
+export function getApprovalReasonLabel(reason: string | null) {
+  // Existing approval snapshots remain unchanged; they are not current customer status.
+  return reason === "Outstanding Payment" ? reason : "Manager review required";
 }
 
 export function canGenerateInvoiceForApproval(status: SalesOrderApprovalStatus) {

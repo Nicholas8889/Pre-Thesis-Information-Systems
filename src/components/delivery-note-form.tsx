@@ -121,7 +121,7 @@ export function DeliveryNoteForm({
     () => invoices.find((invoice) => invoice.id === selectedInvoiceId),
     [invoices, selectedInvoiceId]
   );
-  const isImmediatePaymentBlocked = Boolean(selectedInvoice && !selectedInvoice.canCreateDeliveryNote);
+  const isInvoiceBlocked = Boolean(selectedInvoice && !selectedInvoice.canCreateDeliveryNote);
 
   function applyCustomer(customerId: string) {
     const customer = customers.find((item) => item.id === customerId);
@@ -250,16 +250,15 @@ export function DeliveryNoteForm({
         </label>
       </div>
 
-      {isImmediatePaymentBlocked ? (
+      {isInvoiceBlocked ? (
         <div className="rounded-md bg-warning px-4 py-3 text-sm font-medium text-strong">
-          An immediate-payment order must be paid before Surat Jalan can be created.
+          Select an active invoice before creating Surat Jalan.
         </div>
       ) : (
         selectedInvoice &&
-        selectedInvoice.paymentTermType === "CREDIT" &&
         selectedInvoice.status !== "Paid" && (
           <div className="rounded-md bg-warning px-4 py-3 text-sm font-medium text-strong">
-            Credit order: Surat Jalan can be created before full payment.
+            Surat Jalan can be created before full payment once picking and packing are complete.
           </div>
         )
       )}
@@ -453,7 +452,7 @@ export function DeliveryNoteForm({
         </button>
 
         <button
-          disabled={isImmediatePaymentBlocked}
+          disabled={isInvoiceBlocked}
           className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-ink/25"
         >
           Save Surat Jalan

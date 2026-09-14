@@ -1,3 +1,4 @@
+import { deliverySourcesInclude, orderReference } from "@/lib/delivery-note-links";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -21,13 +22,15 @@ export default async function SuratJalanPrintPage({
       customer: true,
       invoice: true,
       salesOrder: true,
-      items: true
+      sources: deliverySourcesInclude,
+      items: { include: { source: { include: { salesOrder: true } } }, orderBy: [{ sourceId: "asc" }, { id: "asc" }] }
     }
   });
 
   if (!deliveryNote) {
     notFound();
   }
+  const combined = (deliveryNote.sources?.length ?? 0) > 1;
   const isCustomerPo = deliveryNote.salesOrder?.source === "CUSTOMER_PO";
   const orderLabel = isCustomerPo ? "Customer PO" : "Sales Order";
 
@@ -84,11 +87,11 @@ export default async function SuratJalanPrintPage({
             <InfoRow label="Date" value={formatDate(deliveryNote.deliveryDate)} />
             <InfoRow
               label="Invoice"
-              value={deliveryNote.invoice?.invoiceNumber ?? "-"}
+              value={deliveryNote.sources?.map(source => source.invoice.invoiceNumber).join(", ") || deliveryNote.invoice?.invoiceNumber || "-"}
             />
             <InfoRow
               label="Sales Order"
-              value={deliveryNote.salesOrder?.orderNumber ?? "-"}
+              value={deliveryNote.sources?.map(source => orderReference(source.salesOrder)).join(", ") || orderReference(deliveryNote.salesOrder)}
             />
             {isCustomerPo && (
               <InfoRow
@@ -96,7 +99,7 @@ export default async function SuratJalanPrintPage({
                 value={deliveryNote.salesOrder?.customerPoNumber ?? "-"}
               />
             )}
-            <InfoRow label="Order Source" value={orderLabel} />
+            <InfoRow label="Order Source" value={combined ? "Combined SO / Customer PO" : orderLabel} />
             {isCustomerPo && deliveryNote.salesOrder?.requiredDate && (
               <InfoRow
                 label="Required Date"
@@ -126,6 +129,7 @@ export default async function SuratJalanPrintPage({
               <thead className="bg-canvas text-left uppercase text-ink">
                 <tr>
                   <th className="border border-ink/50 px-3 py-2">No.</th>
+                  <th className="border border-ink/50 px-3 py-2">SO / Customer PO</th>
                   <th className="border border-ink/50 px-3 py-2">Product Code</th>
                   <th className="border border-ink/50 px-3 py-2">Product Name</th>
                   <th className="border border-ink/50 px-3 py-2 text-right">Qty</th>
@@ -137,6 +141,7 @@ export default async function SuratJalanPrintPage({
                 {deliveryNote.items.map((item, index) => (
                   <tr key={item.id}>
                     <td className="border border-ink/50 px-3 py-2">{index + 1}</td>
+                    <td className="border border-ink/50 px-3 py-2">{orderReference(item.source?.salesOrder ?? deliveryNote.salesOrder)}</td>
                     <td className="border border-ink/50 px-3 py-2">
                       {item.productCode ?? "-"}
                     </td>

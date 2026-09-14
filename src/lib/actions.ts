@@ -17,13 +17,14 @@ import type {
   SalesOrderSource
 } from "@prisma/client";
 import {
-  canCreateDeliveryNoteForInvoice,
   canRecordPayment,
   isValidSalesOrderPaymentTerm
 } from "@/lib/calculations";
 import { createAuditTrailLog } from "@/lib/audit";
-import { getCustomerPaymentRisk } from "@/lib/customer-intelligence";
+import { getCustomerPaymentSummary } from "@/lib/customer-intelligence";
+import { customerInvoiceBalanceSelect } from "@/lib/customer-payment-query";
 import { prisma } from "@/lib/prisma";
+import { canFulfillOrder, isPickingComplete } from "@/lib/picking-list";
 import { parseOptionalNpwp } from "@/lib/npwp";
 import { canRole } from "@/lib/role-access";
 import {
@@ -448,9 +449,10 @@ export async function createSalesOrder(formData: FormData) {
   const submittedItems = normalizeOrderItems(safeJsonParse(rawItems));
   const rawPaymentTermType = getString(formData, "paymentTermType");
   const rawCreditTermMonths = formData.get("creditTermMonths");
-  const { paymentTermType, creditTermMonths } = normalizePaymentTerm({
+  const { paymentTermType, creditTermMonths, creditTermWeeks } = normalizePaymentTerm({
     paymentTermType: rawPaymentTermType,
-    creditTermMonths: rawCreditTermMonths
+    creditTermMonths: rawCreditTermMonths,
+    creditTerm: formData.get("creditTerm")
   });
 
   if (!customerId || submittedItems.length === 0) {
@@ -464,13 +466,14 @@ export async function createSalesOrder(formData: FormData) {
   if (
     !isValidSalesOrderPaymentTerm({
       paymentTermType: rawPaymentTermType,
-      creditTermMonths: rawCreditTermMonths === null ? null : Number(rawCreditTermMonths)
+      creditTermMonths,
+      creditTermWeeks
     })
   ) {
     redirectWithMessage(
       `${basePath}?mode=create`,
       "error",
-      "Select Immediate Payment or choose a Credit term from 1 to 12 months"
+      "Select Immediate Payment or choose a Credit term from 1 to 4 weeks or 1 to 12 months"
     );
   }
 
@@ -486,12 +489,8 @@ export async function createSalesOrder(formData: FormData) {
     where: { id: customerId },
     include: {
       invoices: {
-        select: {
-          dueDate: true,
-          remainingAmount: true,
-          status: true,
-          payments: { select: { paymentDate: true } }
-        }
+        where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
+        select: customerInvoiceBalanceSelect
       }
     }
   });
@@ -562,8 +561,8 @@ export async function createSalesOrder(formData: FormData) {
     customerPoDocumentStoredName: storedDocument?.storedName ?? null,
     customerPoDocumentMimeType: storedDocument?.mimeType ?? null
   });
-  const paymentRisk = getCustomerPaymentRisk(customer);
-  const needsApproval = requiresManagerApproval(currentUser?.role ?? "", paymentRisk);
+  const paymentSummary = getCustomerPaymentSummary(customer);
+  const needsApproval = requiresManagerApproval(currentUser?.role ?? "", paymentSummary.paymentStatus);
 
   if (needsApproval) {
     const salesOrder = await withDocumentNumberRetry(
@@ -580,9 +579,10 @@ export async function createSalesOrder(formData: FormData) {
             ...taxSnapshot,
             paymentTermType,
             creditTermMonths,
+            creditTermWeeks,
             notes: mergeActionNotes(notes, actionNote),
             approvalStatus: "Pending",
-            approvalRisk: paymentRisk,
+            approvalRisk: paymentSummary.paymentStatus,
             createdByUserId: currentUser?.id ?? null,
             items: {
               create: items.map((item) => ({
@@ -609,13 +609,15 @@ export async function createSalesOrder(formData: FormData) {
       recordReference: salesOrder.orderNumber,
       action: "APPROVAL_REQUESTED",
       actionNote,
-      changeSummary: `${orderLabel} ${salesOrder.orderNumber} requires Manager approval because the customer is ${paymentRisk}`,
+      changeSummary: `${orderLabel} ${salesOrder.orderNumber} requires Manager approval because the customer has outstanding payments`,
       newValue: {
         orderNumber: salesOrder.orderNumber,
         customerPoNumber: salesOrder.customerPoNumber,
         status: salesOrder.status,
         approvalStatus: salesOrder.approvalStatus,
-        approvalRisk: paymentRisk,
+        paymentStatus: paymentSummary.paymentStatus,
+        outstandingAmount: paymentSummary.outstandingAmount,
+        openInvoiceCount: paymentSummary.openInvoiceCount,
         total: salesOrder.total,
         taxSnapshot: summarizeTaxSnapshot(salesOrder),
         items: summarizeOrderPricing(items)
@@ -645,6 +647,7 @@ export async function createSalesOrder(formData: FormData) {
             ...taxSnapshot,
             paymentTermType,
             creditTermMonths,
+            creditTermWeeks,
             notes: mergeActionNotes(notes, actionNote),
             approvalStatus: "NotRequired",
             createdByUserId: currentUser.id,
@@ -698,7 +701,8 @@ export async function createSalesOrder(formData: FormData) {
   const dueDate = getDueDateForPaymentTerm({
     issueDate,
     paymentTermType,
-    creditTermMonths
+    creditTermMonths,
+    creditTermWeeks
   });
 
   const result = await withDocumentNumberRetry(
@@ -716,6 +720,7 @@ export async function createSalesOrder(formData: FormData) {
             ...taxSnapshot,
             paymentTermType,
             creditTermMonths,
+            creditTermWeeks,
             notes: mergeActionNotes(notes, actionNote),
             approvalStatus: "NotRequired",
             createdByUserId: currentUser?.id ?? null,
@@ -751,6 +756,7 @@ export async function createSalesOrder(formData: FormData) {
             netSalesAmount: salesOrder.netSalesAmount,
             paymentTermType,
             creditTermMonths,
+            creditTermWeeks,
             status: "Unpaid",
             notes: actionNote || null
           }
@@ -792,6 +798,7 @@ export async function createSalesOrder(formData: FormData) {
       taxSnapshot: summarizeTaxSnapshot(result.salesOrder),
       paymentTermType: result.salesOrder.paymentTermType,
       creditTermMonths: result.salesOrder.creditTermMonths,
+      creditTermWeeks: result.salesOrder.creditTermWeeks,
       items: summarizeOrderPricing(items)
     }
   });
@@ -871,6 +878,7 @@ export async function deleteSalesOrder(formData: FormData) {
         }
       },
       deliveryNotes: { select: { id: true, status: true } },
+      pickingList: { select: { id: true } },
       items: { select: { id: true } }
     }
   });
@@ -886,6 +894,7 @@ export async function deleteSalesOrder(formData: FormData) {
   if (
     !canDeleteOngoingSalesOrder({
       salesOrderStatus: salesOrder.status,
+      hasPickingList: Boolean(salesOrder.pickingList),
       invoiceStatus: salesOrder.invoice?.status,
       deliveryNoteStatuses: [
         ...salesOrder.deliveryNotes,
@@ -896,7 +905,7 @@ export async function deleteSalesOrder(formData: FormData) {
     redirectWithMessage(
       `${basePath}/${salesOrder.id}`,
       "error",
-      "Completed, delivered, paid, or cancelled Sales Orders cannot be deleted"
+      "Orders with Picking Lists, completed deliveries, paid invoices, or cancellations cannot be deleted"
     );
   }
 
@@ -992,7 +1001,8 @@ export async function generateInvoice(formData: FormData) {
   const dueDate = getDueDateForPaymentTerm({
     issueDate,
     paymentTermType: salesOrder.paymentTermType,
-    creditTermMonths: salesOrder.creditTermMonths
+    creditTermMonths: salesOrder.creditTermMonths,
+    creditTermWeeks: salesOrder.creditTermWeeks
   });
   const invoiceNumber = await nextDocumentNumber("INV");
 
@@ -1014,6 +1024,7 @@ export async function generateInvoice(formData: FormData) {
         netSalesAmount: salesOrder.netSalesAmount,
         paymentTermType: salesOrder.paymentTermType,
         creditTermMonths: salesOrder.creditTermMonths,
+        creditTermWeeks: salesOrder.creditTermWeeks,
         status: "Unpaid",
         notes: actionNote || null
       }
@@ -1215,7 +1226,8 @@ export async function decideSalesOrderApproval(formData: FormData) {
   const dueDate = getDueDateForPaymentTerm({
     issueDate,
     paymentTermType: salesOrder.paymentTermType,
-    creditTermMonths: salesOrder.creditTermMonths
+    creditTermMonths: salesOrder.creditTermMonths,
+    creditTermWeeks: salesOrder.creditTermWeeks
   });
 
   const result = await (async () => {
@@ -1259,6 +1271,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
                 netSalesAmount: salesOrder.netSalesAmount,
                 paymentTermType: salesOrder.paymentTermType,
                 creditTermMonths: salesOrder.creditTermMonths,
+                creditTermWeeks: salesOrder.creditTermWeeks,
                 status: "Unpaid",
                 notes: actionNote || null
               }
@@ -1616,142 +1629,127 @@ export async function recordCustomerOutreach(formData: FormData) {
 
 export async function createDeliveryNote(formData: FormData) {
   const currentUser = await requireCurrentUser();
-  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
-  if (!canRole(currentUser?.role, "CREATE_SURAT_JALAN")) {
-    redirectWithMessage(
-      "/surat-jalan",
-      "error",
-      "Only Admin and Manager roles can create Surat Jalan"
-    );
+  if (!canRole(currentUser.role, "CREATE_SURAT_JALAN")) {
+    redirectWithMessage("/surat-jalan?tab=picking", "error", "Only Admin and Manager roles can create Surat Jalan");
   }
 
-  const customerId = getRequiredString(formData, "customerId");
-  const invoiceId = getString(formData, "invoiceId");
-  const salesOrderId = getString(formData, "salesOrderId");
+
+  const pickingListIds = formData.getAll("pickingListId").map(value => typeof value === "string" ? value.trim() : "");
+  if (!pickingListIds.length || pickingListIds.some(id => !id)) {
+    redirectWithMessage("/surat-jalan?tab=picking", "error", "Create and complete a Picking List before making Surat Jalan");
+  }
+  if (new Set(pickingListIds).size !== pickingListIds.length || pickingListIds.length > 100) {
+    redirectWithMessage("/surat-jalan?tab=picking", "error", "Select each Picking List once, up to 100 orders");
+  }
   const recipientName = getRequiredString(formData, "recipientName");
   const recipientPhone = getString(formData, "recipientPhone");
   const recipientAddress = getRequiredString(formData, "recipientAddress");
-  const deliveryDate = new Date(getRequiredString(formData, "deliveryDate"));
-  const senderName = getString(formData, "senderName");
-  const authorizedBy = getString(formData, "authorizedBy");
-  const items = normalizeDeliveryNoteItems(safeJsonParse(getString(formData, "items")));
+  const rawDeliveryDate = getRequiredString(formData, "deliveryDate");
+  const deliveryDate = new Date(rawDeliveryDate);
   const deliveryAssignment = validateDeliveryAssignment({
     driverName: formData.get("driverName"),
     vehiclePlateNumber: formData.get("vehiclePlateNumber")
   });
-
-  if (!customerId || !recipientName || !recipientAddress || items.length === 0) {
-    redirectWithMessage(
-      "/surat-jalan?mode=create",
-      "error",
-      "Customer, recipient, address, and at least one item are required"
-    );
-  }
-
-  if (!deliveryAssignment.valid) {
-    const sourceQuery = invoiceId
-      ? `&invoiceId=${encodeURIComponent(invoiceId)}`
-      : salesOrderId
-        ? `&salesOrderId=${encodeURIComponent(salesOrderId)}`
-        : "";
-    redirectWithMessage(
-      `/surat-jalan?mode=create${sourceQuery}`,
-      "error",
-      Object.values(deliveryAssignment.errors).join(". ")
-    );
-  }
-
-  if (invoiceId) {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: invoiceId },
-      select: { paymentTermType: true, status: true }
-    });
-
-    if (
-      invoice &&
-      !canCreateDeliveryNoteForInvoice({
-        paymentTermType: invoice.paymentTermType,
-        status: invoice.status
-      })
-    ) {
-      redirectWithMessage(
-        `/surat-jalan?mode=create&invoiceId=${invoiceId}`,
-        "error",
-        "An immediate-payment order must be paid before Surat Jalan can be created"
-      );
-    }
-  }
-
-  const deliveryNoteNumber = await nextDeliveryNoteNumber();
-
-  const deliveryNote = await prisma.deliveryNote.create({
-    data: {
-      deliveryNoteNumber,
-      invoiceId: invoiceId || null,
-      salesOrderId: salesOrderId || null,
-      customerId,
-      recipientName,
-      recipientPhone,
-      recipientAddress,
-      deliveryDate,
-      status: "Issued",
-      notes: mergeActionNotes(getString(formData, "notes"), actionNote),
-      receiverName: getString(formData, "receiverName") || null,
-      senderName: senderName || null,
-      driverName: deliveryAssignment.value.driverName,
-      vehiclePlateNumber: deliveryAssignment.value.vehiclePlateNumber,
-      authorizedBy: authorizedBy || null,
-      items: {
-        create: items.map((item) => ({
-          productCode: item.productCode || null,
-          itemName: item.itemName,
-          quantity: item.quantity,
-          unit: item.unit,
-          description: item.description || null
-        }))
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
+  const deliveryNote = await withDeliveryNoteNumberRetry(async (deliveryNoteNumber) => prisma.$transaction(async tx => {
+    // Lock in stable order: two operators cannot claim an overlapping selection.
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM picking_lists WHERE id IN (${Prisma.join([...pickingListIds].sort())}) ORDER BY id FOR UPDATE`);
+    const lists = await tx.pickingList.findMany({
+      where: { id: { in: pickingListIds } },
+      orderBy: { id: "asc" },
+      include: {
+        items: true, deliveryNote: { select: { id: true } }, deliverySource: true,
+        salesOrder: { include: {
+          customer: true, items: true, deliverySources: true,
+          invoice: { include: { deliveryNotes: { select: { id: true } }, deliverySources: true } },
+          deliveryNotes: { select: { id: true } }
+        } }
       }
-    },
-    include: {
-      invoice: true,
-      salesOrder: true
+    });
+    if (lists.length !== pickingListIds.length || lists.some(list => {
+      const order = list.salesOrder;
+      return list.status !== "Packed" || list.deliveryNote || list.deliverySource ||
+        !canFulfillOrder(order) || !list.pickerName || !list.packerName || !list.packageCount ||
+        !isPickingComplete(list.items) || order.deliveryNotes.length > 0 ||
+        order.deliverySources.length > 0 || (order.invoice?.deliveryNotes.length ?? 0) > 0 ||
+        (order.invoice?.deliverySources.length ?? 0) > 0 ||
+        order.items.length !== list.items.length ||
+        list.items.some(item => !order.items.some(source =>
+          source.id === item.salesOrderItemId && source.itemName === item.itemName && source.quantity === item.orderedQuantity));
+    })) {
+      redirectWithMessage("/surat-jalan?tab=picking", "error", "Picking List is not ready or the source order has changed");
     }
+    const first = lists[0];
+    if (lists.some(list => list.salesOrder.customerId !== first.salesOrder.customerId)) {
+      redirectWithMessage("/surat-jalan?tab=picking", "error", "All selected orders must belong to the same customer and delivery destination");
+    }
+    if (!recipientName || !recipientAddress || !rawDeliveryDate || Number.isNaN(deliveryDate.getTime()) || !deliveryAssignment.valid) {
+      redirectWithMessage("/surat-jalan?tab=picking&mode=delivery", "error", "Recipient, address, date, driver, and vehicle plate are required");
+    }
+    const note = await tx.deliveryNote.create({
+      data: {
+        deliveryNoteNumber,
+        pickingListId: lists.length === 1 ? first.id : null,
+        invoiceId: lists.length === 1 ? first.salesOrder.invoice!.id : null,
+        salesOrderId: lists.length === 1 ? first.salesOrderId : null,
+        customerId: first.salesOrder.customerId,
+        recipientName, recipientPhone, recipientAddress, deliveryDate, status: "Issued",
+        notes: mergeActionNotes(getString(formData, "notes"), actionNote),
+        receiverName: getString(formData, "receiverName") || null,
+        senderName: getString(formData, "senderName") || null,
+        driverName: deliveryAssignment.value.driverName,
+        vehiclePlateNumber: deliveryAssignment.value.vehiclePlateNumber,
+        authorizedBy: getString(formData, "authorizedBy") || null,
+        sources: { create: lists.map(list => ({
+          pickingListId: list.id,
+          salesOrderId: list.salesOrderId,
+          invoiceId: list.salesOrder.invoice!.id
+        })) }
+      },
+      include: { sources: true }
+    });
+    await tx.deliveryNoteItem.createMany({
+      data: lists.flatMap(list => list.items.map(item => ({
+        deliveryNoteId: note.id,
+        sourceId: note.sources.find(source => source.pickingListId === list.id)!.id,
+        itemName: item.itemName, quantity: item.packedQuantity, unit: "PCS"
+      })))
+    });
+    return note;
+  }, { timeout: 20000 })).catch((error: unknown) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      redirectWithMessage("/surat-jalan?tab=picking", "error", "A selected Picking List already belongs to a Surat Jalan. Refresh and try again.");
+    }
+    throw error;
   });
-
   await createAuditTrailLog({
-    moduleName: "Surat Jalan",
-    entityType: "DELIVERY_NOTE",
-    entityId: deliveryNote.id,
-    recordReference: deliveryNote.deliveryNoteNumber,
-    action: "CREATED",
-    actionNote,
-    changeSummary: `Surat Jalan ${deliveryNote.deliveryNoteNumber} created for driver ${deliveryNote.driverName} with vehicle ${deliveryNote.vehiclePlateNumber}`,
+    moduleName: "Picking List & Surat Jalan",
+    entityType: "DELIVERY_NOTE", entityId: deliveryNote.id,
+    recordReference: deliveryNote.deliveryNoteNumber, action: "CREATED", actionNote,
+    changeSummary: "Surat Jalan " + deliveryNote.deliveryNoteNumber + " created from " + pickingListIds.length + " Picking List(s)",
     newValue: {
-      deliveryNoteNumber: deliveryNote.deliveryNoteNumber,
-      invoiceNumber: deliveryNote.invoice?.invoiceNumber,
-      orderNumber: deliveryNote.salesOrder?.orderNumber,
-      status: deliveryNote.status,
-      recipientName: deliveryNote.recipientName,
-      driverName: deliveryNote.driverName,
-      vehiclePlateNumber: deliveryNote.vehiclePlateNumber
+      sources: deliveryNote.sources,
+      status: deliveryNote.status, recipientName: deliveryNote.recipientName,
+      recipientAddress: deliveryNote.recipientAddress,
+      driverName: deliveryNote.driverName, vehiclePlateNumber: deliveryNote.vehiclePlateNumber
     }
   });
-
   refreshApp();
-  redirect(
-    `/surat-jalan?view=${deliveryNote.id}&success=${encodeURIComponent("Surat Jalan created")}`
-  );
+  redirect("/surat-jalan?tab=open&view=" + deliveryNote.id + "&success=" + encodeURIComponent("Surat Jalan created"));
 }
 
 export async function updateDeliveryNoteStatus(formData: FormData) {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
+  if (!canRole(currentUser.role, "CREATE_SURAT_JALAN")) {
+    redirectWithMessage("/surat-jalan?tab=open", "error", "Only Admin and Manager can update Surat Jalan");
+  }
   const id = getRequiredString(formData, "id");
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
-  const status = getStatus<DeliveryNoteStatus>(
-    formData,
-    "status",
-    ["Draft", "Issued", "Delivered", "Cancelled"],
-    "Issued"
-  );
+  const requestedStatus = getRequiredString(formData, "status");
+  if (!["Issued", "Delivered", "Cancelled"].includes(requestedStatus)) {
+    redirectWithMessage("/surat-jalan?tab=open", "error", "Invalid Surat Jalan status transition");
+  }
+  const status = requestedStatus as DeliveryNoteStatus;
 
   if (!id) {
     redirectWithMessage("/surat-jalan", "error", "Surat Jalan ID is required");
@@ -1766,9 +1764,37 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
     redirectWithMessage("/surat-jalan", "error", "Surat Jalan was not found");
   }
 
-  const deliveryNote = await prisma.deliveryNote.update({
-    where: { id },
-    data: { status, notes: mergeActionNotes(oldDeliveryNote.notes, actionNote) }
+  const allowedNextStatus = oldDeliveryNote.status === "Draft"
+    ? ["Issued", "Cancelled"]
+    : oldDeliveryNote.status === "Issued"
+      ? ["Delivered", "Cancelled"]
+      : [];
+  if (!allowedNextStatus.includes(status)) {
+    redirectWithMessage("/surat-jalan?tab=open", "error", "Invalid Surat Jalan status transition");
+  }
+
+
+  const { deliveryNote, completedInquiries } = await prisma.$transaction(async tx => {
+    const deliveryNote = await tx.deliveryNote.update({
+      where: { id, status: oldDeliveryNote.status },
+      data: { status, notes: mergeActionNotes(oldDeliveryNote.notes, actionNote) },
+      include: { sources: { select: { salesOrderId: true } } }
+    });
+    const completedInquiries = [];
+    if (status === "Delivered") {
+      const orderIds = new Set([deliveryNote.salesOrderId, ...(deliveryNote.sources ?? []).map(source => source.salesOrderId)]);
+      for (const orderId of orderIds) {
+        if (!orderId) continue;
+        const inquiry = await completeCustomerInquiryForDeliveredOrder(tx, orderId);
+        if (inquiry) completedInquiries.push(inquiry);
+      }
+    }
+    return { deliveryNote, completedInquiries };
+  }, { timeout: 20000 }).catch((error: unknown) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      redirectWithMessage("/surat-jalan?tab=open", "error", "Surat Jalan changed. Refresh and review its current status.");
+    }
+    throw error;
   });
 
   await createAuditTrailLog({
@@ -1783,12 +1809,19 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
     newValue: { status: deliveryNote.status }
   });
 
-  if (deliveryNote.status === "Delivered") {
-    await completeLinkedCustomerInquiry(deliveryNote.salesOrderId);
+
+  for (const inquiry of completedInquiries) {
+    await createAuditTrailLog({
+      moduleName: "Customer Inquiry", entityType: "CUSTOMER_INQUIRY", entityId: inquiry.id,
+      recordReference: inquiry.inquiryNumber, action: "COMPLETED",
+      changeSummary: "Customer inquiry completed after linked order delivery",
+      newValue: { status: "Done", salesOrderId: inquiry.salesOrderId }
+    });
   }
 
+
   refreshApp();
-  redirect(`/surat-jalan?view=${id}&success=${encodeURIComponent("Surat Jalan status updated")}`);
+  redirect(`/surat-jalan?tab=${status === "Delivered" || status === "Cancelled" ? "completed" : "open"}&view=${id}&success=${encodeURIComponent("Surat Jalan status updated")}`);
 }
 
 function summarizeCustomer(customer: {
@@ -1860,6 +1893,7 @@ function summarizeInvoice(invoice: {
   status: string;
   paymentTermType: string;
   creditTermMonths?: number | null;
+  creditTermWeeks?: number | null;
   notes?: string | null;
   customerNpwpSnapshot?: string | null;
   ppnApplied?: boolean;
@@ -1875,6 +1909,7 @@ function summarizeInvoice(invoice: {
     status: invoice.status,
     paymentTermType: invoice.paymentTermType,
     creditTermMonths: invoice.creditTermMonths,
+    creditTermWeeks: invoice.creditTermWeeks,
     notes: invoice.notes,
     customerNpwpSnapshot: invoice.customerNpwpSnapshot,
     ppnApplied: invoice.ppnApplied,
@@ -1920,32 +1955,19 @@ function safeJsonParse(value: string) {
   }
 }
 
-function normalizeDeliveryNoteItems(rawItems: unknown) {
-  if (!Array.isArray(rawItems)) {
-    return [];
+async function withDeliveryNoteNumberRetry<T>(operation: (number: string) => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await operation(await nextDeliveryNoteNumber());
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+      if (String(JSON.stringify(error.meta?.target)).includes("picking_list_id")) {
+        redirectWithMessage("/surat-jalan?tab=open", "error", "Surat Jalan already exists for this Picking List");
+      }
+      if (!String(JSON.stringify(error.meta?.target)).includes("delivery_note_number") || attempt === 2) throw error;
+    }
   }
-
-  return rawItems
-    .map((item) => {
-      const record = item as Record<string, unknown>;
-      return {
-        productCode: String(record.productCode ?? "").trim(),
-        itemName: String(record.itemName ?? "").trim(),
-        quantity: Number(record.quantity),
-        unit: getAllowedUnit(String(record.unit ?? "PCS").trim()),
-        description: String(record.description ?? "").trim()
-      };
-    })
-    .filter(
-      (item) =>
-        item.itemName.length > 0 &&
-        Number.isFinite(item.quantity) &&
-        item.quantity > 0
-    );
-}
-
-function getAllowedUnit(value: string) {
-  return ["PCS", "ROLL", "KG", "BOX", "OTHER"].includes(value) ? value : "PCS";
+  throw new Error("Unable to allocate a Surat Jalan number");
 }
 
 async function nextDeliveryNoteNumber() {
@@ -2089,24 +2111,6 @@ async function linkCustomerInquiry(inquiryId: string, salesOrderId: string, isCu
     }
   });
   refreshApp();
-}
-
-async function completeLinkedCustomerInquiry(salesOrderId: string | null) {
-  if (!salesOrderId) return;
-
-  const inquiry = await completeCustomerInquiryForDeliveredOrder(prisma, salesOrderId);
-
-  if (!inquiry) return;
-  await createAuditTrailLog({
-    moduleName: "Customer Inquiry",
-    entityType: "CUSTOMER_INQUIRY",
-    entityId: inquiry.id,
-    recordReference: inquiry.inquiryNumber,
-    action: "COMPLETED",
-    changeSummary: `Customer inquiry ${inquiry.inquiryNumber} completed after linked order delivery`,
-    oldValue: { status: inquiry.status },
-    newValue: { status: "Done", salesOrderId }
-  });
 }
 
 function redirectWithMessage(path: string, kind: "success" | "error", message: string): never {

@@ -123,7 +123,7 @@ describe("canonical business naming", () => {
     expect(
       mappedIdentifiers.filter((identifier) => !/^[a-z][a-z0-9_]*$/.test(identifier))
     ).toEqual([]);
-    expect(schema.match(/@@map\("/g)).toHaveLength(27);
+    expect(schema.match(/@@map\("/g)).toHaveLength([...schema.matchAll(/^(?:model|enum)\s+/gm)].length);
   });
 
   it("uses action labels and contextual UI names that match behavior", () => {
@@ -166,7 +166,7 @@ describe("canonical business naming", () => {
     expect(deliveryNotePrint).toContain("SURAT JALAN / Delivery Note");
     expect(salesOrderForm).toContain("Base Unit Price");
     expect(salesOrderForm).toContain("Final Unit Price");
-    expect(salesOrderForm).toContain("Purchase Frequency Category");
+    expect(salesOrderForm).toContain("Payment Status");
     expect(customerForm).toContain('label="Contact Person"');
     expect(customerForm).toContain('label="Customer Segment"');
     expect(inquiryForm).toContain("Requested Unit Price");

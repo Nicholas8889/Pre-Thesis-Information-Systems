@@ -2,6 +2,11 @@ export type PaymentStatus = "Unpaid" | "Partial" | "Paid" | "Overdue";
 export type ReceivableStatus = "Unpaid" | "Partial" | "Overdue";
 export type PaymentTermType = "IMMEDIATE" | "CREDIT";
 
+export const CREDIT_TERM_OPTIONS = [
+  ...Array.from({ length: 4 }, (_, i) => ({ value: (i + 1) + "w", label: (i + 1) + (i === 0 ? " Week" : " Weeks") })),
+  ...Array.from({ length: 12 }, (_, i) => ({ value: (i + 1) + "m", label: (i + 1) + (i === 0 ? " Month" : " Months") }))
+];
+
 export function calculateLineSubtotal(quantity: number, finalUnitPrice: number) {
   return quantity * finalUnitPrice;
 }
@@ -55,7 +60,8 @@ export function buildInvoiceDraftFromSalesOrder({
   total,
   issueDate,
   paymentTermType = "IMMEDIATE",
-  creditTermMonths = null
+  creditTermMonths = null,
+  creditTermWeeks = null
 }: {
   salesOrderId: string;
   customerId: string;
@@ -63,11 +69,13 @@ export function buildInvoiceDraftFromSalesOrder({
   issueDate: Date;
   paymentTermType?: PaymentTermType;
   creditTermMonths?: number | null;
+  creditTermWeeks?: number | null;
 }) {
   const dueDate = calculateDueDateForPaymentTerm({
     issueDate,
     paymentTermType,
-    creditTermMonths
+    creditTermMonths,
+    creditTermWeeks
   });
 
   return {
@@ -80,6 +88,7 @@ export function buildInvoiceDraftFromSalesOrder({
     remainingAmount: total,
     paymentTermType,
     creditTermMonths: paymentTermType === "CREDIT" ? creditTermMonths : null,
+    creditTermWeeks: paymentTermType === "CREDIT" ? creditTermWeeks : null,
     status: "Unpaid" as const
   };
 }
@@ -87,11 +96,13 @@ export function buildInvoiceDraftFromSalesOrder({
 export function calculateDueDateForPaymentTerm({
   issueDate,
   paymentTermType,
-  creditTermMonths
+  creditTermMonths,
+  creditTermWeeks
 }: {
   issueDate: Date;
   paymentTermType: PaymentTermType;
   creditTermMonths?: number | null;
+  creditTermWeeks?: number | null;
 }) {
   const dueDate = new Date(issueDate);
 
@@ -99,7 +110,11 @@ export function calculateDueDateForPaymentTerm({
     return dueDate;
   }
 
-  dueDate.setMonth(dueDate.getMonth() + getValidCreditTermMonths(creditTermMonths));
+  if (creditTermWeeks != null) {
+    dueDate.setDate(dueDate.getDate() + creditTermWeeks * 7);
+  } else {
+    dueDate.setMonth(dueDate.getMonth() + getValidCreditTermMonths(creditTermMonths));
+  }
   return dueDate;
 }
 
@@ -113,13 +128,22 @@ export function getValidCreditTermMonths(value: number | null | undefined) {
 
 export function isValidSalesOrderPaymentTerm({
   paymentTermType,
-  creditTermMonths
+  creditTermMonths,
+  creditTermWeeks
 }: {
   paymentTermType: string;
   creditTermMonths?: number | null;
+  creditTermWeeks?: number | null;
 }) {
   if (paymentTermType === "IMMEDIATE") {
     return true;
+  }
+
+  if (creditTermWeeks != null) {
+    return paymentTermType === "CREDIT" &&
+      creditTermMonths == null &&
+      Number.isInteger(creditTermWeeks) &&
+      creditTermWeeks >= 1 && creditTermWeeks <= 4;
   }
 
   if (creditTermMonths === null || creditTermMonths === undefined) {
@@ -136,13 +160,19 @@ export function isValidSalesOrderPaymentTerm({
 
 export function getPaymentTermLabel({
   paymentTermType,
-  creditTermMonths
+  creditTermMonths,
+  creditTermWeeks
 }: {
   paymentTermType: PaymentTermType;
   creditTermMonths?: number | null;
+  creditTermWeeks?: number | null;
 }) {
   if (paymentTermType === "IMMEDIATE") {
     return "Immediate Payment";
+  }
+
+  if (creditTermWeeks != null) {
+    return "Credit – " + creditTermWeeks + (creditTermWeeks === 1 ? " Week" : " Weeks");
   }
 
   const months = getValidCreditTermMonths(creditTermMonths);
@@ -150,13 +180,12 @@ export function getPaymentTermLabel({
 }
 
 export function canCreateDeliveryNoteForInvoice({
-  paymentTermType,
   status
 }: {
-  paymentTermType: PaymentTermType;
+  paymentTermType?: PaymentTermType;
   status: string;
 }) {
-  return paymentTermType === "CREDIT" || status === "Paid";
+  return ["Unpaid", "Partial", "Overdue", "Paid"].includes(status);
 }
 
 export function calculateTotalPaidFromPayments(payments: Array<{ amount: number }>) {

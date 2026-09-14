@@ -1,3 +1,4 @@
+import { linkedDeliveryNotes } from "@/lib/delivery-note-links";
 import Link from "next/link";
 import { ArrowLeft, Check, ClipboardList, Eye, FilePlus2, FileText, Plus, ShoppingCart, X } from "lucide-react";
 import {
@@ -20,6 +21,7 @@ import {
 } from "@/components/table-actions";
 import { RestrictedAction } from "@/components/restricted-action";
 import { prisma } from "@/lib/prisma";
+import { customerInvoiceBalanceSelect } from "@/lib/customer-payment-query";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getPaymentTermLabel } from "@/lib/calculations";
 import { isDoneSalesOrder, isOngoingSalesOrder } from "@/lib/process-status";
@@ -27,12 +29,12 @@ import { getSearchMessage } from "@/lib/workflow";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
 import {
-  getCustomerCategory,
   getCustomerPaymentBehaviour,
-  getCustomerPaymentRisk,
+  getCustomerPaymentSummary,
   getJakartaTrailingTwelveMonthWindow
 } from "@/lib/customer-intelligence";
 import { formatNpwp } from "@/lib/npwp";
+import { getApprovalReasonLabel } from "@/lib/sales-order-approval";
 import {
   getCurrentMonthAverageSoldPrice,
   getJakartaCurrentMonthWindow,
@@ -84,7 +86,7 @@ export async function OrdersBySourcePage({
   const customerHistoryWindow = getJakartaTrailingTwelveMonthWindow(now);
   const currentMonth = getJakartaCurrentMonthWindow(now);
 
-  const [customerRecords, productRecords, salesOrders] = await Promise.all([
+  const [customerRecords, productRecords, salesOrderRecords] = await Promise.all([
     prisma.customer.findMany({
       where: { status: "Active" },
       orderBy: { companyName: "asc" },
@@ -93,7 +95,6 @@ export async function OrdersBySourcePage({
         companyName: true,
         name: true,
         npwp: true,
-        createdAt: true,
         salesOrders: {
           where: {
             orderDate: {
@@ -109,12 +110,8 @@ export async function OrdersBySourcePage({
           }
         },
         invoices: {
-          select: {
-            dueDate: true,
-            remainingAmount: true,
-            status: true,
-            payments: { select: { paymentDate: true } }
-          }
+          where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
+          select: customerInvoiceBalanceSelect
         }
       }
     }),
@@ -151,21 +148,19 @@ export async function OrdersBySourcePage({
         customer: true,
         invoice: true,
         items: true,
-        deliveryNotes: true
+        deliveryNotes: true, deliverySources: { include: { deliveryNote: true } }
       }
     })
   ]);
+  const salesOrders = salesOrderRecords.map(order => ({ ...order, deliveryNotes: linkedDeliveryNotes(order) }));
   const customers = customerRecords.map((customer) => {
-    const category = getCustomerCategory(customer, now);
     const paymentBehaviour = getCustomerPaymentBehaviour(customer, now);
 
     return {
       id: customer.id,
       companyName: customer.companyName,
       name: customer.name,
-      category: category.category,
-      recommendedMarkup: category.markup,
-      paymentRisk: getCustomerPaymentRisk(customer, now),
+      ...getCustomerPaymentSummary(customer),
       paymentBehaviour: paymentBehaviour.behaviour,
       paymentBehaviourEvidence: paymentBehaviour.evidence,
       npwp: formatNpwp(customer.npwp),
@@ -218,14 +213,15 @@ export async function OrdersBySourcePage({
         ? doneSalesOrders
         : ongoingSalesOrders;
 
-  const selectedOrder =
+  const selectedOrderRecord =
     (activeTab === "ongoing" || activeTab === "approval") && viewId
       ? await prisma.salesOrder.findFirst({
           where: { id: viewId, source },
-          include: { customer: true, invoice: true, items: true, deliveryNotes: true }
+          include: { customer: true, invoice: true, items: true, deliveryNotes: true, deliverySources: { include: { deliveryNote: true } } }
         })
       : null;
 
+  const selectedOrder = selectedOrderRecord ? { ...selectedOrderRecord, deliveryNotes: linkedDeliveryNotes(selectedOrderRecord) } : null;
   return (
     <>
       <PageHeader
@@ -297,8 +293,8 @@ export async function OrdersBySourcePage({
           <h2 className="mb-2 text-lg font-semibold">Create {createLabel}</h2>
           <p className="mb-4 text-sm leading-6 text-ink/80">
             {isCustomerPo
-              ? "Record the customer PO document and product required date. The system generates both a Sales Order Number and Customer PO Number, then invoice, payment, delivery note, receivable, and collection work continue through the same process as a direct Sales Order. Customer POs entered by Sales for customers with late-payment risk are submitted to a Manager first."
-              : "Start from a direct Sales Order, then the system generates an invoice and connects payment, delivery note, receivable, and collection work. Orders created by Sales for customers with late-payment risk are submitted to a Manager first."}
+              ? "Record the customer PO document and product required date. The system generates both a Sales Order Number and Customer PO Number, then invoice, payment, delivery note, receivable, and collection work continue through the same process as a direct Sales Order. Customer POs entered by Sales for customers with outstanding payments are submitted to a Manager first."
+              : "Start from a direct Sales Order, then the system generates an invoice and connects payment, delivery note, receivable, and collection work. Orders created by Sales for customers with outstanding payments are submitted to a Manager first."}
           </p>
           {customers.length === 0 ? (
             <EmptyState message={`Add an active customer before creating a ${singularLabel}.`} />
@@ -359,13 +355,14 @@ export async function OrdersBySourcePage({
               <Detail label="Customer PO Document" value="Not uploaded" />
             ) : null}
             {activeTab === "approval" && (
-              <Detail label="Approval Risk" value={selectedOrder.approvalRisk ?? "Payment risk"} />
+              <Detail label="Approval Reason" value={getApprovalReasonLabel(selectedOrder.approvalRisk)} />
             )}
             <Detail
               label="Payment Terms"
               value={getPaymentTermLabel({
                 paymentTermType: selectedOrder.paymentTermType,
-                creditTermMonths: selectedOrder.creditTermMonths
+                creditTermMonths: selectedOrder.creditTermMonths,
+                creditTermWeeks: selectedOrder.creditTermWeeks
               })}
             />
             {selectedOrder.customerNpwpSnapshot && (
@@ -531,7 +528,7 @@ export async function OrdersBySourcePage({
                   {isCustomerPo && <th className="py-3 pr-4">Required Date</th>}
                   <th className="py-3 pr-4">Payment Terms</th>
                   <th className="py-3 pr-4">Status</th>
-                  {activeTab === "approval" && <th className="py-3 pr-4">Payment Risk</th>}
+                  {activeTab === "approval" && <th className="py-3 pr-4">Approval Reason</th>}
                   <th className="py-3 pr-4">Invoice</th>
                   <th className="py-3 pr-4">Surat Jalan</th>
                   <th className="py-3 pr-4 text-right">Total</th>
@@ -558,7 +555,8 @@ export async function OrdersBySourcePage({
                     <td className="py-3 pr-4 text-ink/80">
                       {getPaymentTermLabel({
                         paymentTermType: order.paymentTermType,
-                        creditTermMonths: order.creditTermMonths
+                        creditTermMonths: order.creditTermMonths,
+                        creditTermWeeks: order.creditTermWeeks
                       })}
                     </td>
                     <td className="py-3 pr-4">
@@ -569,7 +567,7 @@ export async function OrdersBySourcePage({
                     {activeTab === "approval" && (
                       <td className="py-3 pr-4">
                         <StatusStack>
-                          <StatusBadge status={order.approvalRisk ?? "Payment risk"} />
+                          <StatusBadge status={getApprovalReasonLabel(order.approvalRisk)} />
                         </StatusStack>
                       </td>
                     )}

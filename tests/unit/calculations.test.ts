@@ -267,16 +267,13 @@ describe("revenue cycle calculations", () => {
     ).toBe("Paid and Delivered");
   });
 
-  it("applies Immediate Payment and Credit Surat Jalan creation rules", () => {
-    expect(
-      canCreateDeliveryNoteForInvoice({ paymentTermType: "IMMEDIATE", status: "Unpaid" })
-    ).toBe(false);
-    expect(canCreateDeliveryNoteForInvoice({ paymentTermType: "IMMEDIATE", status: "Paid" })).toBe(
-      true
-    );
-    expect(
-      canCreateDeliveryNoteForInvoice({ paymentTermType: "CREDIT", status: "Unpaid" })
-    ).toBe(true);
+  it.each(["IMMEDIATE", "CREDIT"] as const)("allows unpaid and paid %s invoices through the invoice shipment gate", (paymentTermType) => {
+    for (const status of ["Unpaid", "Partial", "Overdue", "Paid"]) {
+      expect(canCreateDeliveryNoteForInvoice({ paymentTermType, status })).toBe(true);
+    }
+    for (const status of ["Cancelled", "", "Unknown"]) {
+      expect(canCreateDeliveryNoteForInvoice({ paymentTermType, status })).toBe(false);
+    }
   });
 
   it("copies sales order items into Surat Jalan item drafts", () => {

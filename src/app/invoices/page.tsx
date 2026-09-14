@@ -112,12 +112,12 @@ export default async function InvoicesPage({
                 status: selectedInvoice.status
               }) && canCreateSuratJalan ? (
                 <Link
-                  href={`/surat-jalan?mode=create&invoiceId=${selectedInvoice.id}`}
-                  title="Create Surat Jalan"
+                  href={`/surat-jalan?tab=picking&invoiceId=${selectedInvoice.id}`}
+                  title="Open Warehouse"
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-4 text-sm font-semibold text-brand"
                 >
                   <FilePlus2 aria-hidden="true" className="h-4 w-4" />
-                  Create Surat Jalan
+                  Open Warehouse
                 </Link>
               ) : canCreateDeliveryNoteForInvoice({
                   paymentTermType: selectedInvoice.paymentTermType,
@@ -126,15 +126,15 @@ export default async function InvoicesPage({
                 <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
                   <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-soft px-4 text-sm font-semibold text-ink/50">
                     <FilePlus2 aria-hidden="true" className="h-4 w-4" />
-                    Create Surat Jalan
+                    Open Warehouse
                   </button>
                 </RestrictedAction>
               ) : (
                 <span
-                  title="An immediate-payment order must be paid before Surat Jalan can be created."
+                  title="An active invoice is required before starting the warehouse process."
                   className="inline-flex h-10 items-center justify-center rounded-md bg-warning px-4 text-sm font-semibold text-strong"
                 >
-                  Payment Required First
+                  Invoice Not Active
                 </span>
               )}
               <Link
@@ -160,7 +160,8 @@ export default async function InvoicesPage({
               label="Payment Terms"
               value={getPaymentTermLabel({
                 paymentTermType: selectedInvoice.paymentTermType,
-                creditTermMonths: selectedInvoice.creditTermMonths
+                creditTermMonths: selectedInvoice.creditTermMonths,
+                creditTermWeeks: selectedInvoice.creditTermWeeks
               })}
             />
             {selectedInvoice.customerNpwpSnapshot && (
@@ -266,7 +267,8 @@ export default async function InvoicesPage({
                     <td className="py-3 pr-4 text-ink/80">
                       {getPaymentTermLabel({
                         paymentTermType: invoice.paymentTermType,
-                        creditTermMonths: invoice.creditTermMonths
+                        creditTermMonths: invoice.creditTermMonths,
+                        creditTermWeeks: invoice.creditTermWeeks
                       })}
                     </td>
                     <td className="py-3 pr-4 text-right font-medium">

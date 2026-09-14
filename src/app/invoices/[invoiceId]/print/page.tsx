@@ -40,7 +40,8 @@ export default async function InvoicePrintPage({
 
   const paymentTerm = getPaymentTermLabel({
     paymentTermType: invoice.paymentTermType,
-    creditTermMonths: invoice.creditTermMonths
+    creditTermMonths: invoice.creditTermMonths,
+    creditTermWeeks: invoice.creditTermWeeks
   });
   const isCustomerPo = invoice.salesOrder.source === "CUSTOMER_PO";
   const orderLabel = isCustomerPo ? "Customer PO" : "Sales Order";

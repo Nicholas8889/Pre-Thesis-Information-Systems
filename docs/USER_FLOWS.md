@@ -123,7 +123,7 @@ use the action.
 4. Review the **Top 5 Popular Products** horizontal chart ranked by confirmed quantity sold.
 5. Open a Recent Sales Order to see its complete transaction detail.
 6. Review Collections reminders and module totals.
-7. Search customer overdue-payment and category insights.
+7. Review overdue customers and customer payment balances.
 8. Use the notification button to open pending Sales Order approvals, then continue to the **Need Approval** tab.
 
 ### Admin Dashboard
@@ -131,7 +131,7 @@ use the action.
 1. Login as Admin.
 2. Review Open Invoices, Overdue Receivables, Surat Jalan Needed, and Planned Collections counts.
 3. Review Invoice Insight.
-4. Open a transaction from **Surat Jalan to Create** when delivery documentation is needed.
+4. Open a transaction from **Orders Awaiting Warehouse Processing** when delivery documentation is needed.
 5. Review incoming due receivables; if none are approaching, review other unpaid receivables.
 6. Open a Collection task requiring action.
 7. Review the compact Recent Sales Orders list.
@@ -143,8 +143,8 @@ use the action.
 2. Review Total Sales Value, Paid Amount, Outstanding Receivables, and attention count.
 3. Review revenue and transaction-status charts.
 4. Search customers with overdue payments.
-5. Search the customer category list.
-6. Use the displayed category and recommended markup when preparing a Sales Order.
+5. Open Customer Records to review payment status and outstanding balances.
+6. Review outstanding balances before preparing a Sales Order.
 7. Open Customer Outreach reminders for customers with no order in three months.
 8. Sales does not see the Manager-only Popular Products chart.
 
@@ -176,7 +176,7 @@ Role-specific notification destinations:
 
 1. Open **Customers**.
 2. Enter a company or contact name in Search.
-3. Review Customer Category and Payment Risk in the result row.
+3. Review Payment Status and Outstanding Payment in the result row.
 4. Select View to open the customer detail.
 
 ### Edit Customer
@@ -187,28 +187,21 @@ Role-specific notification destinations:
 4. Save the changes.
 5. The change is recorded in the Audit Trail.
 
-### Customer Category Flow
+### Customer Payment Status Flow
 
-The system calculates category from recent Sales Order activity:
+Payment status is derived from invoice balances and current Surat Jalan status:
 
-- New: customer was added less than one month ago -> recommended markup 0%.
-- Loyal: more than three transactions per month -> recommended markup 0%.
-- Normal: approximately one transaction per month -> recommended markup 5%.
-- Occasional: less than one transaction per month -> recommended markup 10-15%.
-
-### Customer Payment-Risk Flow
-
-The system calculates payment risk from invoice due dates and payment history:
-
-- Late Payment: the customer currently has an overdue unpaid balance.
-- Historically Late: the customer previously paid after an invoice due date.
-- Clean: no detected current or historical late payment.
+- Clean: no non-cancelled invoice has both a positive remaining balance and a related Delivered Surat Jalan.
+- Outstanding Payment: at least one non-cancelled invoice has a positive remaining balance and a related Delivered Surat Jalan, even if the invoice is not yet due.
+- Outstanding amount is the sum of qualifying remaining balances; open invoice count counts each invoice once, even when multiple Surat Jalan are Delivered.
+- Partial payments reduce the amount. Settlement or invoice cancellation removes the invoice from the customer outstanding total.
+- Customer Segment and Active/Inactive status remain separate customer fields.
 
 ### Customer Detail and Transaction History
 
 1. Open a customer.
-2. Review the Customer Category card.
-3. Review the Customer Payment Risk card.
+2. Review Payment Status: Clean or Outstanding Payment.
+3. Review the Outstanding Payment amount, open invoice count, and linked invoices.
 4. Review all linked transactions: Order Number, Order Date, Payment Terms, Sales Order Status, Invoice, Surat Jalan, and Total.
 5. Select **Make Inactive** or **Make Active** to change whether the customer is available for new Sales Orders and Customer Outreach.
 6. Review the confirmation dialog, add an optional note of up to 150 characters, and Submit or Cancel.
@@ -236,7 +229,8 @@ flowchart TD
     N --> O["Inquiry status: Converted to Customer PO"]
     O --> P["Generate Invoice"]
     P --> Q["Record Payment according to Immediate Payment/Credit rules"]
-    Q --> R["Create Surat Jalan"]
+    Q --> PICK["Create Picking List and verify packing"]
+    PICK --> R["Issue Surat Jalan"]
     R --> S["Mark Surat Jalan Delivered"]
     S --> T["Inquiry status: Done"]
 ```
@@ -281,7 +275,7 @@ flowchart TD
 8. Review the calculated total.
 9. Select **Create Sales Order**.
 10. Review the confirmation dialog. Add an optional confirmation note of up to 150 characters, then Submit or Cancel.
-11. The system checks the creator's role and the customer's payment risk.
+11. The system checks the creator's role and the customer's outstanding payment status.
 
 ### Sales-Created Clean Customer Branch
 
@@ -302,9 +296,9 @@ This branch is used when Sales creates an order for a Clean customer.
 
 Admin can view Sales Orders but its Create Sales Order button and direct-entry form are disabled.
 
-### Risky Customer Approval Branch
+### Outstanding Payment Approval Branch
 
-This branch is used when Sales creates an order for a Late Payment or Historically Late customer.
+This branch is used when Sales creates an order for a customer with Outstanding Payment.
 
 1. The Sales Order is saved as Draft with approval status Pending.
 2. No Invoice, Receivable, or Collection task is created yet.
@@ -317,7 +311,7 @@ Manager decision:
 1. Login as Manager.
 2. Open the notification or open **Sales Orders**.
 3. Select **Need Approval**, located before Open.
-4. Select the pending order to review customer, payment risk, payment terms, items, quantities, prices, and total.
+4. Select the pending order to review customer, approval reason, payment terms, items, quantities, prices, and total.
 5. Enter an optional decision note.
 6. Select **Approve** or **Reject**.
 
@@ -406,29 +400,27 @@ If rejected:
 10. A fully paid Receivable moves to Completed.
 11. Review the payment and confirmation note in Recorded Payments and the Sales Order detail.
 
-## 11. Surat Jalan Flows
+## 11. Picking List & Surat Jalan Flows
 
-### Start Surat Jalan
+The warehouse module at `/surat-jalan` has three tabs:
 
-1. Open **Surat Jalan** and select Add, or start from an eligible Invoice or Payment row.
-2. Select the Invoice, Sales Order, or Customer.
-3. When linked data exists, review the copied recipient and item information.
-4. Enter delivery date, recipient, phone, address, sender, authorized person, items, and optional notes.
-5. Select Save, review the confirmation dialog, and optionally add a note of up to 150 characters.
-6. Submit or Cancel the Surat Jalan.
+- **Picking & Packing**: eligible SO/Customer PO orders awaiting a Picking List, plus Pending, InProgress, and Packed lists that do not yet have Surat Jalan. Use **Add Picking List** at the top of this tab.
+- **Surat Jalan Open**: issued deliveries and historical Draft delivery notes.
+- **Completed**: Delivered documents. Cancelled documents remain searchable in the separate **Cancelled archive** filter and are excluded from the Completed count.
 
-Eligibility rules:
+Admin and Manager create and update Picking Lists and Surat Jalan. Sales can review them. An order must be Confirmed/Invoiced with Approved/NotRequired approval and an active invoice. Both Immediate Payment and Credit invoices may remain Unpaid, Partial, or Overdue during picking and delivery. Existing picking or delivery records prevent a duplicate process.
 
-- Immediate Payment: the Invoice must be Paid before Surat Jalan can be created.
-- Credit: Surat Jalan can be created after Invoice generation, before full payment.
+1. Create a Picking List from an eligible SO or Customer PO. Product names and ordered quantities are copied into an internal worksheet without prices.
+2. Print the Pick & Pack Sheet if needed. Record actual picked/packed quantities, discrepancy notes, picker, packer, and package count in the system.
+3. Save partial progress while shortages are resolved. Packed cannot exceed Picked; neither can exceed Ordered.
+4. Select **Mark Packed** only when every line is fully picked and packed and both staff names and package count are recorded. The verified list becomes read-only and stays in Picking & Packing.
+5. Select **Create Surat Jalan** at the top of Picking & Packing or from a Packed list. Choose a customer, select one or more fully packed SO/Customer PO orders, and enter one recipient address, date, driver, and vehicle plate for the entire shipment. Then select **Issue Surat Jalan**. The server uses verified quantities and source order/customer/invoice links; manual creation and old direct entry points cannot bypass picking.
+6. The document moves to Surat Jalan Open. Issued can become Delivered or Cancelled; historical Draft can become Issued or Cancelled. Delivered and Cancelled cannot be reopened through the normal status action.
+7. Delivered moves to Completed and activates customer outstanding only if the linked invoice still has a remaining balance. Printing or completing packing does not change customer payment status.
 
-### Manage and Print Surat Jalan
+This version supports one Picking List per order. One Surat Jalan can combine multiple fully packed SO/Customer PO orders for the same customer and one shared destination; each order can belong to only one Surat Jalan. Partial shipments, stock balances, reservations, rack locations, and carrier integration are outside scope. Historical Surat Jalan remain usable without fabricated Picking Lists. Orders with Picking Lists cannot be deleted.
 
-1. Use Open for Draft or Issued documents.
-2. Use Completed for Delivered or Cancelled documents.
-3. Open a document to review its detail.
-4. Update the status when delivery progresses.
-5. Select Print to print or save the Surat Jalan as PDF.
+The migration `20260912090000_add_picking_list_fulfillment` adds the two Picking List tables, quantity constraints, unique document relations, lookup indexes, and RLS. Apply repository migrations with `npm run prisma:deploy` and regenerate the client with `npm run prisma:generate`.
 
 ## 12. Receivable Flow
 
@@ -440,7 +432,7 @@ Eligibility rules:
 6. The list shows Remaining Amount but keeps Total and Paid Amount in the full Sales Order detail.
 7. Select **View Sales Order** to inspect the full source order and its Total/Paid values.
 8. Select **Create Collection Task** when collection work is needed.
-9. Customer payment risk updates automatically from overdue and payment history.
+9. Customer payment status and outstanding amount reflect invoice balances only after a related Surat Jalan is Delivered.
 
 Receivables are calculated from Invoices and Payments; users do not manually create a Receivable record.
 
@@ -540,13 +532,14 @@ Sales can inspect Settings and existing accounts, but all account-creation field
 ### Clean Immediate Payment Customer
 
 ```text
-Customer -> Sales Order -> Invoice -> Full Payment -> Surat Jalan -> Completed
+Customer -> Sales Order -> Invoice -> Picking & Packing -> Surat Jalan -> Delivered
+         -> Remaining balance becomes customer outstanding -> Payment -> Completed
 ```
 
 ### Clean Credit Customer
 
 ```text
-Customer -> Sales Order -> Invoice -> Surat Jalan -> Receivable
+Customer -> Sales Order -> Invoice -> Picking & Packing -> Surat Jalan -> Receivable
          -> Collections when needed -> Payment -> Completed
 ```
 
@@ -574,7 +567,7 @@ No order for 3 months
 ```text
 Invoice reaches due date with remaining balance
   -> Overdue Receivable
-  -> Customer becomes Late Payment risk
+  -> Customer is Outstanding Payment only if a related Surat Jalan is Delivered
   -> Collection task and Admin reminder
   -> Record Payment
   -> Receivable closes when fully paid
@@ -621,3 +614,7 @@ Developer/Codex changes code
 ```
 
 Deployment depends on Vercel environment variables. The most important variables are `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_CUSTOMER_PO_BUCKET`. See `docs/DEPLOYMENT_GUIDE.md`.
+
+### Combined Surat Jalan
+
+One Surat Jalan can contain several fully packed SO/Customer PO orders for one customer and one destination. The form offers packed orders that have no delivery document. Each line retains its source reference in the detail and print views. Invoices and payments remain separate. Marking Delivered completes all linked inquiries and makes each eligible invoice balance count once in customer outstanding. Cancelled deliveries do not activate outstanding and cannot be reused or reopened. Partial shipments and multi-destination trips are not included.

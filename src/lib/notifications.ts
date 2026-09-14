@@ -2,6 +2,7 @@ import "server-only";
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getApprovalReasonLabel } from "@/lib/sales-order-approval";
 import {
   isCollectionDeadlineNotification,
   isCustomerPoProcessingNotification,
@@ -44,7 +45,8 @@ async function getCustomerPoNotifications(): Promise<AppNotification[]> {
     take: 50,
     include: {
       customer: true,
-      deliveryNotes: { select: { status: true } }
+      deliveryNotes: { select: { status: true } },
+      deliverySources: { select: { deliveryNote: { select: { status: true } } } }
     }
   });
 
@@ -54,7 +56,7 @@ async function getCustomerPoNotifications(): Promise<AppNotification[]> {
         {
           requiredDate: order.requiredDate,
           status: order.status,
-          hasDeliveredDocument: order.deliveryNotes.some(
+          hasDeliveredDocument: (order.deliverySources ?? []).some(source => source.deliveryNote.status === "Delivered") || order.deliveryNotes.some(
             (deliveryNote) => deliveryNote.status === "Delivered"
           )
         },
@@ -89,7 +91,7 @@ async function getManagerApprovalNotifications(): Promise<AppNotification[]> {
       order.source === "CUSTOMER_PO"
         ? "Customer PO approval needed"
         : "Sales order approval needed",
-    description: `${order.orderNumber} · ${order.customer.companyName} · ${order.approvalRisk ?? "Payment risk"}`,
+    description: `${order.orderNumber} · ${order.customer.companyName} · ${getApprovalReasonLabel(order.approvalRisk)}`,
     sentAt: order.createdAt.toISOString(),
     href: `${
       order.source === "CUSTOMER_PO" ? "/customer-purchase-orders" : "/sales-orders"

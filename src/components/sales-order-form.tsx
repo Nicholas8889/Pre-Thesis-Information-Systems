@@ -1,19 +1,17 @@
 "use client";
 
-import { CircleHelp, FileUp, Plus, Trash2 } from "lucide-react";
+import { FileUp, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { calculateAdjustedUnitPrice } from "@/lib/calculations";
+import { calculateAdjustedUnitPrice, CREDIT_TERM_OPTIONS } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/format";
 import { getProductPriceComparison } from "@/lib/product-insights";
 import { calculateTaxInclusiveAmounts, formatPpnRate } from "@/lib/tax";
+import type { CustomerPaymentSummary } from "@/lib/customer-intelligence";
 
-type CustomerOption = {
+type CustomerOption = CustomerPaymentSummary & {
   id: string;
   companyName: string;
   name: string;
-  category: string;
-  recommendedMarkup: string;
-  paymentRisk: string;
   paymentBehaviour: string;
   paymentBehaviourEvidence: string;
   npwp: string | null;
@@ -227,10 +225,10 @@ export function SalesOrderForm({
         {paymentTermType === "CREDIT" && (
           <label className="text-sm font-medium text-ink">
             Credit Term
-            <select name="creditTermMonths" required className={`${inputClass} mt-1`}>
-              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                <option key={month} value={month}>
-                  {month} Month{month === 1 ? "" : "s"}
+            <select name="creditTerm" defaultValue="1m" required className={`${inputClass} mt-1`}>
+              {CREDIT_TERM_OPTIONS.map((term) => (
+                <option key={term.value} value={term.value}>
+                  {term.label}
                 </option>
               ))}
             </select>
@@ -248,7 +246,7 @@ export function SalesOrderForm({
               <h3 className="text-sm font-semibold text-ink">Customer Insight</h3>
               <p className="mt-1 text-xs leading-5 text-ink/80">
                 Pricing guidance does not change payment terms, markup, or discounts automatically.
-                Orders entered by Sales for customers with late-payment risk require Manager approval.
+                Orders entered by Sales require Manager approval when the customer has an unpaid invoice with a Delivered Surat Jalan.
               </p>
             </div>
             <span className="w-fit rounded-md bg-info px-2.5 py-1 text-xs font-semibold text-white">
@@ -256,13 +254,13 @@ export function SalesOrderForm({
             </span>
           </div>
 
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <InsightMetric label="Purchase Frequency Category" value={selectedCustomer.category} />
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <InsightMetric label="Payment Status" value={selectedCustomer.paymentStatus} />
             <InsightMetric
-              label="Recommended Markup"
-              value={selectedCustomer.recommendedMarkup}
+              label="Outstanding Payment"
+              value={formatCurrency(selectedCustomer.outstandingAmount)}
+              help={`${selectedCustomer.openInvoiceCount} open invoice(s) with a Delivered Surat Jalan, including amounts not yet due.`}
             />
-            <InsightMetric label="Payment Risk" value={selectedCustomer.paymentRisk} />
             <InsightMetric
               label="Payment Behaviour"
               value={selectedCustomer.paymentBehaviour}
@@ -378,19 +376,7 @@ export function SalesOrderForm({
             </label>
 
             <div className="text-sm font-medium text-ink">
-              <span className="flex items-center gap-1.5">
-                Final Unit Price
-                <span
-                  className="group/price-help relative inline-flex"
-                  tabIndex={0}
-                  aria-label={`Customer category: ${selectedCustomer?.category ?? "Select a customer first"}`}
-                >
-                  <CircleHelp aria-hidden="true" className="h-4 w-4 text-ink/50" />
-                  <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-strong px-3 py-2 text-center text-xs font-medium text-white shadow-lg group-hover/price-help:block group-focus/price-help:block">
-                    Customer category: {selectedCustomer?.category ?? "Select a customer first"}
-                  </span>
-                </span>
-              </span>
+              Final Unit Price
               <div className="mt-1 flex h-10 items-center rounded-md border border-line bg-soft px-3">
                 {formatCurrency(getFinalUnitPrice(item))}
               </div>
@@ -468,7 +454,7 @@ export function SalesOrderForm({
           <div>
             <h3 className="text-sm font-semibold text-ink">Calculation Summary</h3>
             <p className="mt-1 text-xs leading-5 text-ink/80">
-              Estimated until the order is submitted and recalculated by the server.
+              Amounts update automatically as you change the items, quantities, prices, or customer.
             </p>
           </div>
           <span className="w-fit rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-strong">
@@ -478,15 +464,15 @@ export function SalesOrderForm({
 
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <InsightMetric
-            label="Estimated Total Price"
+            label="Order Total"
             value={formatCurrency(total)}
-            help="Final amount charged to the customer."
+            help="Amount charged to the customer, including PPN when applicable."
           />
           <InsightMetric
             label={
               estimatedTax?.ppnApplied
-                ? `Estimated PPN (${ppnRateLabel})`
-                : "Estimated PPN"
+                ? `PPN Included (${ppnRateLabel})`
+                : "PPN"
             }
             value={
               !estimatedTax
@@ -497,20 +483,20 @@ export function SalesOrderForm({
             }
             help={
               !estimatedTax
-                ? "Customer selection determines the configured tax treatment."
+                ? "Select a customer to calculate PPN."
                 : estimatedTax.ppnApplied
-                  ? `Separated from Total Price at the configured ${ppnRateLabel} effective rate.`
+                  ? `Already included in the order total at the ${ppnRateLabel} effective rate.`
                   : "Customer NPWP not provided."
             }
           />
           <InsightMetric
-            label="Estimated Net Sales (Margin)"
+            label="Net Sales (Excluding PPN)"
             value={
               estimatedTax
                 ? formatCurrency(estimatedTax.netSalesAmount)
                 : "Select a customer"
             }
-            help="Total after separating PPN; not profit after product cost."
+            help="Order total minus PPN, before deducting product costs."
           />
         </div>
       </section>

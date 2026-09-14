@@ -16,7 +16,7 @@ import {
 } from "@/lib/calculations";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import { canGenerateInvoiceForApproval } from "@/lib/sales-order-approval";
+import { canGenerateInvoiceForApproval, getApprovalReasonLabel } from "@/lib/sales-order-approval";
 import { syncOverdueInvoices } from "@/lib/workflow";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
@@ -37,6 +37,7 @@ type DetailInvoice = {
   remainingAmount: number;
   paymentTermType: "IMMEDIATE" | "CREDIT";
   creditTermMonths: number | null;
+  creditTermWeeks?: number | null;
   status: string;
 };
 
@@ -57,7 +58,9 @@ export default async function SalesOrderDetailPage({
   const salesOrder = await prisma.salesOrder.findUnique({
     where: { id: salesOrderId },
     include: {
+      deliverySources: { include: { deliveryNote: { include: { invoice: true, items: true } } } },
       customer: true,
+      pickingList: { select: { id: true, status: true, pickingListNumber: true } },
       items: true,
       invoice: {
         include: {
@@ -91,7 +94,7 @@ export default async function SalesOrderDetailPage({
   const payments = invoice?.payments ?? [];
   const deliveryNotes = Array.from(
     new Map(
-      [...salesOrder.deliveryNotes, ...(invoice?.deliveryNotes ?? [])].map((note) => [note.id, note])
+      [...salesOrder.deliveryNotes, ...(invoice?.deliveryNotes ?? []), ...(salesOrder.deliverySources ?? []).map(source => ({ ...source.deliveryNote, items: source.deliveryNote.items.filter(item => item.sourceId === source.id) }))].map((note) => [note.id, note])
     ).values()
   );
   const collectionTasks = invoice?.collectionTasks ?? [];
@@ -113,6 +116,7 @@ export default async function SalesOrderDetailPage({
   });
   const isOngoingAndDeletable = canDeleteOngoingSalesOrder({
     salesOrderStatus: salesOrder.status,
+    hasPickingList: Boolean(salesOrder.pickingList),
     invoiceStatus: invoice?.status,
     deliveryNoteStatuses: deliveryNotes.map((note) => note.status)
   });
@@ -176,7 +180,7 @@ export default async function SalesOrderDetailPage({
             value={
               salesOrder.approvalStatus === "NotRequired"
                 ? "Not required"
-                : `${salesOrder.approvalStatus}${salesOrder.approvalRisk ? ` · ${salesOrder.approvalRisk}` : ""}`
+                : `${salesOrder.approvalStatus}${salesOrder.approvalRisk ? ` · ${getApprovalReasonLabel(salesOrder.approvalRisk)}` : ""}`
             }
           />
           {salesOrder.approvalDecisionNote && (
@@ -368,6 +372,7 @@ export default async function SalesOrderDetailPage({
       </section>
 
       <RelatedSections
+        pickingList={salesOrder.pickingList}
         salesOrderId={salesOrder.id}
         invoice={invoice}
         payments={payments}
@@ -384,6 +389,7 @@ export default async function SalesOrderDetailPage({
 }
 
 function RelatedSections({
+  pickingList,
   salesOrderId,
   invoice,
   payments,
@@ -395,6 +401,7 @@ function RelatedSections({
   canRecordPayment,
   canCreateSuratJalan
 }: {
+  pickingList: { id: string; pickingListNumber: string; status: string } | null;
   salesOrderId: string;
   invoice: DetailInvoice | null;
   payments: Array<{
@@ -468,7 +475,8 @@ function RelatedSections({
               label="Payment Terms"
               value={getPaymentTermLabel({
                 paymentTermType: invoice.paymentTermType,
-                creditTermMonths: invoice.creditTermMonths
+                creditTermMonths: invoice.creditTermMonths,
+                creditTermWeeks: invoice.creditTermWeeks
               })}
             />
           </div>
@@ -555,18 +563,18 @@ function RelatedSections({
 
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold">Surat Jalan / Delivery Note</h2>
+          <h2 className="text-lg font-semibold">Picking List & Surat Jalan</h2>
           {deliveryNotes.length === 0 && invoice && (
             canCreateDeliveryNoteForInvoice({
               paymentTermType: invoice.paymentTermType,
               status: invoice.status
             }) && canCreateSuratJalan ? (
               <Link
-                href={`/surat-jalan?mode=create&invoiceId=${invoice.id}`}
+                href={`/surat-jalan?tab=picking&invoiceId=${invoice.id}`}
                 className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
               >
                 <Truck aria-hidden="true" className="h-4 w-4" />
-                Create Surat Jalan
+                Open Warehouse
               </Link>
             ) : canCreateDeliveryNoteForInvoice({
                 paymentTermType: invoice.paymentTermType,
@@ -575,16 +583,17 @@ function RelatedSections({
               <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
                 <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-soft px-3 text-sm font-semibold text-ink/50">
                   <Truck aria-hidden="true" className="h-4 w-4" />
-                  Create Surat Jalan
+                  Open Warehouse
                 </button>
               </RestrictedAction>
             ) : (
               <span className="inline-flex h-9 items-center justify-center rounded-md bg-warning px-3 text-sm font-semibold text-strong">
-                Payment Required First
+                Invoice Not Active
               </span>
             )
           )}
         </div>
+        {pickingList && <p className="mb-3 text-sm"><Link className="font-semibold text-brand" href={`/surat-jalan?tab=picking&viewPicking=${pickingList.id}`}>{pickingList.pickingListNumber}</Link> · {pickingList.status === "InProgress" ? "Picking & Packing" : pickingList.status}</p>}
         {deliveryNotes.length > 0 ? (
           <div className="space-y-4">
             {deliveryNotes.map((deliveryNote) => (

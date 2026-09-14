@@ -1,9 +1,9 @@
 import { PrismaClient } from "@prisma/client";
+import { customerInvoiceBalanceSelect } from "../../src/lib/customer-payment-query";
 import { afterAll, describe, expect, it } from "vitest";
 import {
-  getCustomerCategory,
   getCustomerPaymentBehaviour,
-  getCustomerPaymentRisk,
+  getCustomerPaymentSummary,
   getJakartaTrailingTwelveMonthWindow
 } from "../../src/lib/customer-intelligence";
 import {
@@ -79,7 +79,6 @@ describe("order form insights integration", () => {
             select: {
               id: true,
               npwp: true,
-              createdAt: true,
               salesOrders: {
                 where: {
                   orderDate: {
@@ -95,12 +94,8 @@ describe("order form insights integration", () => {
                 }
               },
               invoices: {
-                select: {
-                  dueDate: true,
-                  remainingAmount: true,
-                  status: true,
-                  payments: { select: { paymentDate: true } }
-                }
+                where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
+                select: customerInvoiceBalanceSelect
               }
             }
           }),
@@ -137,8 +132,7 @@ describe("order form insights integration", () => {
           throw new Error("Insight fixture was not loaded");
         }
 
-        expect(getCustomerCategory(loadedCustomer, now).category).toBe("Occasional");
-        expect(getCustomerPaymentRisk(loadedCustomer, now)).toBe("Clean");
+        expect(getCustomerPaymentSummary(loadedCustomer)).toEqual({ paymentStatus: "Clean", outstandingAmount: 0, openInvoiceCount: 0 });
         expect(getCustomerPaymentBehaviour(loadedCustomer, now)).toMatchObject({
           behaviour: "Immediate Payment",
           orderCount: 1,

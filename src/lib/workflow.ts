@@ -5,7 +5,6 @@ import {
   calculateInvoiceStatus,
   calculateRemainingAmount,
   calculateSalesOrderTotal,
-  getValidCreditTermMonths,
   type PaymentTermType
 } from "./calculations";
 import { nextNumberFromExisting } from "./document-numbering";
@@ -100,36 +99,49 @@ export function addDays(date: Date, days: number) {
 export function getDueDateForPaymentTerm({
   issueDate,
   paymentTermType,
-  creditTermMonths
+  creditTermMonths,
+  creditTermWeeks
 }: {
   issueDate: Date;
   paymentTermType: PaymentTermType;
   creditTermMonths?: number | null;
+  creditTermWeeks?: number | null;
 }) {
   return calculateDueDateForPaymentTerm({
     issueDate,
     paymentTermType,
-    creditTermMonths
+    creditTermMonths,
+    creditTermWeeks
   });
 }
 
 export function normalizePaymentTerm({
   paymentTermType,
-  creditTermMonths
+  creditTermMonths,
+  creditTerm
 }: {
   paymentTermType: string;
-  creditTermMonths: FormDataEntryValue | null;
+  creditTermMonths?: FormDataEntryValue | null;
+  creditTerm?: FormDataEntryValue | null;
 }) {
-  const normalizedPaymentTerm: PaymentTermType =
-    paymentTermType === "CREDIT" ? "CREDIT" : "IMMEDIATE";
-  const normalizedCreditTerm =
-    normalizedPaymentTerm === "CREDIT"
-      ? getValidCreditTermMonths(Number(creditTermMonths))
-      : null;
+  const normalizedPaymentTerm: PaymentTermType = paymentTermType === "CREDIT" ? "CREDIT" : "IMMEDIATE";
+  if (normalizedPaymentTerm === "IMMEDIATE") {
+    return { paymentTermType: normalizedPaymentTerm, creditTermMonths: null, creditTermWeeks: null };
+  }
 
+  // Older forms can still submit a numeric month term.
+  if (creditTerm == null) {
+    return {
+      paymentTermType: normalizedPaymentTerm,
+      creditTermMonths: creditTermMonths == null ? null : Number(creditTermMonths),
+      creditTermWeeks: null
+    };
+  }
+  const selection = typeof creditTerm === "string" ? /^(\d+)(w|m)$/.exec(creditTerm) : null;
   return {
     paymentTermType: normalizedPaymentTerm,
-    creditTermMonths: normalizedCreditTerm
+    creditTermMonths: selection?.[2] === "w" ? null : selection ? Number(selection[1]) : NaN,
+    creditTermWeeks: selection?.[2] === "w" ? Number(selection[1]) : null
   };
 }
 

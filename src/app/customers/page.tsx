@@ -1,3 +1,4 @@
+import { linkedDeliveryNotes } from "@/lib/delivery-note-links";
 import Link from "next/link";
 import {
   CreditCard,
@@ -7,7 +8,7 @@ import {
   Plus,
   Search,
   ShieldCheck,
-  Tags,
+  Wallet,
   UserCheck,
   UserX
 } from "lucide-react";
@@ -20,13 +21,12 @@ import { StatusBadge } from "@/components/status-badge";
 import { StatusStack } from "@/components/status-stack";
 import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 import { prisma } from "@/lib/prisma";
+import { customerInvoiceBalanceSelect } from "@/lib/customer-payment-query";
 import { getPaymentTermLabel } from "@/lib/calculations";
 import {
-  getCustomerCategory,
   getCustomerPaymentBehaviour,
-  getCustomerPaymentRisk,
-  type CustomerCategory,
-  type CustomerPaymentRisk
+  getCustomerPaymentSummary,
+  isOutstandingInvoice
 } from "@/lib/customer-intelligence";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { formatNpwp } from "@/lib/npwp";
@@ -63,16 +63,9 @@ export default async function CustomersPage({
       : undefined,
     orderBy: { createdAt: "desc" },
     include: {
-      salesOrders: {
-        select: { orderDate: true }
-      },
       invoices: {
-        select: {
-          dueDate: true,
-          remainingAmount: true,
-          status: true,
-          payments: { select: { paymentDate: true } }
-        }
+        where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
+        select: customerInvoiceBalanceSelect
       }
     }
   });
@@ -85,6 +78,7 @@ export default async function CustomersPage({
             orderBy: { orderDate: "desc" },
             include: {
               invoice: true,
+              deliverySources: { include: { deliveryNote: true } },
               deliveryNotes: {
                 select: {
                   id: true,
@@ -95,9 +89,12 @@ export default async function CustomersPage({
             }
           },
           invoices: {
-            orderBy: { createdAt: "desc" },
-            include: {
-              payments: { select: { paymentDate: true } }
+            orderBy: { dueDate: "asc" },
+            select: {
+              ...customerInvoiceBalanceSelect,
+              id: true,
+              invoiceNumber: true,
+              dueDate: true
             }
           }
         }
@@ -107,11 +104,8 @@ export default async function CustomersPage({
   const customerToEdit = editId
     ? await prisma.customer.findUnique({ where: { id: editId } })
     : null;
-  const selectedCategory = selectedCustomer
-    ? getCustomerCategory(selectedCustomer)
-    : null;
-  const selectedPaymentRisk = selectedCustomer
-    ? getCustomerPaymentRisk(selectedCustomer)
+  const selectedPaymentSummary = selectedCustomer
+    ? getCustomerPaymentSummary(selectedCustomer)
     : null;
   const selectedPaymentBehaviour = selectedCustomer
     ? getCustomerPaymentBehaviour(selectedCustomer)
@@ -192,18 +186,20 @@ export default async function CustomersPage({
           )}
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <CustomerIntelligenceCard
-              title="Purchase Frequency Category"
-              value={selectedCategory?.category ?? "Occasional"}
-              description={`${selectedCategory?.orderCount ?? 0} order(s) in the last 3 months · Recommended markup ${selectedCategory?.markup ?? "10–15%"}`}
-              icon={Tags}
-              tone="category"
+              title="Payment Status"
+              value={selectedPaymentSummary?.paymentStatus ?? "Clean"}
+              description={selectedPaymentSummary?.openInvoiceCount
+                ? "This customer has unpaid invoices with a Delivered Surat Jalan, including amounts not yet due."
+                : "No unpaid invoices with a Delivered Surat Jalan. Invoices awaiting delivery are not counted yet."}
+              icon={ShieldCheck}
+              tone={selectedPaymentSummary?.openInvoiceCount ? "outstanding" : "clean"}
             />
             <CustomerIntelligenceCard
-              title="Customer Payment Risk"
-              value={selectedPaymentRisk ?? "Clean"}
-              description={getPaymentRiskDescription(selectedPaymentRisk ?? "Clean")}
-              icon={ShieldCheck}
-              tone="risk"
+              title="Outstanding Payment"
+              value={formatCurrency(selectedPaymentSummary?.outstandingAmount ?? 0)}
+              description={`${selectedPaymentSummary?.openInvoiceCount ?? 0} open invoice(s) with a Delivered Surat Jalan. Cancelled invoices are excluded.`}
+              icon={Wallet}
+              tone={selectedPaymentSummary?.openInvoiceCount ? "outstanding" : "clean"}
             />
             <CustomerIntelligenceCard
               title="Customer Payment Behaviour"
@@ -227,6 +223,39 @@ export default async function CustomersPage({
               tone="tax"
             />
           </div>
+
+          {selectedPaymentSummary && selectedPaymentSummary.openInvoiceCount > 0 && (
+            <section className="mt-5 border-t border-line pt-5">
+              <h3 className="mb-3 text-base font-semibold text-ink">Outstanding Invoices</h3>
+              <p className="mb-3 text-sm text-ink/70">Remaining balances for invoices with a Delivered Surat Jalan.</p>
+              <div className="overflow-x-auto">
+                <table>
+                  <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
+                    <tr>
+                      <th className="py-3 pr-4">Invoice</th>
+                      <th className="py-3 pr-4">Due Date</th>
+                      <th className="py-3 pr-4">Status</th>
+                      <th className="py-3 text-right">Remaining Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line text-sm">
+                    {selectedCustomer.invoices.filter(isOutstandingInvoice).map((invoice) => (
+                      <tr key={invoice.id}>
+                        <td className="py-3 pr-4">
+                          <Link className="font-medium text-brand underline" href={`/invoices?view=${invoice.id}`}>
+                            {invoice.invoiceNumber}
+                          </Link>
+                        </td>
+                        <td className="py-3 pr-4">{formatDate(invoice.dueDate)}</td>
+                        <td className="py-3 pr-4"><StatusBadge status={invoice.status} /></td>
+                        <td className="py-3 text-right font-medium">{formatCurrency(invoice.remainingAmount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           <section className="mt-5 border-t border-line pt-5">
             <div className="mb-4">
@@ -272,8 +301,8 @@ export default async function CustomersPage({
                           ) : "-"}
                         </td>
                         <td className="py-3 pr-4 text-ink/80">
-                          {order.deliveryNotes.length > 0
-                            ? order.deliveryNotes.map((note) => `${note.deliveryNoteNumber} (${note.status})`).join(", ")
+                          {linkedDeliveryNotes(order).length > 0
+                            ? linkedDeliveryNotes(order).map((note) => `${note.deliveryNoteNumber} (${note.status})`).join(", ")
                             : "-"}
                         </td>
                         <td className="py-3 pr-4 text-right font-medium">{formatCurrency(order.total)}</td>
@@ -322,8 +351,8 @@ export default async function CustomersPage({
                   <th className="py-3 pr-4">Company</th>
                   <th className="py-3 pr-4">Phone</th>
                   <th className="py-3 pr-4">Segment</th>
-                  <th className="py-3 pr-4">Customer Category</th>
-                  <th className="py-3 pr-4">Payment Risk</th>
+                  <th className="py-3 pr-4">Payment Status</th>
+                  <th className="py-3 pr-4 text-right">Outstanding Payment</th>
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4">Notes</th>
                   <th className="py-3">Actions</th>
@@ -331,15 +360,14 @@ export default async function CustomersPage({
               </thead>
               <tbody className="divide-y divide-line text-sm">
                 {customers.map((customer) => {
-                  const category = getCustomerCategory(customer);
-                  const paymentRisk = getCustomerPaymentRisk(customer);
+                  const paymentSummary = getCustomerPaymentSummary(customer);
                   return <tr key={customer.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{customer.name}</td>
                     <td className="py-3 pr-4 text-ink/80">{customer.companyName}</td>
                     <td className="py-3 pr-4 text-ink/80">{customer.phone}</td>
                     <td className="py-3 pr-4 text-ink/80">{customer.customerSegment}</td>
-                    <td className="py-3 pr-4"><CustomerCategoryBadge category={category.category} /></td>
-                    <td className="py-3 pr-4"><PaymentRiskBadge risk={paymentRisk} /></td>
+                    <td className="py-3 pr-4"><StatusBadge status={paymentSummary.paymentStatus} /></td>
+                    <td className="py-3 pr-4 text-right font-medium">{formatCurrency(paymentSummary.outstandingAmount)}</td>
                     <td className="py-3 pr-4">
                       <StatusStack>
                         <StatusBadge status={customer.status} />
@@ -386,11 +414,11 @@ function CustomerIntelligenceCard({
   value: string;
   description: string;
   icon: LucideIcon;
-  tone: "category" | "risk" | "behaviour" | "tax";
+  tone: "clean" | "outstanding" | "behaviour" | "tax";
 }) {
   const iconStyle = {
-    category: "bg-info text-white",
-    risk: "bg-success text-white",
+    clean: "bg-success text-white",
+    outstanding: "bg-warning text-strong",
     behaviour: "bg-warning text-strong",
     tax: "bg-accent text-strong"
   }[tone];
@@ -409,33 +437,6 @@ function CustomerIntelligenceCard({
       </div>
     </article>
   );
-}
-
-function CustomerCategoryBadge({ category }: { category: CustomerCategory }) {
-  const style = {
-    New: "bg-info text-white",
-    Loyal: "bg-success text-white",
-    Normal: "bg-info text-white",
-    Occasional: "bg-warning text-strong"
-  }[category];
-
-  return <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${style}`}>{category}</span>;
-}
-
-function PaymentRiskBadge({ risk }: { risk: CustomerPaymentRisk }) {
-  const style = {
-    "Late Payment": "bg-danger text-white",
-    "Historically Late": "bg-warning text-strong",
-    Clean: "bg-success text-white"
-  }[risk];
-
-  return <span className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-semibold ${style}`}>{risk}</span>;
-}
-
-function getPaymentRiskDescription(risk: CustomerPaymentRisk) {
-  if (risk === "Late Payment") return "This customer currently has an overdue outstanding balance.";
-  if (risk === "Historically Late") return "This customer has previously paid an Invoice after its due date.";
-  return "No current or recorded historical late payment was found.";
 }
 
 function CustomerForm({

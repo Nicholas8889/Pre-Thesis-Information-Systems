@@ -301,7 +301,7 @@ export const testingEvidence = [
     scenarioName: "Validate sales order payment terms",
     userRole: "System",
     steps: "Input Immediate Payment, valid Credit, and invalid Credit terms.",
-    expectedResult: "Immediate Payment is accepted without credit term and Credit requires 1-12 months.",
+    expectedResult: "Immediate Payment is accepted without credit term and Credit requires 1-4 weeks or 1-12 months.",
     status: "Prepared"
   },
   {
@@ -321,7 +321,7 @@ export const testingEvidence = [
     userRole: "System",
     steps: "Input Immediate Payment unpaid, Immediate Payment paid, and Credit unpaid invoice states.",
     expectedResult:
-      "Immediate Payment unpaid blocks Surat Jalan while Immediate Payment paid and Credit unpaid allow Surat Jalan.",
+      "Immediate Payment and Credit allow fulfillment with Unpaid, Partial, Overdue, or Paid invoices; Cancelled invoices are blocked.",
     status: "Prepared"
   },
   {
@@ -403,7 +403,7 @@ export const testingEvidence = [
     scenarioId: "SIT-SJ-001",
     scenarioName: "Invoice to Surat Jalan",
     userRole: "Admin",
-    steps: "Open invoice detail, select Create Surat Jalan, review copied customer and item data, then save.",
+    steps: "Open invoice detail, select Open Warehouse, complete picking and packing, then issue Surat Jalan.",
     expectedResult: "Surat Jalan is created and linked to invoice or sales order data.",
     status: "Prepared"
   },
@@ -422,8 +422,8 @@ export const testingEvidence = [
     scenarioId: "SIT-SJ-TERM-001",
     scenarioName: "Immediate Payment Surat Jalan rule",
     userRole: "Admin",
-    steps: "Try creating Surat Jalan from unpaid Immediate Payment invoice, then after full payment.",
-    expectedResult: "Surat Jalan is blocked before payment and allowed after invoice is Paid.",
+    steps: "Complete picking and issue Surat Jalan for unpaid and partially paid Immediate Payment invoices.",
+    expectedResult: "Surat Jalan is allowed before full payment after packing is complete; invoice payment amounts and status remain unchanged.",
     status: "Prepared"
   },
   {
@@ -431,7 +431,7 @@ export const testingEvidence = [
     scenarioId: "SIT-SJ-TERM-002",
     scenarioName: "Credit Surat Jalan rule",
     userRole: "Admin",
-    steps: "Create Surat Jalan from unpaid Credit invoice.",
+    steps: "Complete a Picking List and issue Surat Jalan for an unpaid Credit invoice.",
     expectedResult: "Surat Jalan is allowed from Credit invoice before full payment.",
     status: "Prepared"
   },
@@ -532,11 +532,11 @@ export const testingEvidence = [
   {
     testType: "User Acceptance Testing / UAT",
     scenarioId: "UAT-TERM-001",
-    scenarioName: "Immediate Payment requires payment before Surat Jalan",
+    scenarioName: "Immediate Payment allows Surat Jalan before full payment",
     userRole: "Admin",
     steps:
-      "Create Immediate Payment sales order and invoice, try Surat Jalan before payment, record full payment, then create Surat Jalan.",
-    expectedResult: "Surat Jalan is blocked before payment and allowed after invoice is Paid.",
+      "Create an Immediate Payment order and invoice, complete picking, and issue Surat Jalan before payment. Mark Delivered and verify the remaining balance becomes customer outstanding.",
+    expectedResult: "Surat Jalan is allowed before full payment after packing is complete; invoice payment amounts and status remain unchanged.",
     status: "Prepared"
   },
   {
@@ -564,17 +564,17 @@ export const testingEvidence = [
     scenarioId: "UAT-SJ-001",
     scenarioName: "Admin creates Surat Jalan from invoice",
     userRole: "Admin",
-    steps: "Open invoice detail, select Create Surat Jalan, review copied data, and save.",
+    steps: "Open invoice detail, select Open Warehouse, complete a Picking List, and issue Surat Jalan.",
     expectedResult: "Surat Jalan is created and linked to invoice or sales order data.",
     status: "Prepared"
   },
   {
     testType: "User Acceptance Testing / UAT",
     scenarioId: "UAT-SJ-002",
-    scenarioName: "Admin creates Surat Jalan manually",
+    scenarioName: "Admin cannot bypass picking",
     userRole: "Admin",
-    steps: "Open Surat Jalan, add a new record, select customer, enter items, and save.",
-    expectedResult: "Manual Surat Jalan appears in the list.",
+    steps: "Attempt to create Surat Jalan without a verified Packed Picking List.",
+    expectedResult: "Creation is rejected and no Surat Jalan is saved.",
     status: "Prepared"
   },
   {

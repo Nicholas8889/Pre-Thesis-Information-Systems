@@ -147,7 +147,8 @@ export default async function ReceivablesPage({
                     <td className="py-3 pr-4 text-ink/80">
                       {getPaymentTermLabel({
                         paymentTermType: invoice.paymentTermType,
-                        creditTermMonths: invoice.creditTermMonths
+                        creditTermMonths: invoice.creditTermMonths,
+                        creditTermWeeks: invoice.creditTermWeeks
                       })}
                       {activeTab === "ongoing" && invoice.paymentTermType === "CREDIT" && (
                         <span className="mt-1 block text-xs font-medium text-info">

@@ -55,7 +55,7 @@ const navigationSections: Array<{ title: string; items: NavigationItem[] }> = [
       { href: "/sales-orders", label: "Sales Orders", icon: ShoppingCart },
       { href: "/customer-purchase-orders", label: "Customer Purchase Orders", icon: ClipboardList },
       { href: "/invoices", label: "Invoices", icon: FileText },
-      { href: "/surat-jalan", label: "Surat Jalan", icon: Truck }
+      { href: "/surat-jalan", label: "Picking List & Surat Jalan", icon: Truck }
     ]
   },
   {

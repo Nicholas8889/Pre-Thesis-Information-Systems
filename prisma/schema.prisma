@@ -101,6 +101,14 @@ enum DeliveryNoteStatus {
   @@map("delivery_note_status")
 }
 
+enum PickingListStatus {
+  Pending
+  InProgress
+  Packed
+
+  @@map("picking_list_status")
+}
+
 enum UserRole {
   ADMIN
   SALES
@@ -215,6 +223,7 @@ model SalesOrder {
   netSalesAmount               Int                      @default(0) @map("net_sales_amount")
   paymentTermType              PaymentTermType          @default(IMMEDIATE) @map("payment_term_type")
   creditTermMonths             Int?                     @map("credit_term_months")
+  creditTermWeeks              Int?                     @map("credit_term_weeks")
   notes                        String?
   approvalStatus               SalesOrderApprovalStatus @default(NotRequired) @map("approval_status")
   approvalRisk                 String?                  @map("approval_risk")
@@ -225,10 +234,12 @@ model SalesOrder {
   createdAt                    DateTime                 @default(now()) @map("created_at")
   updatedAt                    DateTime                 @updatedAt @map("updated_at")
 
-  customer        Customer         @relation(fields: [customerId], references: [id], map: "sales_orders_customer_id_fkey")
+  customer        Customer             @relation(fields: [customerId], references: [id], map: "sales_orders_customer_id_fkey")
   items           SalesOrderItem[]
   invoice         Invoice?
   deliveryNotes   DeliveryNote[]
+  deliverySources DeliveryNoteSource[]
+  pickingList     PickingList?
   customerInquiry CustomerInquiry?
 
   @@index([approvalStatus], map: "sales_orders_approval_status_idx")
@@ -298,6 +309,45 @@ model SalesOrderItem {
   @@map("sales_order_items")
 }
 
+model PickingList {
+  id                String            @id(map: "picking_lists_pkey") @default(cuid())
+  pickingListNumber String            @unique(map: "picking_lists_picking_list_number_key") @map("picking_list_number")
+  salesOrderId      String            @unique(map: "picking_lists_sales_order_id_key") @map("sales_order_id")
+  status            PickingListStatus @default(Pending)
+  pickerName        String?           @map("picker_name")
+  packerName        String?           @map("packer_name")
+  packageCount      Int?              @map("package_count")
+  notes             String?
+  packedAt          DateTime?         @map("packed_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  salesOrder     SalesOrder          @relation(fields: [salesOrderId], references: [id], onDelete: Restrict, map: "picking_lists_sales_order_id_fkey")
+  items          PickingListItem[]
+  deliveryNote   DeliveryNote?
+  deliverySource DeliveryNoteSource?
+
+  @@index([status, createdAt], map: "picking_lists_status_created_at_idx")
+  @@map("picking_lists")
+}
+
+model PickingListItem {
+  id               String  @id(map: "picking_list_items_pkey") @default(cuid())
+  pickingListId    String  @map("picking_list_id")
+  salesOrderItemId String  @map("sales_order_item_id")
+  itemName         String  @map("item_name")
+  orderedQuantity  Int     @map("ordered_quantity")
+  pickedQuantity   Int     @default(0) @map("picked_quantity")
+  packedQuantity   Int     @default(0) @map("packed_quantity")
+  notes            String?
+
+  pickingList PickingList @relation(fields: [pickingListId], references: [id], onDelete: Cascade, map: "picking_list_items_picking_list_id_fkey")
+
+  @@unique([pickingListId, salesOrderItemId], map: "picking_list_items_list_order_item_key")
+  @@index([pickingListId], map: "picking_list_items_picking_list_id_idx")
+  @@map("picking_list_items")
+}
+
 model Invoice {
   id                   String          @id(map: "invoices_pkey") @default(cuid()) @map("id")
   invoiceNumber        String          @unique(map: "invoices_invoice_number_key") @map("invoice_number")
@@ -315,16 +365,18 @@ model Invoice {
   netSalesAmount       Int             @default(0) @map("net_sales_amount")
   paymentTermType      PaymentTermType @default(IMMEDIATE) @map("payment_term_type")
   creditTermMonths     Int?            @map("credit_term_months")
+  creditTermWeeks      Int?            @map("credit_term_weeks")
   status               InvoiceStatus   @default(Unpaid)
   notes                String?
   createdAt            DateTime        @default(now()) @map("created_at")
   updatedAt            DateTime        @updatedAt @map("updated_at")
 
-  salesOrder      SalesOrder       @relation(fields: [salesOrderId], references: [id], map: "invoices_sales_order_id_fkey")
-  customer        Customer         @relation(fields: [customerId], references: [id], map: "invoices_customer_id_fkey")
+  salesOrder      SalesOrder           @relation(fields: [salesOrderId], references: [id], map: "invoices_sales_order_id_fkey")
+  customer        Customer             @relation(fields: [customerId], references: [id], map: "invoices_customer_id_fkey")
   payments        Payment[]
   collectionTasks CollectionTask[]
   deliveryNotes   DeliveryNote[]
+  deliverySources DeliveryNoteSource[]
 
   @@index([customerId], map: "invoices_customer_id_idx")
   @@map("invoices")
@@ -383,6 +435,7 @@ model DeliveryNote {
   deliveryNoteNumber String             @unique(map: "delivery_notes_delivery_note_number_key") @map("delivery_note_number")
   invoiceId          String?            @map("invoice_id")
   salesOrderId       String?            @map("sales_order_id")
+  pickingListId      String?            @unique(map: "delivery_notes_picking_list_id_key") @map("picking_list_id")
   customerId         String             @map("customer_id")
   recipientName      String             @map("recipient_name")
   recipientPhone     String             @map("recipient_phone")
@@ -398,10 +451,12 @@ model DeliveryNote {
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  invoice    Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull, map: "delivery_notes_invoice_id_fkey")
-  salesOrder SalesOrder?        @relation(fields: [salesOrderId], references: [id], onDelete: SetNull, map: "delivery_notes_sales_order_id_fkey")
-  customer   Customer           @relation(fields: [customerId], references: [id], map: "delivery_notes_customer_id_fkey")
-  items      DeliveryNoteItem[]
+  invoice     Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull, map: "delivery_notes_invoice_id_fkey")
+  salesOrder  SalesOrder?          @relation(fields: [salesOrderId], references: [id], onDelete: SetNull, map: "delivery_notes_sales_order_id_fkey")
+  pickingList PickingList?         @relation(fields: [pickingListId], references: [id], onDelete: SetNull, map: "delivery_notes_picking_list_id_fkey")
+  customer    Customer             @relation(fields: [customerId], references: [id], map: "delivery_notes_customer_id_fkey")
+  sources     DeliveryNoteSource[]
+  items       DeliveryNoteItem[]
 
   @@index([invoiceId], map: "delivery_notes_invoice_id_idx")
   @@index([salesOrderId], map: "delivery_notes_sales_order_id_idx")
@@ -410,16 +465,35 @@ model DeliveryNote {
 }
 
 model DeliveryNoteItem {
-  id             String  @id(map: "delivery_note_items_pkey") @default(cuid()) @map("id")
-  deliveryNoteId String  @map("delivery_note_id")
-  productCode    String? @map("product_code")
-  itemName       String  @map("item_name")
+  sourceId       String?             @map("source_id")
+  source         DeliveryNoteSource? @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  id             String              @id(map: "delivery_note_items_pkey") @default(cuid()) @map("id")
+  deliveryNoteId String              @map("delivery_note_id")
+  productCode    String?             @map("product_code")
+  itemName       String              @map("item_name")
   quantity       Int
-  unit           String  @default("PCS")
+  unit           String              @default("PCS")
   description    String?
 
   deliveryNote DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade, map: "delivery_note_items_delivery_note_id_fkey")
 
   @@index([deliveryNoteId], map: "delivery_note_items_delivery_note_id_idx")
+  @@index([sourceId])
   @@map("delivery_note_items")
+}
+
+model DeliveryNoteSource {
+  id             String             @id @default(cuid())
+  deliveryNoteId String             @map("delivery_note_id")
+  pickingListId  String             @unique @map("picking_list_id")
+  salesOrderId   String             @unique @map("sales_order_id")
+  invoiceId      String             @unique @map("invoice_id")
+  deliveryNote   DeliveryNote       @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  pickingList    PickingList        @relation(fields: [pickingListId], references: [id], onDelete: Restrict)
+  salesOrder     SalesOrder         @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  invoice        Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  items          DeliveryNoteItem[]
+
+  @@index([deliveryNoteId])
+  @@map("delivery_note_sources")
 }

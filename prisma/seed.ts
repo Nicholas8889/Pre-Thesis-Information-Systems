@@ -15,6 +15,7 @@ async function main() {
   await prisma.customerOutreach.deleteMany();
   await prisma.collectionTask.deleteMany();
   await prisma.deliveryNote.deleteMany();
+  await prisma.pickingList.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.invoice.deleteMany();
   await prisma.customerInquiryItem.deleteMany();

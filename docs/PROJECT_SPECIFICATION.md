@@ -44,7 +44,7 @@ The application shows restricted actions as disabled with an explanatory message
 2. A Sales Order stores its source, items, price calculations, PPN snapshot, payment terms, and approval decision.
 3. One Sales Order can generate only one Invoice.
 4. Invoice tax and NPWP values are snapshots from the order/customer data at the time of invoicing.
-5. Immediate-payment invoices are due immediately; delivery is blocked until the invoice is fully paid.
+5. Immediate-payment invoices are due immediately; picking and delivery may proceed before full payment, subject to order approval and completed packing.
 6. Credit invoices use the selected credit period (one to twelve months); Surat Jalan can be created after invoice generation without waiting for full payment.
 7. Payments update paid amount, remaining amount, and invoice status.
 8. Receivables are derived from invoices with a remaining balance; users do not manually create them.
@@ -124,7 +124,7 @@ The internal-pilot release is acceptable when:
 1. Admin, Sales, and Manager users can log in and see the correct role label.
 2. Role-restricted actions cannot be completed by an unauthorized role.
 3. The full linked workflow—Inquiry/Customer PO → Sales Order → Invoice → Payment → Surat Jalan → Receivable → Collection Task—works with correct totals and statuses.
-4. Immediate-payment delivery remains blocked until the linked invoice is paid; credit flow follows the selected credit term.
+4. Immediate Payment and Credit share shipment eligibility: an approved order, active invoice, and completed packing are required; full payment is not required.
 5. Invoice and Surat Jalan print views contain the required operational information.
 6. Sales Order exports download as an Excel workbook, and Customer PO attachments remain access controlled.
 7. Audit records preserve the user, role, action, module, and record reference.

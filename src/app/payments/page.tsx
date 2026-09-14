@@ -105,7 +105,8 @@ export default async function PaymentsPage({
                       >
                         {getPaymentTermLabel({
                           paymentTermType: invoice.paymentTermType,
-                          creditTermMonths: invoice.creditTermMonths
+                          creditTermMonths: invoice.creditTermMonths,
+                          creditTermWeeks: invoice.creditTermWeeks
                         })}
                       </span>
                     </td>
@@ -142,14 +143,14 @@ export default async function PaymentsPage({
                           status: invoice.status
                         }) && (canCreateSuratJalan ? (
                           <TableActionLink
-                            href={`/surat-jalan?mode=create&invoiceId=${invoice.id}`}
-                            label="Create Surat Jalan"
+                            href={`/surat-jalan?tab=picking&invoiceId=${invoice.id}`}
+                            label="Open Warehouse"
                           >
                             <Truck aria-hidden="true" />
                           </TableActionLink>
                         ) : (
                           <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
-                            <TableActionButton disabled label="Create Surat Jalan">
+                            <TableActionButton disabled label="Open Warehouse">
                               <Truck aria-hidden="true" />
                             </TableActionButton>
                           </RestrictedAction>
@@ -174,7 +175,8 @@ export default async function PaymentsPage({
               customerName: invoice.customer.companyName,
               paymentTermLabel: getPaymentTermLabel({
                 paymentTermType: invoice.paymentTermType,
-                creditTermMonths: invoice.creditTermMonths
+                creditTermMonths: invoice.creditTermMonths,
+                creditTermWeeks: invoice.creditTermWeeks
               }),
               totalAmount: invoice.totalAmount,
               paidAmount: invoice.paidAmount,
@@ -238,14 +240,14 @@ export default async function PaymentsPage({
                           status: payment.invoice.status
                         }) && (canCreateSuratJalan ? (
                           <TableActionLink
-                            href={`/surat-jalan?mode=create&invoiceId=${payment.invoice.id}`}
-                            label="Create Surat Jalan"
+                            href={`/surat-jalan?tab=picking&invoiceId=${payment.invoice.id}`}
+                            label="Open Warehouse"
                           >
                             <Truck aria-hidden="true" />
                           </TableActionLink>
                         ) : (
                           <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
-                            <TableActionButton disabled label="Create Surat Jalan">
+                            <TableActionButton disabled label="Open Warehouse">
                               <Truck aria-hidden="true" />
                             </TableActionButton>
                           </RestrictedAction>

@@ -6,7 +6,7 @@ The app can be run locally for thesis demonstration and can also be deployed to 
 
 The second iteration reduces duplicate manual input by making Sales Order the order-processing starting point. A confirmed sales order generates a connected invoice, then payment, Surat Jalan, receivable, collection, and dashboard views reuse the same Sales Order and Invoice data.
 
-Sales Order also records the selected payment terms. Immediate Payment means payment is required before Surat Jalan. Credit means the invoice due date follows the selected credit term and Surat Jalan can be created before full payment.
+Sales Order also records the selected payment terms. Immediate Payment invoices are due on the issue date; Credit invoices use the selected credit term. Both can proceed through picking and Surat Jalan before full payment.
 
 ## Tech Stack
 
@@ -192,7 +192,7 @@ The reset restores customers with and without NPWP, all five Customer Payment Be
 3. Fill username, display name, password, role, and status.
 4. Select Save Account.
 
-Roles control operational actions in this system. Sales can create Sales Orders, Customer Purchase Orders, and Customer Inquiries; Admin manages invoices, payments, and delivery; Manager can use all operational actions and approve risky Sales Orders or Customer Purchase Orders.
+Roles control operational actions in this system. Sales can create Sales Orders, Customer Purchase Orders, and Customer Inquiries; Admin manages invoices, payments, and delivery; Manager can use all operational actions and approve Sales-created orders for customers with outstanding payments.
 
 ### Recommended Demo Flow
 
@@ -200,12 +200,12 @@ Roles control operational actions in this system. Sales can create Sales Orders,
 2. Start from Login and enter the default Admin username and password.
 3. Open Customers and add a new customer.
 4. Open Sales Orders and create an order with item name, quantity, and final unit price.
-5. Choose Payment Terms: Immediate Payment or Credit. If Credit is selected, choose 1 to 12 months.
+5. Choose Payment Terms: Immediate Payment or Credit. If Credit is selected, choose 1 to 4 weeks or 1 to 12 months.
 6. Save the Sales Order, then use Admin or Manager access to generate the invoice when the order is eligible.
 7. Open Invoices, show the generated invoice detail, then select View / Print Invoice.
 8. Show the printable invoice layout with Bill To, item table, total, amount in words, payment terms, due date, payment status, and signature area.
 9. Open Payments, select Record Payment from the invoice queue, and record a partial payment.
-10. Open Surat Jalan and create a delivery note from the invoice. Confirm customer and item data are copied from the invoice or sales order.
+10. Open Picking List & Surat Jalan, create a Picking List, record actual picking/packing, mark Packed, and issue Surat Jalan.
 11. Select View / Print to show the printable Surat Jalan document with recipient, item table, attention notes, and signature lines.
 12. Open Receivables and show the remaining balance derived from the invoice.
 13. Select Create Collection Task from the receivable row and save a planned reminder.
@@ -230,11 +230,11 @@ This is a thesis project. It now supports local demo usage and Vercel/Supabase d
 3. Open Customer Inquiries, select Add Inquiry, choose the customer, and add requested item data.
 4. Convert the inquiry to Sales Order for a normal order or Customer PO when the customer has a PO.
 5. Complete order or PO details, choose Immediate Payment or Credit payment terms, and save.
-6. If Sales created the order for a customer with late-payment risk, use Manager access to review it in Need Approval. Review the Customer PO document when applicable, then approve it or provide a required reason to reject it.
-7. Use Admin or Manager access to generate the invoice from an eligible clean-risk order. Manager approval generates the invoice automatically for a risky order.
+6. If Sales created the order for a customer with outstanding payments, use Manager access to review it in Need Approval. Review the Customer PO document when applicable, then approve it or provide a required reason to reject it.
+7. Use Admin or Manager access to generate the invoice from an eligible order for a Clean customer. Manager approval generates the invoice automatically for an order requiring approval.
 8. Open Invoices and select View / Print Invoice to show the printable invoice output.
 9. Open Payments and use the invoice queue to record a partial or full payment.
-10. Open Surat Jalan or select Create Surat Jalan from the invoice detail, then save the delivery note.
+10. Open the warehouse workflow, complete a Picking List, then issue Surat Jalan from its verified quantities.
 11. Open the printable Surat Jalan view and use Print Surat Jalan if a paper/PDF copy is needed.
 12. Open Receivables and confirm only invoices with remaining balances appear.
 13. Select Create Collection Task from a receivable row and save the planned reminder.
@@ -260,27 +260,34 @@ This is a thesis project. It now supports local demo usage and Vercel/Supabase d
 
 This project is intentionally limited to the scope of a thesis project and controlled internal demo/pilot. It does not include payment gateway integration, bank integration, ERP features, full accounting journals, general ledger, inventory management, e-commerce checkout, advanced authentication, complex page-level role isolation, AI features, or automated external API dependencies.
 
-## Surat Jalan Module
+## Picking List & Surat Jalan
 
-Surat Jalan is a simple delivery document module used after invoice and payment activity. Admin can create Surat Jalan manually, or start from an invoice so customer and sales order items are copied into the form.
+The warehouse module at `/surat-jalan` has three tabs:
 
-To create Surat Jalan:
+- **Picking & Packing**: eligible SO/Customer PO orders awaiting a Picking List, plus Pending, InProgress, and Packed lists that do not yet have Surat Jalan. Use **Add Picking List** at the top of this tab.
+- **Surat Jalan Open**: issued deliveries and historical Draft delivery notes.
+- **Completed**: Delivered documents. Cancelled documents remain searchable in the separate **Cancelled archive** filter and are excluded from the Completed count.
 
-1. Open Invoices and select Create Surat Jalan from an invoice detail, or open Surat Jalan and select Add Surat Jalan.
-2. Select the invoice, sales order, or customer.
-3. Review the recipient name, phone, address, delivery date, sender, authorized person, and item rows.
-4. Select the required driver and vehicle plate. Sender remains a separate field.
-5. Save the Surat Jalan.
-6. Select View / Print to open the printable document.
-7. Select Print Surat Jalan to print or save as PDF. The print view shows the saved driver and vehicle plate, with the driver under Delivered by.
+Admin and Manager create and update Picking Lists and Surat Jalan. Sales can review them. An order must be Confirmed/Invoiced with Approved/NotRequired approval and an active invoice. Both Immediate Payment and Credit invoices may remain Unpaid, Partial, or Overdue during picking and delivery. Existing picking or delivery records prevent a duplicate process.
 
-For this system, Surat Jalan does not move inventory stock, calculate shipping cost, connect to couriers, or manage warehouse operations. It is only a delivery-note document for thesis demonstration.
+1. Create a Picking List from an eligible SO or Customer PO. Product names and ordered quantities are copied into an internal worksheet without prices.
+2. Print the Pick & Pack Sheet if needed. Record actual picked/packed quantities, discrepancy notes, picker, packer, and package count in the system.
+3. Save partial progress while shortages are resolved. Packed cannot exceed Picked; neither can exceed Ordered.
+4. Select **Mark Packed** only when every line is fully picked and packed and both staff names and package count are recorded. The verified list becomes read-only and stays in Picking & Packing.
+5. Select **Create Surat Jalan** at the top of Picking & Packing or from a Packed list. Choose a customer, select one or more fully packed SO/Customer PO orders, and enter one recipient address, date, driver, and vehicle plate for the entire shipment. Then select **Issue Surat Jalan**. The server uses verified quantities and source order/customer/invoice links; manual creation and old direct entry points cannot bypass picking.
+6. The document moves to Surat Jalan Open. Issued can become Delivered or Cancelled; historical Draft can become Issued or Cancelled. Delivered and Cancelled cannot be reopened through the normal status action.
+7. Delivered moves to Completed and activates customer outstanding only if the linked invoice still has a remaining balance. Printing or completing packing does not change customer payment status.
+
+This version supports one Picking List per order. One Surat Jalan can combine multiple fully packed SO/Customer PO orders for the same customer and one shared destination; each order can belong to only one Surat Jalan. Partial shipments, stock balances, reservations, rack locations, and carrier integration are outside scope. Historical Surat Jalan remain usable without fabricated Picking Lists. Orders with Picking Lists cannot be deleted.
+
+The migration `20260912090000_add_picking_list_fulfillment` adds the two Picking List tables, quantity constraints, unique document relations, lookup indexes, and RLS. Apply repository migrations with `npm run prisma:deploy` and regenerate the client with `npm run prisma:generate`.
+
 
 ## Second Iteration Connected Flow
 
 The intended demonstration flow is:
 
-Customer Inquiry -> Sales Order / Customer PO -> Invoice -> Payment -> Surat Jalan -> Receivables -> Collections -> Dashboard
+Customer Inquiry -> Sales Order / Customer PO -> Invoice -> Payment -> Picking & Packing -> Surat Jalan -> Receivables -> Collections -> Dashboard
 
 Customer inquiry flow:
 
@@ -290,27 +297,26 @@ Conversion is available only when every inquiry item has a matched product and a
 
 Immediate Payment flow:
 
-Sales Order -> Invoice -> Payment -> Surat Jalan
+Sales Order -> Invoice -> Picking & Packing -> Surat Jalan -> Receivables -> Payment
 
 Credit flow:
 
-Sales Order -> Invoice -> Surat Jalan -> Receivables -> Collections -> Payment
+Sales Order -> Invoice -> Picking & Packing -> Surat Jalan -> Receivables -> Collections -> Payment
 
 Important rules:
 
 - One sales order can only have one invoice.
 - Every Customer PO is stored as a Sales Order with order source `CUSTOMER_PO`, a separate Customer PO Number, required date, and PO document metadata.
-- Direct Sales Orders and Customer POs share the same risk-based approval rule: an order entered by Sales for a customer with late-payment risk remains Pending until a Manager decides it.
+- Direct Sales Orders and Customer POs share the same outstanding-balance approval rule: an order entered by Sales for a customer with outstanding payments remains Pending until a Manager decides it.
 - Pending and rejected orders cannot generate invoices. Manager approval atomically claims the pending decision and generates the invoice; rejection requires a reason and cancels the order.
 - Invoice data comes from the sales order and customer.
 - Immediate Payment invoices use immediate due date.
-- Credit invoices use the selected credit term, from 1 to 12 months.
+- Credit invoices use the selected credit term, from 1 to 4 weeks or 1 to 12 months. Weekly terms add 7 days per week; monthly terms use calendar months.
 - Payments update the invoice paid amount, remaining amount, and status.
-- Immediate Payment Surat Jalan is allowed only after the invoice is Paid.
-- Credit Surat Jalan is allowed after invoice generation, even before full payment.
+- Immediate Payment and Credit orders can start picking with an active invoice before full payment. Surat Jalan requires completed packing. Payment recording remains independent of delivery.
 - Receivables are not manually entered; they come from invoices with remaining balance.
 - Collection tasks can be started from a receivable row so customer and invoice data are preselected.
-- Surat Jalan can be started from an invoice so recipient and item data are copied.
+- Invoice and payment links open the warehouse module; a Packed Picking List is required before Surat Jalan can be issued.
 - Invoice and Surat Jalan documents show the Customer PO Number when the linked order source is a Customer PO.
 
 ## Canonical Naming and Compatibility Routes
@@ -325,3 +331,19 @@ Important rules:
 ## Current Base Structure
 
 The current system includes database-backed pages, shared layout, Prisma schema, seed script, testing documentation, unit tests, and a clickable revenue cycle demo flow.
+
+
+## Customer payment status
+
+Customer Records displays **Outstanding Payment** only when a non-cancelled invoice has a positive remaining balance and at least one related Surat Jalan is **Delivered**. Otherwise the customer is **Clean**. Invoice creation or an Issued Surat Jalan alone does not activate outstanding. Eligible balances include amounts not yet due; partial payment reduces them, and settlement or invoice cancellation removes them.
+
+Customer detail shows the outstanding amount, open invoice count, and links to the outstanding invoices. Customer Segment and Active/Inactive are retained. Purchase-frequency categories and their recommended markups have been removed. Payment status is derived from invoice balances and current delivery status rather than stored on Customer, so no database migration or manual status maintenance is required.
+
+Sales-created orders require Manager approval only when this delivery-based customer outstanding status applies. Existing approval requests and audit snapshots are preserved; older requests display “Manager review required” instead of a retired risk classification.
+
+
+A Surat Jalan may qualify an invoice through its invoice link, or through the same Sales Order when its invoice link is empty. One Delivered Surat Jalan activates the full remaining invoice balance; additional Surat Jalan do not duplicate that amount. Delivered is terminal in the normal warehouse workflow; settlement or invoice cancellation removes the qualifying balance. Invoice due dates, invoice payment status, and Receivables retain their existing rules; this delivery condition applies to customer payment status and new Sales approval decisions.
+
+### Combined Surat Jalan
+
+One Surat Jalan can contain several fully packed SO/Customer PO orders for one customer and one destination. The form offers packed orders that have no delivery document. Each line retains its source reference in the detail and print views. Invoices and payments remain separate. Marking Delivered completes all linked inquiries and makes each eligible invoice balance count once in customer outstanding. Cancelled deliveries do not activate outstanding and cannot be reused or reopened. Partial shipments and multi-destination trips are not included.

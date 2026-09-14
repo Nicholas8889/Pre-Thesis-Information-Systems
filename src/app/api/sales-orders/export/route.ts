@@ -1,3 +1,4 @@
+import { linkedDeliveryNotes } from "@/lib/delivery-note-links";
 import ExcelJS from "exceljs";
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const salesOrders = await prisma.salesOrder.findMany({
+  const records = await prisma.salesOrder.findMany({
     where: {
       source,
       orderDate: {
@@ -79,8 +80,10 @@ export async function GET(request: NextRequest) {
       customer: true,
       items: true,
       invoice: true,
+      deliverySources: { include: { deliveryNote: true } },
       deliveryNotes: {
         select: {
+          id: true,
           deliveryNoteNumber: true,
           status: true
         }
@@ -88,6 +91,7 @@ export async function GET(request: NextRequest) {
     }
   });
 
+  const salesOrders = records.map(order => ({ ...order, deliveryNotes: linkedDeliveryNotes(order) }));
   const workbook = createSalesOrderWorkbook({
     salesOrders,
     startDate,
@@ -119,7 +123,8 @@ export function getSalesOrderExportTabFilter(
     return {
       OR: [
         { status: { in: [...DONE_SALES_ORDER_STATUSES] } },
-        { deliveryNotes: { some: {} } }
+        { deliveryNotes: { some: {} } },
+        { deliverySources: { some: {} } }
       ]
     };
   }
@@ -127,7 +132,8 @@ export function getSalesOrderExportTabFilter(
   return {
     approvalStatus: { not: "Pending" },
     status: { in: [...ONGOING_SALES_ORDER_STATUSES] },
-    deliveryNotes: { none: {} }
+    deliveryNotes: { none: {} },
+    deliverySources: { none: {} }
   };
 }
 

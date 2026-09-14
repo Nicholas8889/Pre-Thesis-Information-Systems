@@ -29,7 +29,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
         "Use the Dashboard to quickly monitor sales, payments, receivables, overdue invoices, and collection workload.",
       steps: [
         "Start with the top summary cards to understand the overall condition.",
-        "Check receivable and overdue sections to see payment risk.",
+        "Check receivable and overdue sections to see unpaid balances.",
         "Use recent orders, invoices, payments, and collection tasks to decide which module to open next."
       ]
     }
@@ -42,7 +42,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       steps: [
         "Use Add Customer to create a customer master record, with an optional NPWP for tax handling.",
         "Search by contact person, company, phone, or email.",
-        "Use view to review customer segment, payment risk, payment behaviour, and the tax profile before creating new orders."
+        "Use view to review customer segment, payment status, outstanding amount, payment behaviour, and the tax profile. Outstanding Payment starts when an unpaid invoice has a Delivered Surat Jalan."
       ]
     }
   },
@@ -81,7 +81,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
         "Click Create Sales Order to select a customer, review customer and product insights, add items, and choose payment terms.",
         "Review the estimated Total Price, PPN, and Net Sales calculation before confirming the order.",
         "The system generates a connected invoice after confirmation.",
-        "Use Need Approval to review risky Sales-created orders, Open for active orders, and Completed for completed or closed orders."
+        "Use Need Approval to review Sales-created orders requiring approval for outstanding payments, Open for active orders, and Completed for completed or closed orders."
       ]
     }
   },
@@ -118,7 +118,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       steps: [
         "Select an invoice from the list to view its detail.",
         "Review the snapshotted NPWP and tax breakdown, due date, payment terms, total, paid, and remaining amount.",
-        "Use View / Print Invoice for the document view, or create Surat Jalan when the order rule allows it."
+        "Use View / Print Invoice for the document view, or open the warehouse workflow to prepare a Picking List."
       ]
     }
   },
@@ -132,6 +132,14 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
         "Enter payment date, amount, method, and optional notes.",
         "After saving, invoice paid and remaining amounts update automatically."
       ]
+    }
+  },
+  {
+    match: (pathname) => pathname.startsWith("/surat-jalan/picking-list/") && pathname.endsWith("/print"),
+    content: {
+      title: "Picking List Print Help",
+      purpose: "Print an internal worksheet for picking and packing customer orders.",
+      steps: ["Check item names and ordered quantities.", "Record picked and packed quantities and any discrepancy, then sign the worksheet.", "Save the result in Picking & Packing before issuing Surat Jalan."]
     }
   },
   {
@@ -149,13 +157,14 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
   {
     match: (pathname) => pathname.startsWith("/surat-jalan"),
     content: {
-      title: "Surat Jalan Help",
-      purpose: "Use Surat Jalan to create, update, and print delivery notes.",
+      title: "Picking List & Surat Jalan Help",
+      purpose: "Prepare Picking Lists, verify packing, and issue and track Surat Jalan in one module.",
       steps: [
-        "Create Surat Jalan from an invoice or Sales Order when allowed.",
-        "Select the required driver and vehicle plate before saving.",
+        "Use Picking & Packing to create a Picking List for an eligible Sales Order or Customer PO.",
+        "Record picked and packed quantities, picker, packer, and package count before marking Packed.",
+        "Create Surat Jalan from a Packed list, then select the driver and vehicle plate.",
         "Review recipient, driver, vehicle plate, delivery date, status, and delivered items.",
-        "Use View / Print for the delivery document, or Edit Status to update delivery progress."
+        "Surat Jalan Open contains active deliveries; Delivered moves to Completed. Cancelled records have a separate archive."
       ]
     }
   },

@@ -194,7 +194,7 @@ describe("canonical naming revenue cycle integration", () => {
     });
   }, 40_000);
 
-  it("preserves immediate payment workflow eligibility and due date", async () => {
+  it("allows unpaid immediate-payment fulfillment while preserving the immediate due date", async () => {
     await withRollback(async (tx, marker) => {
       const { customer, order } = await createOrder(tx, marker, {
         source: "DIRECT",
@@ -226,7 +226,7 @@ describe("canonical naming revenue cycle integration", () => {
           paymentTermType: invoice.paymentTermType,
           status: invoice.status
         })
-      ).toBe(false);
+      ).toBe(true);
       expect(
         canCreateDeliveryNoteForInvoice({ paymentTermType: "IMMEDIATE", status: "Paid" })
       ).toBe(true);
