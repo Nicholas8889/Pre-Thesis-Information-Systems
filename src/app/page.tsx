@@ -15,13 +15,11 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusStack } from "@/components/status-stack";
 import { TableActionGroup, TableActionLink } from "@/components/table-actions";
-import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { canCreateDeliveryNoteForInvoice } from "@/lib/calculations";
-import {
-  buildCustomerRelationshipSummary,
-  type CustomerRelationshipSummary
-} from "@/lib/dashboard-insights";
+import type { CustomerRelationshipSummary } from "@/lib/dashboard-insights";
+import { getDashboardLists, getDashboardMetrics } from "@/lib/dashboard-data";
+import { getDashboardAnalysis } from "@/lib/dashboard-analysis";
+import { DashboardAnalysisToolbar } from "@/components/dashboard-analysis-status";
 import { requireCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -77,126 +75,34 @@ export default async function DashboardPage() {
   const currentUser = await requireCurrentUser();
   const dashboardRole = currentUser.role;
   const isSalesDashboard = dashboardRole === "SALES";
-  const salesOrderWhere = isSalesDashboard
-    ? { createdByUserId: currentUser.id }
-    : undefined;
-
-  const [
-    invoices,
-    salesOrders,
-    customers,
-    deliveryNotes,
-    payments,
-    plannedCollectionTasks,
-    recentSalesOrders
-  ] = await Promise.all([
-    prisma.invoice.findMany({
-      where: isSalesDashboard
-        ? { salesOrder: { createdByUserId: currentUser.id } }
-        : undefined,
-      include: {
-        customer: true,
-        salesOrder: { select: { id: true, orderNumber: true } },
-        deliveryNotes: { select: { id: true } },
-        deliverySources: { select: { id: true } }
-      }
-    }),
-    prisma.salesOrder.findMany({
-      where: salesOrderWhere,
-      select: {
-        id: true,
-        orderNumber: true,
-        orderDate: true,
-        status: true,
-        total: true,
-        customer: {
-          select: {
-            companyName: true
-          }
-        }
-      },
-      orderBy: { createdAt: "desc" }
-    }),
-    prisma.customer.findMany({
-      where: isSalesDashboard
-        ? { salesOrders: { some: { createdByUserId: currentUser.id } } }
-        : undefined,
-      orderBy: { companyName: "asc" },
-      include: {
-        salesOrders: {
-          where: salesOrderWhere,
-          select: { id: true, orderDate: true, status: true }
-        },
-        outreachActivities: { select: { id: true } },
-        inquiries: { select: { status: true } }
-      }
-    }),
-    prisma.deliveryNote.findMany({
-      where: isSalesDashboard
-        ? { salesOrder: { createdByUserId: currentUser.id } }
-        : undefined,
-      select: { id: true, status: true }
-    }),
-    prisma.payment.findMany({
-      where: isSalesDashboard
-        ? { invoice: { salesOrder: { createdByUserId: currentUser.id } } }
-        : undefined,
-      select: {
-        id: true,
-        amount: true,
-        paymentDate: true
-      },
-      orderBy: { paymentDate: "desc" }
-    }),
-    prisma.collectionTask.findMany({
-      where: {
-        status: "Planned",
-        ...(isSalesDashboard
-          ? { invoice: { salesOrder: { createdByUserId: currentUser.id } } }
-          : {})
-      },
-      orderBy: { scheduledDate: "asc" },
-      include: { customer: true, invoice: true }
-    }),
-    prisma.salesOrder.findMany({
-      where: salesOrderWhere,
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      include: { customer: true }
-    })
+  const [metrics, analysis, lists] = await Promise.all([
+    getDashboardMetrics(currentUser),
+    getDashboardAnalysis(currentUser),
+    getDashboardLists(currentUser)
   ]);
-
-  const deliveryNoteCount = deliveryNotes.length;
-  const invoiceCount = invoices.length;
-  const salesOrderCount = salesOrders.length;
-  const totalSalesOrderValue = salesOrders.reduce((sum, order) => sum + order.total, 0);
-  const totalPaidAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
-  const outstandingAmount = invoices
-    .filter((invoice) => invoice.status !== "Cancelled")
-    .reduce((sum, invoice) => sum + invoice.remainingAmount, 0);
-  const overdueCount = invoices.filter((invoice) => invoice.status === "Overdue").length;
-  const needCollectionTaskCount = overdueCount + plannedCollectionTasks.length;
-  const trendData = getRevenueTrendData(
-    salesOrders.map((order) => ({ date: order.orderDate, amount: order.total })),
-    payments.map((payment) => ({ date: payment.paymentDate, amount: payment.amount }))
-  );
+  const trendData = analysis.trend;
+  const { recentSalesOrders } = lists;
+  const {
+    deliveryNoteCount, invoiceCount, salesOrderCount, totalSalesOrderValue,
+    totalPaidAmount, outstandingAmount, overdueCount, customerRelationshipSummary
+  } = metrics;
+  const needCollectionTaskCount = overdueCount + metrics.plannedTaskCount;
   const revenueComposition = [
     { label: "Paid Amount", value: totalPaidAmount, color: chartColors.success },
     { label: "Outstanding", value: outstandingAmount, color: chartColors.warning }
   ];
   const salesOrderDistribution = salesOrderStatuses.map((status) => ({
     ...status,
-    value: salesOrders.filter((order) => order.status === status.label).length
+    value: metrics.salesOrderDistribution[status.label] ?? 0
   }));
   const invoiceDistribution = invoiceStatuses.map((status) => ({
     ...status,
-    value: invoices.filter((invoice) => invoice.status === status.label).length
+    value: metrics.invoiceDistribution[status.label] ?? 0
   }));
   const deliveryNoteDistribution = deliveryNoteStatuses.map((status) => ({
     ...status,
-    value: deliveryNotes.filter((deliveryNote) => deliveryNote.status === status.label).length
+    value: metrics.deliveryNoteDistribution[status.label] ?? 0
   }));
-  const customerRelationshipSummary = buildCustomerRelationshipSummary(customers);
   const reportingPeriod = new Intl.DateTimeFormat("en-US", {
     month: "long",
     year: "numeric",
@@ -204,45 +110,11 @@ export default async function DashboardPage() {
   }).format(new Date());
 
   if (dashboardRole === "ADMIN") {
-    const openInvoices = invoices
-      .filter(
-        (invoice) =>
-          invoice.remainingAmount > 0 && ["Unpaid", "Partial", "Overdue"].includes(invoice.status)
-      )
-      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-    const overdueReceivables = openInvoices.filter((invoice) => invoice.status === "Overdue");
-    const overdueReceivableAmount = overdueReceivables.reduce(
-      (sum, invoice) => sum + invoice.remainingAmount,
-      0
-    );
-    const today = startOfDay(new Date());
-    const upcomingLimit = new Date(today);
-    upcomingLimit.setDate(upcomingLimit.getDate() + 30);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dueSoonReceivables = openInvoices.filter(
-      (invoice) => invoice.dueDate >= today && invoice.dueDate <= upcomingLimit
-    );
-    const receivablesToShow = (dueSoonReceivables.length > 0 ? dueSoonReceivables : openInvoices).slice(0, 5);
-    const deliveryNoteCandidates = invoices
-      .filter(
-        (invoice) =>
-          invoice.status !== "Cancelled" &&
-          invoice.deliveryNotes.length === 0 && (invoice.deliverySources?.length ?? 0) === 0 &&
-          canCreateDeliveryNoteForInvoice({
-            paymentTermType: invoice.paymentTermType,
-            status: invoice.status
-          })
-      )
-      .sort((a, b) => a.issueDate.getTime() - b.issueDate.getTime());
-    const deliveryNotesToShow = deliveryNoteCandidates.slice(0, 5);
-    const deliveryNoteCandidateValue = deliveryNoteCandidates.reduce(
-      (sum, invoice) => sum + invoice.totalAmount,
-      0
-    );
-    const collectionTasksDue = plannedCollectionTasks.filter(
-      (collectionTask) => collectionTask.scheduledDate < tomorrow
-    ).length;
+    if (!lists.admin) throw new Error("Admin dashboard lists are unavailable");
+    const {
+      dueSoonReceivables, receivablesToShow,
+      deliveryNotesToShow, collectionTasksToShow
+    } = lists.admin;
 
     return (
       <>
@@ -250,33 +122,34 @@ export default async function DashboardPage() {
           title="Admin Dashboard"
           description={`Welcome, ${currentUser?.displayName ?? "Admin"}. Manage invoices, delivery documents, receivables, and collection work from one operational view.`}
         />
+        <DashboardAnalysisToolbar analysis={analysis} canRefresh />
 
         <DashboardSummary
           items={[
             {
               label: "Open Invoices",
-              value: String(openInvoices.length),
+              value: String(metrics.openInvoiceCount),
               description: formatCurrency(outstandingAmount),
               icon: FileText,
               tone: "warning"
             },
             {
               label: "Overdue Receivables",
-              value: String(overdueReceivables.length),
-              description: formatCurrency(overdueReceivableAmount),
+              value: String(metrics.overdueReceivableCount),
+              description: formatCurrency(metrics.overdueReceivableAmount),
               icon: ReceiptText,
               tone: "danger"
             },
             {
               label: "Surat Jalan Needed",
-              value: String(deliveryNoteCandidates.length),
-              description: `${formatCurrency(deliveryNoteCandidateValue)} eligible`,
+              value: String(metrics.eligibleDeliveryCount),
+              description: `${formatCurrency(metrics.eligibleDeliveryValue)} eligible`,
               icon: Truck
             },
             {
               label: "Planned Collection Tasks",
-              value: String(plannedCollectionTasks.length),
-              description: `${collectionTasksDue} due today or earlier`,
+              value: String(metrics.plannedTaskCount),
+              description: `${metrics.dueTaskCount} due today or earlier`,
               icon: Handshake,
               tone: "good"
             }
@@ -293,7 +166,7 @@ export default async function DashboardPage() {
               <AdminStatusOverview
                 items={invoiceDistribution.filter((item) => item.label !== "Cancelled")}
                 footerLabel="Total invoice value"
-                footerValue={formatCurrency(invoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0))}
+                footerValue={formatCurrency(metrics.invoiceTotalValue)}
               />
             </AdminListPanel>
 
@@ -353,7 +226,7 @@ export default async function DashboardPage() {
           >
             <CompactActionList
               empty="No planned collection tasks."
-              rows={plannedCollectionTasks.slice(0, 5).map((collectionTask) => ({
+              rows={collectionTasksToShow.map((collectionTask) => ({
                 id: collectionTask.id,
                 primary: collectionTask.customer.companyName,
                 secondary: `${collectionTask.invoice?.invoiceNumber ?? "Customer collection"} · ${formatDate(collectionTask.scheduledDate)}`,
@@ -408,6 +281,7 @@ export default async function DashboardPage() {
             : "Track sales performance, overdue customers, customer categories, and recommended pricing."
         }
       />
+      <DashboardAnalysisToolbar analysis={analysis} canRefresh={dashboardRole !== "SALES"} />
 
       <DashboardSummary
         items={[
@@ -434,7 +308,7 @@ export default async function DashboardPage() {
           {
             label: "Need Attention",
             value: String(needCollectionTaskCount),
-            description: `${overdueCount} overdue + ${plannedCollectionTasks.length} planned collection`,
+            description: `${overdueCount} overdue + ${metrics.plannedTaskCount} planned collection`,
             icon: AlertTriangle,
             tone: "danger"
           }
@@ -679,10 +553,6 @@ function CompactActionList({
       ))}
     </div>
   );
-}
-
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 type DashboardMetric = {
@@ -1020,42 +890,6 @@ function CompositionRow({
       <p className="mt-1 whitespace-nowrap text-xs font-semibold tabular-nums text-ink">{value}</p>
     </div>
   );
-}
-
-function getRevenueTrendData(
-  sales: Array<{ date: Date; amount: number }>,
-  payments: Array<{ date: Date; amount: number }>
-) {
-  const now = new Date();
-  const buckets = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
-    return {
-      key: `${date.getFullYear()}-${date.getMonth()}`,
-      label: new Intl.DateTimeFormat("en-US", { month: "short" }).format(date),
-      sales: 0,
-      payments: 0
-    };
-  });
-
-  const bucketByKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
-
-  for (const item of sales) {
-    const date = new Date(item.date);
-    const bucket = bucketByKey.get(`${date.getFullYear()}-${date.getMonth()}`);
-    if (bucket) {
-      bucket.sales += item.amount;
-    }
-  }
-
-  for (const item of payments) {
-    const date = new Date(item.date);
-    const bucket = bucketByKey.get(`${date.getFullYear()}-${date.getMonth()}`);
-    if (bucket) {
-      bucket.payments += item.amount;
-    }
-  }
-
-  return buckets;
 }
 
 function getLinePoint(

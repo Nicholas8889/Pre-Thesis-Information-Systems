@@ -10,6 +10,8 @@
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --environment node",
     "test:watch": "vitest --environment node",
+    "test:e2e:dashboard": "npm run build && playwright test --config playwright.config.ts",
+    "test:dashboard:benchmark": "node scripts/dashboard-benchmark.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
@@ -29,6 +31,7 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",

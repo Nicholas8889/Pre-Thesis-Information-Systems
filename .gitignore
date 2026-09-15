@@ -22,3 +22,5 @@ storage/pre-orders/*
 /output/
 /outputs/
 /tmp/
+playwright-report
+test-results

@@ -137,6 +137,34 @@ model User {
   @@map("users")
 }
 
+model DashboardAnalysisSnapshot {
+  scopeKey        String   @id @map("scope_key")
+  scopeType       String   @map("scope_type")
+  ownerUserId     String?  @map("owner_user_id")
+  periodStart     DateTime @map("period_start")
+  trend           Json     @db.JsonB
+  lastSucceededAt DateTime @map("last_succeeded_at")
+  lastAttemptAt   DateTime @map("last_attempt_at")
+  lastRunStatus   String   @map("last_run_status")
+  lastError       String?  @map("last_error") @db.Text
+
+  @@index([scopeType, ownerUserId], map: "dashboard_analysis_snapshots_scope_idx")
+  @@map("dashboard_analysis_snapshots")
+}
+
+model DashboardAnalysisRun {
+  id            BigInt    @id @default(autoincrement())
+  triggerSource String    @map("trigger_source")
+  actorUserId   String?   @map("actor_user_id")
+  startedAt     DateTime  @default(now()) @map("started_at")
+  finishedAt    DateTime? @map("finished_at")
+  status        String
+  errorMessage  String?   @map("error_message") @db.Text
+
+  @@index([startedAt], map: "dashboard_analysis_runs_started_at_idx")
+  @@map("dashboard_analysis_runs")
+}
+
 model AuditTrail {
   id               String   @id(map: "audit_trails_pkey") @default(cuid()) @map("id")
   actorUserId      String?  @map("actor_user_id")
