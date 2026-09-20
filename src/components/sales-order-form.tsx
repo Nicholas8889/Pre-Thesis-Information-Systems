@@ -412,32 +412,39 @@ export function SalesOrderForm({
                     Advisory only; your Base Unit Price, markup, and discount remain unchanged.
                   </p>
                 </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   <InsightMetric
-                    label="Average Sold Price - This Month"
-                    value={
-                      selectedProduct.averageSoldPrice === null
-                        ? "No sales this month"
-                        : formatCurrency(selectedProduct.averageSoldPrice)
-                    }
+                    label="Latest Base Price"
+                    value={formatCurrency(selectedProduct.listPrice)}
                     help={
-                      selectedProduct.averageEligibleQuantity > 0
-                        ? `${selectedProduct.averageEligibleQuantity} eligible unit(s) in ${selectedProduct.averageMonthLabel}.`
-                        : `No eligible sales in ${selectedProduct.averageMonthLabel}.`
+                      selectedProduct.averageSoldPrice === null
+                        ? `No eligible sales in ${selectedProduct.averageMonthLabel}; the latest base price is the available pricing reference.`
+                        : "Current base price from the product master."
                     }
                   />
+                  {selectedProduct.averageSoldPrice !== null && (
+                    <InsightMetric
+                      label="Average Sold Price - This Month"
+                      value={formatCurrency(selectedProduct.averageSoldPrice)}
+                      help={`${selectedProduct.averageEligibleQuantity} eligible unit(s) in ${selectedProduct.averageMonthLabel}, cumulative through today.`}
+                    />
+                  )}
                   <InsightMetric
                     label="Proposed Final Unit Price"
                     value={formatCurrency(proposedUnitPrice)}
                   />
-                  <InsightMetric
-                    label="Selisih Nominal"
-                    value={formatSignedCurrency(comparison.absoluteDifference)}
-                  />
-                  <InsightMetric
-                    label="Selisih Persentase"
-                    value={formatSignedPercentage(comparison.percentageDifference)}
-                  />
+                  {selectedProduct.averageSoldPrice !== null && (
+                    <>
+                      <InsightMetric
+                        label="Selisih Nominal"
+                        value={formatSignedCurrency(comparison.absoluteDifference)}
+                      />
+                      <InsightMetric
+                        label="Selisih Persentase"
+                        value={formatSignedPercentage(comparison.percentageDifference)}
+                      />
+                    </>
+                  )}
                 </div>
               </section>
             )}

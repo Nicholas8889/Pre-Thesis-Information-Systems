@@ -66,6 +66,7 @@ export function getCurrentMonthAverageSoldPrice(
       !eligibleStatuses.has(item.salesOrder.status) ||
       item.salesOrder.orderDate < monthStart ||
       item.salesOrder.orderDate >= nextMonthStart ||
+      item.salesOrder.orderDate > now ||
       !Number.isInteger(item.quantity) ||
       item.quantity <= 0 ||
       !Number.isFinite(item.subtotal) ||

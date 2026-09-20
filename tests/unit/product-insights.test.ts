@@ -64,6 +64,7 @@ describe("buildPopularProducts", () => {
       [
         soldItem({ orderDate: window.monthStart, quantity: 2, subtotal: 101 }),
         soldItem({ orderDate: new Date(window.monthStart.getTime() - 1) }),
+        soldItem({ orderDate: new Date(now.getTime() + 1), quantity: 50, subtotal: 50_000 }),
         soldItem({ orderDate: window.nextMonthStart }),
         soldItem({ status: "Draft" }),
         soldItem({ status: "Cancelled" })

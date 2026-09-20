@@ -16,10 +16,7 @@ import type {
   SalesOrderApprovalStatus,
   SalesOrderSource
 } from "@prisma/client";
-import {
-  canRecordPayment,
-  isValidSalesOrderPaymentTerm
-} from "@/lib/calculations";
+import { isValidSalesOrderPaymentTerm } from "@/lib/calculations";
 import { createAuditTrailLog } from "@/lib/audit";
 import { getCustomerPaymentSummary } from "@/lib/customer-intelligence";
 import { customerInvoiceBalanceSelect } from "@/lib/customer-payment-query";
@@ -47,6 +44,10 @@ import { completeCustomerInquiryForDeliveredOrder } from "@/lib/customer-inquiry
 import { nextNumberFromExisting } from "@/lib/document-numbering";
 import { validateDeliveryAssignment } from "@/lib/delivery-options";
 import {
+  PaymentRecordingError,
+  recordInvoicePayment
+} from "@/lib/payment-recording";
+import {
   deleteCustomerPoDocument,
   CUSTOMER_PO_DOCUMENT_MAX_BYTES,
   CUSTOMER_PO_DOCUMENT_TYPES,
@@ -55,8 +56,6 @@ import {
 import {
   calculateOrderTotals,
   getDueDateForPaymentTerm,
-  getInvoiceStatusForAmounts,
-  getRemainingAmount,
   nextDocumentNumber,
   normalizePaymentTerm,
   normalizeOrderItems,
@@ -1396,52 +1395,38 @@ export async function recordPayment(formData: FormData) {
     );
   }
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId }
-  });
-
-  if (!invoice) {
-    redirectWithMessage("/payments", "error", "Invoice was not found");
-  }
-
-  if (!canRecordPayment(invoice.remainingAmount, amount)) {
-    redirectWithMessage(
-      "/payments",
-      "error",
-      "Payment cannot exceed remaining invoice amount"
-    );
-  }
-
-  const result = await prisma.$transaction(async (tx) => {
-    const payment = await tx.payment.create({
-      data: {
+  let result;
+  try {
+    result = await prisma.$transaction((tx) =>
+      recordInvoicePayment(tx, {
         invoiceId,
         paymentDate,
         amount,
         paymentMethod,
         notes: mergeActionNotes(getString(formData, "notes"), actionNote)
+      })
+    );
+  } catch (error) {
+    if (error instanceof PaymentRecordingError) {
+      if (error.code === "INVOICE_NOT_FOUND") {
+        redirectWithMessage("/payments", "error", "Invoice was not found");
       }
-    });
-
-    const paidAmount = invoice.paidAmount + amount;
-    const remainingAmount = getRemainingAmount(invoice.totalAmount, paidAmount);
-    const status = getInvoiceStatusForAmounts({
-      totalAmount: invoice.totalAmount,
-      paidAmount,
-      dueDate: invoice.dueDate
-    });
-
-    const updatedInvoice = await tx.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        paidAmount,
-        remainingAmount,
-        status
+      if (error.code === "INVOICE_CANCELLED") {
+        redirectWithMessage(
+          "/payments",
+          "error",
+          "Cancelled invoices cannot receive payments"
+        );
       }
-    });
-
-    return { payment, invoice: updatedInvoice };
-  });
+      redirectWithMessage(
+        "/payments",
+        "error",
+        "Payment cannot exceed remaining invoice amount"
+      );
+    }
+    throw error;
+  }
+  const invoice = result.previousInvoice;
 
   await createAuditTrailLog({
     moduleName: "Payments",

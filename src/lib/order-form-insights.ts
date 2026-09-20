@@ -109,6 +109,7 @@ export async function loadOrderFormInsights(
         salesOrder: {
           orderDate: {
             gte: currentMonth.monthStart,
+            lte: now,
             lt: currentMonth.nextMonthStart
           },
           status: { in: [...PRODUCT_AVERAGE_ELIGIBLE_STATUSES] }
