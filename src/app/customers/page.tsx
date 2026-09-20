@@ -15,6 +15,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { createCustomer, updateCustomer, updateCustomerStatus } from "@/lib/actions";
 import { EmptyState } from "@/components/empty-state";
+import { CustomerExportDialog } from "@/components/customer-export-dialog";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -131,13 +132,16 @@ export default async function CustomersPage({
         title="Customers"
         description="Manage customer master data used across the revenue cycle."
         action={
-          <Link
-            href="/customers?mode=add"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white"
-          >
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            Add Customer
-          </Link>
+          <div className="flex flex-wrap justify-end gap-2">
+            <CustomerExportDialog initialQuery={query} />
+            <Link
+              href="/customers?mode=add"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white"
+            >
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              Add Customer
+            </Link>
+          </div>
         }
       />
 
