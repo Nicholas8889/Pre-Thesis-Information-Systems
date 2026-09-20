@@ -3,6 +3,10 @@ import "server-only";
 import { Prisma, type UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { CustomerRelationshipSummary } from "@/lib/dashboard-insights";
+import {
+  getOpenInvoiceWhere,
+  withEffectiveInvoiceStatus
+} from "@/lib/invoice-status";
 
 type DashboardUser = { id: string; role: UserRole };
 type DashboardReader = Pick<typeof prisma, "$queryRaw">;
@@ -87,7 +91,17 @@ export async function getDashboardMetrics(
       SELECT so.id, so.customer_id, so.status, so.total
       FROM sales_orders so ${orderFilter}
     ), visible_invoices AS (
-      SELECT i.id, i.status, i.total_amount, i.remaining_amount
+      SELECT
+        i.id,
+        CASE
+          WHEN i.status = 'Cancelled' THEN 'Cancelled'
+          WHEN i.remaining_amount <= 0 THEN 'Paid'
+          WHEN i.due_date < ${today} THEN 'Overdue'
+          WHEN i.paid_amount > 0 THEN 'Partial'
+          ELSE 'Unpaid'
+        END AS status,
+        i.total_amount,
+        i.remaining_amount
       FROM invoices i JOIN visible_orders vo ON vo.id = i.sales_order_id
     ), visible_payments AS (
       SELECT p.amount FROM payments p
@@ -102,7 +116,7 @@ export async function getDashboardMetrics(
     ), eligible_invoices AS (
       SELECT i.id, i.total_amount FROM invoices i
       JOIN visible_orders vo ON vo.id = i.sales_order_id
-      WHERE i.status IN ('Unpaid', 'Partial', 'Overdue', 'Paid')
+      WHERE i.status <> 'Cancelled'
         AND NOT EXISTS (SELECT 1 FROM delivery_notes dn WHERE dn.invoice_id = i.id)
         AND NOT EXISTS (SELECT 1 FROM delivery_note_sources dns WHERE dns.invoice_id = i.id)
     )
@@ -187,12 +201,11 @@ export function getDashboardListFilters(user: DashboardUser, now = new Date()) {
   upcomingLimit.setDate(upcomingLimit.getDate() + 30);
   const openInvoiceWhere: Prisma.InvoiceWhereInput = {
     ...invoiceWhere,
-    remainingAmount: { gt: 0 },
-    status: { in: ["Unpaid", "Partial", "Overdue"] }
+    ...getOpenInvoiceWhere()
   };
   const eligibleDeliveryWhere: Prisma.InvoiceWhereInput = {
     ...invoiceWhere,
-    status: { in: ["Unpaid", "Partial", "Overdue", "Paid"] },
+    status: { not: "Cancelled" },
     deliveryNotes: { none: {} },
     deliverySources: { none: {} }
   };
@@ -217,7 +230,8 @@ export async function getDashboardLists(user: DashboardUser, now = new Date()) {
 
   const invoiceSelect = {
     id: true, invoiceNumber: true, dueDate: true, issueDate: true,
-    status: true, remainingAmount: true, totalAmount: true, paymentTermType: true,
+    status: true, paidAmount: true, remainingAmount: true, totalAmount: true,
+    paymentTermType: true,
     customer: { select: { companyName: true } }
   } as const;
   const [orders, dueSoon, open, delivery, tasks] = await Promise.all([
@@ -250,9 +264,15 @@ export async function getDashboardLists(user: DashboardUser, now = new Date()) {
   return {
     recentSalesOrders: orders,
     admin: {
-      dueSoonReceivables: dueSoon,
-      receivablesToShow: dueSoon.length > 0 ? dueSoon : open,
-      deliveryNotesToShow: delivery,
+      dueSoonReceivables: dueSoon.map((invoice) =>
+        withEffectiveInvoiceStatus(invoice, now)
+      ),
+      receivablesToShow: (dueSoon.length > 0 ? dueSoon : open).map((invoice) =>
+        withEffectiveInvoiceStatus(invoice, now)
+      ),
+      deliveryNotesToShow: delivery.map((invoice) =>
+        withEffectiveInvoiceStatus(invoice, now)
+      ),
       collectionTasksToShow: tasks
     }
   };

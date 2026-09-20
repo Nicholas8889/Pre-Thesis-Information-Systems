@@ -29,6 +29,12 @@ import {
   PRODUCT_AVERAGE_ELIGIBLE_STATUSES
 } from "@/lib/product-insights";
 import { getSearchMessage } from "@/lib/workflow";
+import { ServerPagination } from "@/components/server-pagination";
+import {
+  getCursorArgs,
+  getCursorPage,
+  getCursorPagination
+} from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -47,6 +53,7 @@ export default async function ProductsPage({
   const editId = getFirst(params.edit);
   const averagePriceSort = getAveragePriceSort(getFirst(params.averagePrice));
   const { success, error } = getSearchMessage(params);
+  const pagination = getCursorPagination(params);
   const now = new Date();
   const currentMonth = getJakartaCurrentMonthWindow(now);
   const currentMonthSalesItems = {
@@ -72,7 +79,7 @@ export default async function ProductsPage({
     }
   } satisfies Prisma.SalesOrderItemFindManyArgs;
 
-  const products = await prisma.product.findMany({
+  const productRecords = await prisma.product.findMany({
     where: query
       ? {
           OR: [
@@ -81,9 +88,12 @@ export default async function ProductsPage({
           ]
         }
       : undefined,
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    ...getCursorArgs(pagination),
     include: { salesOrderItems: currentMonthSalesItems }
   });
+  const productPage = getCursorPage(productRecords, pagination);
+  const products = productPage.items;
   const productsWithAverages = products.map((product) => ({
     ...product,
     average: getCurrentMonthAverageSoldPrice(
@@ -244,7 +254,7 @@ export default async function ProductsPage({
           <EmptyState message="No products found." />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Product Name</th>
@@ -312,6 +322,14 @@ export default async function ProductsPage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={productPage.hasNext}
+          label="products"
+          nextCursor={productPage.nextCursor}
+          pathname="/products"
+          searchParams={params}
+          state={pagination}
+        />
       </section>
     </>
   );

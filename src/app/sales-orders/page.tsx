@@ -1,5 +1,6 @@
 import { linkedDeliveryNotes } from "@/lib/delivery-note-links";
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { ArrowLeft, Check, ClipboardList, Eye, FilePlus2, FileText, Plus, ShoppingCart, X } from "lucide-react";
 import {
   decideSalesOrderApproval,
@@ -20,27 +21,27 @@ import {
   TableActionLink
 } from "@/components/table-actions";
 import { RestrictedAction } from "@/components/restricted-action";
+import { ServerPagination } from "@/components/server-pagination";
 import { prisma } from "@/lib/prisma";
-import { customerInvoiceBalanceSelect } from "@/lib/customer-payment-query";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getPaymentTermLabel } from "@/lib/calculations";
-import { isDoneSalesOrder, isOngoingSalesOrder } from "@/lib/process-status";
+import {
+  DONE_SALES_ORDER_STATUSES,
+  ONGOING_SALES_ORDER_STATUSES
+} from "@/lib/process-status";
 import { getSearchMessage } from "@/lib/workflow";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
-import {
-  getCustomerPaymentBehaviour,
-  getCustomerPaymentSummary,
-  getJakartaTrailingTwelveMonthWindow
-} from "@/lib/customer-intelligence";
-import { formatNpwp } from "@/lib/npwp";
 import { getApprovalReasonLabel } from "@/lib/sales-order-approval";
-import {
-  getCurrentMonthAverageSoldPrice,
-  getJakartaCurrentMonthWindow,
-  PRODUCT_AVERAGE_ELIGIBLE_STATUSES
-} from "@/lib/product-insights";
+import { loadOrderFormInsights } from "@/lib/order-form-insights";
+import { formatNpwp } from "@/lib/npwp";
+import { withEffectiveInvoiceStatus } from "@/lib/invoice-status";
 import { formatPpnRate, getConfiguredPpnRateBasisPoints } from "@/lib/tax";
+import {
+  getCursorArgs,
+  getCursorPage,
+  getCursorPagination
+} from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -83,135 +84,99 @@ export async function OrdersBySourcePage({
   const { success, error } = getSearchMessage(params);
   const now = new Date();
   const ppnRateBasisPoints = getConfiguredPpnRateBasisPoints();
-  const customerHistoryWindow = getJakartaTrailingTwelveMonthWindow(now);
-  const currentMonth = getJakartaCurrentMonthWindow(now);
+  const pagination = getCursorPagination(params);
+  const ongoingWhere: Prisma.SalesOrderWhereInput = {
+    source,
+    approvalStatus: { not: "Pending" },
+    status: { in: [...ONGOING_SALES_ORDER_STATUSES] },
+    deliveryNotes: { none: {} },
+    deliverySources: { none: {} }
+  };
+  const approvalWhere: Prisma.SalesOrderWhereInput = {
+    source,
+    approvalStatus: "Pending"
+  };
+  const doneWhere: Prisma.SalesOrderWhereInput = {
+    source,
+    OR: [
+      { status: { in: [...DONE_SALES_ORDER_STATUSES] } },
+      { deliveryNotes: { some: {} } },
+      { deliverySources: { some: {} } }
+    ]
+  };
+  const visibleWhere =
+    activeTab === "approval"
+      ? approvalWhere
+      : activeTab === "done"
+        ? doneWhere
+        : ongoingWhere;
 
-  const [customerRecords, productRecords, salesOrderRecords] = await Promise.all([
-    prisma.customer.findMany({
-      where: { status: "Active" },
-      orderBy: { companyName: "asc" },
+  const [
+    orderFormInsights,
+    salesOrderRecords,
+    ongoingCount,
+    approvalCount,
+    doneCount
+  ] = await Promise.all([
+    mode === "create"
+      ? loadOrderFormInsights(prisma, now)
+      : Promise.resolve({ customers: [], products: [] }),
+    !isCreateFlow ? prisma.salesOrder.findMany({
+      where: visibleWhere,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...getCursorArgs(pagination),
       select: {
         id: true,
-        companyName: true,
-        name: true,
-        npwp: true,
-        salesOrders: {
-          where: {
-            orderDate: {
-              gte: customerHistoryWindow.observationStart,
-              lte: customerHistoryWindow.observationEnd
-            }
-          },
+        orderNumber: true,
+        customerPoNumber: true,
+        requiredDate: true,
+        orderDate: true,
+        paymentTermType: true,
+        creditTermMonths: true,
+        creditTermWeeks: true,
+        status: true,
+        approvalRisk: true,
+        total: true,
+        notes: true,
+        customer: { select: { companyName: true } },
+        invoice: {
           select: {
-            orderDate: true,
+            id: true,
+            dueDate: true,
+            paidAmount: true,
             status: true,
-            paymentTermType: true,
-            creditTermMonths: true
+            totalAmount: true
           }
         },
-        invoices: {
-          where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
-          select: customerInvoiceBalanceSelect
-        }
-      }
-    }),
-    prisma.product.findMany({
-      where: { status: "Active" },
-      orderBy: { productName: "asc" },
-      select: {
-        id: true,
-        productName: true,
-        listPrice: true,
-        salesOrderItems: {
-          where: {
-            salesOrder: {
-              orderDate: {
-                gte: currentMonth.monthStart,
-                lt: currentMonth.nextMonthStart
-              },
-              status: { in: [...PRODUCT_AVERAGE_ELIGIBLE_STATUSES] }
-            }
-          },
+        deliveryNotes: { select: { id: true, status: true } },
+        deliverySources: {
           select: {
-            productId: true,
-            quantity: true,
-            subtotal: true,
-            salesOrder: { select: { orderDate: true, status: true } }
+            deliveryNote: { select: { id: true, status: true } }
           }
         }
       }
-    }),
-    prisma.salesOrder.findMany({
-      where: { source },
-      orderBy: { createdAt: "desc" },
-      include: {
-        customer: true,
-        invoice: true,
-        items: true,
-        deliveryNotes: true, deliverySources: { include: { deliveryNote: true } }
-      }
-    })
+    }) : Promise.resolve([]),
+    !isCreateFlow ? prisma.salesOrder.count({ where: ongoingWhere }) : Promise.resolve(0),
+    !isCreateFlow && canViewApprovals
+      ? prisma.salesOrder.count({ where: approvalWhere })
+      : Promise.resolve(0),
+    !isCreateFlow ? prisma.salesOrder.count({ where: doneWhere }) : Promise.resolve(0)
   ]);
-  const salesOrders = salesOrderRecords.map(order => ({ ...order, deliveryNotes: linkedDeliveryNotes(order) }));
-  const customers = customerRecords.map((customer) => {
-    const paymentBehaviour = getCustomerPaymentBehaviour(customer, now);
-
-    return {
-      id: customer.id,
-      companyName: customer.companyName,
-      name: customer.name,
-      ...getCustomerPaymentSummary(customer),
-      paymentBehaviour: paymentBehaviour.behaviour,
-      paymentBehaviourEvidence: paymentBehaviour.evidence,
-      npwp: formatNpwp(customer.npwp),
-      ppnApplied: Boolean(customer.npwp)
-    };
-  });
-  const products = productRecords.map((product) => {
-    const average = getCurrentMonthAverageSoldPrice(
-      product.id,
-      product.salesOrderItems,
-      now
-    );
-
-    return {
-      id: product.id,
-      productName: product.productName,
-      listPrice: product.listPrice,
-      averageSoldPrice: average.averageSoldPrice,
-      averageEligibleQuantity: average.eligibleQuantity,
-      averageMonthLabel: average.monthLabel
-    };
-  });
+  const salesOrderPage = getCursorPage(salesOrderRecords, pagination);
+  const visibleSalesOrders = salesOrderPage.items.map(order => ({
+    ...order,
+    invoice: order.invoice
+      ? withEffectiveInvoiceStatus(order.invoice, now)
+      : null,
+    deliveryNotes: linkedDeliveryNotes(order)
+  }));
+  const { customers, products } = orderFormInsights;
   const conversionInquiry = inquiryId && mode === "create"
     ? await prisma.customerInquiry.findFirst({ where: { id: inquiryId, status: "Open" }, include: { items: true } })
     : null;
   const inquiryItems = conversionInquiry?.items.every((item) => item.productId && item.agreedUnitPrice !== null)
     ? conversionInquiry.items.map((item) => ({ productId: item.productId!, itemName: item.itemName, quantity: item.quantity, baseUnitPrice: item.agreedUnitPrice!, markupPercent: 0, discountPercent: 0 }))
     : undefined;
-
-  const ongoingSalesOrders = salesOrders.filter((order) =>
-    order.approvalStatus !== "Pending" &&
-    isOngoingSalesOrder({
-      status: order.status,
-      deliveryNoteCount: order.deliveryNotes.length
-    })
-  );
-  const approvalSalesOrders = salesOrders.filter(
-    (order) => order.approvalStatus === "Pending"
-  );
-  const doneSalesOrders = salesOrders.filter((order) =>
-    isDoneSalesOrder({
-      status: order.status,
-      deliveryNoteCount: order.deliveryNotes.length
-    })
-  );
-  const visibleSalesOrders =
-    activeTab === "approval"
-      ? approvalSalesOrders
-      : activeTab === "done"
-        ? doneSalesOrders
-        : ongoingSalesOrders;
 
   const selectedOrderRecord =
     (activeTab === "ongoing" || activeTab === "approval") && viewId
@@ -221,7 +186,15 @@ export async function OrdersBySourcePage({
         })
       : null;
 
-  const selectedOrder = selectedOrderRecord ? { ...selectedOrderRecord, deliveryNotes: linkedDeliveryNotes(selectedOrderRecord) } : null;
+  const selectedOrder = selectedOrderRecord
+    ? {
+        ...selectedOrderRecord,
+        invoice: selectedOrderRecord.invoice
+          ? withEffectiveInvoiceStatus(selectedOrderRecord.invoice, now)
+          : null,
+        deliveryNotes: linkedDeliveryNotes(selectedOrderRecord)
+      }
+    : null;
   return (
     <>
       <PageHeader
@@ -278,9 +251,9 @@ export async function OrdersBySourcePage({
         <ProcessTabs
           basePath={basePath}
           activeTab={activeTab}
-          ongoingCount={ongoingSalesOrders.length}
-          doneCount={doneSalesOrders.length}
-          approvalCount={canViewApprovals ? approvalSalesOrders.length : undefined}
+          ongoingCount={ongoingCount}
+          doneCount={doneCount}
+          approvalCount={canViewApprovals ? approvalCount : undefined}
         />
       )}
 
@@ -518,7 +491,7 @@ export async function OrdersBySourcePage({
           />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Order Number</th>
@@ -630,6 +603,14 @@ export async function OrdersBySourcePage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={salesOrderPage.hasNext}
+          label={pluralLabel.toLowerCase()}
+          nextCursor={salesOrderPage.nextCursor}
+          pathname={basePath}
+          searchParams={params}
+          state={pagination}
+        />
       </section>
       )}
     </>

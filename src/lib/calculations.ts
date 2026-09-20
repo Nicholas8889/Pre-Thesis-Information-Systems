@@ -290,6 +290,6 @@ export function calculateInvoiceStatus({
   return "Unpaid";
 }
 
-function startOfDay(date: Date) {
+export function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }

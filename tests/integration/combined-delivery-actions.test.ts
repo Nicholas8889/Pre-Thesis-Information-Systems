@@ -39,7 +39,7 @@ function packed(id: string, customerId = "customer") {
     deliveryNote: null as null | { id: string },
     deliverySource: null as null | { id: string },
     salesOrderId: "SO-" + id,
-    items: [{ salesOrderItemId: "item-" + id, itemName: "Same product", orderedQuantity: 5, pickedQuantity: 5, packedQuantity: 5 }],
+    items: [{ id: "pick-item-" + id, salesOrderItemId: "item-" + id, itemName: "Same product", orderedQuantity: 5, availableQuantity: 5, packedQuantity: 5, availabilityStatus: "Available", notes: null as string | null }],
     salesOrder: {
       id: "SO-" + id, customerId, orderNumber: "SO-" + id, customerPoNumber: id === "b" ? "PO-b" : null,
       source: id === "b" ? "CUSTOMER_PO" : "DIRECT", status: "Invoiced", approvalStatus: "Approved",
@@ -50,9 +50,14 @@ function packed(id: string, customerId = "customer") {
     }
   };
 }
-function form(ids = ["a", "b"]) {
+function form(ids = ["a", "b"], selectedItemIds = ids.map(id => "pick-item-" + id)) {
   const data = new FormData();
+  data.set("itemSelectionMode", "explicit");
   ids.forEach(id => data.append("pickingListId", id));
+  selectedItemIds.forEach(id => {
+    data.append("selectedItemId", id);
+    data.set("quantity_" + id, "5");
+  });
   for (const [key, value] of Object.entries({
     recipientName: "Recipient", recipientAddress: "One destination", deliveryDate: "2026-09-13",
     driverName: "Budi Santoso", vehiclePlateNumber: "B 1234 TJK"
@@ -77,7 +82,7 @@ describe("combined delivery server actions", () => {
     await expect(createDeliveryNote(data)).rejects.toThrow("tab=open&view=sj");
     expect(mocks.create).toHaveBeenCalledTimes(1);
     expect(mocks.create.mock.calls[0][0].data).toMatchObject({
-      customerId: "customer", recipientAddress: "One destination",
+      customerId: "customer", recipientAddress: "One destination", status: "Draft",
       salesOrderId: null, invoiceId: null, pickingListId: null,
       sources: { create: [
         { pickingListId: "a", salesOrderId: "SO-a", invoiceId: "INV-a" },
@@ -85,12 +90,49 @@ describe("combined delivery server actions", () => {
       ] }
     });
     expect(mocks.items.mock.calls[0][0].data).toEqual([
-      { deliveryNoteId: "sj", sourceId: "source-0", itemName: "Same product", quantity: 5, unit: "PCS" },
-      { deliveryNoteId: "sj", sourceId: "source-1", itemName: "Same product", quantity: 5, unit: "PCS" }
+      { deliveryNoteId: "sj", sourceId: "source-0", pickingListItemId: "pick-item-a", itemName: "Same product", orderedQuantitySnapshot: 5, packedQuantitySnapshot: 5, quantity: 5, outstandingQuantity: 0, unit: "PCS" },
+      { deliveryNoteId: "sj", sourceId: "source-1", pickingListItemId: "pick-item-b", itemName: "Same product", orderedQuantitySnapshot: 5, packedQuantitySnapshot: 5, quantity: 5, outstandingQuantity: 0, unit: "PCS" }
     ]);
     expect(mocks.writes).toEqual(["begin", "commit"]);
     expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(mocks.lists.mock.invocationCallOrder[0]);
   });
+  it("uses selected final quantities and keeps unselected packed lines as outstanding", async () => {
+    const second = packed("b");
+    second.items.push({
+      id: "pick-item-b-extra",
+      salesOrderItemId: "item-b-extra",
+      itemName: "Extra packed product",
+      orderedQuantity: 3,
+      availableQuantity: 3,
+      packedQuantity: 3,
+      availabilityStatus: "Available",
+      notes: null,
+    });
+    second.salesOrder.items.push({ id: "item-b-extra", itemName: "Extra packed product", quantity: 3 });
+    mocks.lists.mockResolvedValue([packed("a"), second]);
+    const data = form();
+    data.set("quantity_pick-item-a", "3");
+
+    await expect(createDeliveryNote(data)).rejects.toThrow("tab=open&view=sj");
+    expect(mocks.items.mock.calls[0][0].data.map((item: {
+      pickingListItemId: string;
+      quantity: number;
+      outstandingQuantity: number;
+    }) => [item.pickingListItemId, item.quantity, item.outstandingQuantity])).toEqual([
+      ["pick-item-a", 3, 2],
+      ["pick-item-b", 5, 0],
+      ["pick-item-b-extra", 0, 3],
+    ]);
+  });
+
+  it("rejects item IDs outside the selected Packed Lists", async () => {
+    const data = form();
+    data.append("selectedItemId", "tampered-item");
+    data.set("quantity_tampered-item", "1");
+    await expect(createDeliveryNote(data)).rejects.toThrow("Selected%20items%20must%20be%20packed");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
   it("retains single-order header links", async () => {
     mocks.lists.mockResolvedValue([packed("a")]);
     await expect(createDeliveryNote(form(["a"]))).rejects.toThrow("tab=open&view=sj");
@@ -102,10 +144,32 @@ describe("combined delivery server actions", () => {
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.writes).toEqual(["begin", "rollback"]);
   });
-  it.each(["pending", "shortage", "changed", "existing", "cancelled-invoice", "approval"])("rejects an ineligible member: %s", async reason => {
+  it("keeps partial and packed-zero lines as documented outstanding", async () => {
+    const second = packed("b");
+    second.items[0].availableQuantity = 4;
+    second.items[0].packedQuantity = 4;
+    second.items[0].availabilityStatus = "Partial";
+    second.items[0].notes = "One unit unavailable";
+    second.items.push({
+      id: "pick-item-b-zero",
+      salesOrderItemId: "item-b-zero",
+      itemName: "Unavailable product",
+      orderedQuantity: 3,
+      availableQuantity: 0,
+      packedQuantity: 0,
+      availabilityStatus: "Unavailable",
+      notes: "Entire item unavailable",
+    });
+    second.salesOrder.items.push({ id: "item-b-zero", itemName: "Unavailable product", quantity: 3 });
+    mocks.lists.mockResolvedValue([packed("a"), second]);
+    const data = form();
+    data.set("quantity_pick-item-b", "4");
+    await expect(createDeliveryNote(data)).rejects.toThrow("tab=open&view=sj");
+    expect(mocks.items.mock.calls[0][0].data.map((item: { quantity: number; outstandingQuantity: number }) => [item.quantity, item.outstandingQuantity])).toEqual([[5, 0], [4, 1], [0, 3]]);
+  });
+  it.each(["pending", "changed", "existing", "cancelled-invoice", "approval"])("rejects an ineligible member: %s", async reason => {
     const second = packed("b");
     if (reason === "pending") second.status = "InProgress";
-    if (reason === "shortage") second.items[0].packedQuantity = 4;
     if (reason === "changed") second.salesOrder.items[0].quantity = 6;
     if (reason === "existing") second.deliverySource = { id: "other-sj-source" };
     if (reason === "cancelled-invoice") second.salesOrder.invoice.status = "Cancelled";

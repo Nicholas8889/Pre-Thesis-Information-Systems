@@ -11,6 +11,12 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { formatCustomerInquiryStatus } from "@/lib/customer-inquiry";
 import { getSearchMessage } from "@/lib/workflow";
+import { ServerPagination } from "@/components/server-pagination";
+import {
+  getCursorArgs,
+  getCursorPage,
+  getCursorPagination
+} from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -22,22 +28,26 @@ export default async function CustomerInquiriesPage({
   const params = (await searchParams) ?? {};
   const mode = Array.isArray(params.mode) ? params.mode[0] : params.mode;
   const { success, error } = getSearchMessage(params);
-  const [customers, products, inquiries] = await Promise.all([
-    prisma.customer.findMany({
+  const pagination = getCursorPagination(params);
+  const [customers, products, inquiryRecords] = await Promise.all([
+    mode === "create" ? prisma.customer.findMany({
       where: { status: "Active" },
       orderBy: { companyName: "asc" },
       select: { id: true, companyName: true, name: true }
-    }),
-    prisma.product.findMany({
+    }) : Promise.resolve([]),
+    mode === "create" ? prisma.product.findMany({
       where: { status: "Active" },
       orderBy: { productName: "asc" },
       select: { id: true, productName: true, listPrice: true }
-    }),
+    }) : Promise.resolve([]),
     prisma.customerInquiry.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...getCursorArgs(pagination),
       include: { customer: true, items: true, salesOrder: true }
     })
   ]);
+  const inquiryPage = getCursorPage(inquiryRecords, pagination);
+  const inquiries = inquiryPage.items;
 
   return (
     <>
@@ -70,7 +80,7 @@ export default async function CustomerInquiriesPage({
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <h2 className="mb-4 text-lg font-semibold">Customer Inquiry Records</h2>
         <div className="overflow-x-auto">
-          <table>
+          <table data-server-paginated="true">
             <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
               <tr>
                 <th className="py-3 pr-4">Inquiry ID</th>
@@ -114,6 +124,14 @@ export default async function CustomerInquiriesPage({
             </tbody>
           </table>
         </div>
+        <ServerPagination
+          hasNext={inquiryPage.hasNext}
+          label="customer inquiries"
+          nextCursor={inquiryPage.nextCursor}
+          pathname="/customer-inquiries"
+          searchParams={params}
+          state={pagination}
+        />
       </section>
     </>
   );

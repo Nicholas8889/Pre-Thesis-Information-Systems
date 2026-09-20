@@ -135,11 +135,26 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
     }
   },
   {
-    match: (pathname) => pathname.startsWith("/surat-jalan/picking-list/") && pathname.endsWith("/print"),
+    match: (pathname) => pathname.startsWith("/pick-pack/") && pathname.endsWith("/print"),
     content: {
       title: "Picking List Print Help",
-      purpose: "Print an internal worksheet for picking and packing customer orders.",
-      steps: ["Check item names and ordered quantities.", "Record picked and packed quantities and any discrepancy, then sign the worksheet.", "Save the result in Picking & Packing before issuing Surat Jalan."]
+      purpose: "Print the internal picking, packing, and shortage record.",
+      steps: ["Check customer, invoice, order reference, and ordered quantities.", "Review availability, available quantity, packed quantity, shortage, and operational notes.", "Obtain confirmation from both Picking PIC and Packing PIC before delivery."]
+    }
+  },
+  {
+    match: (pathname) => pathname === "/pick-pack",
+    content: {
+      title: "Pick & Pack Help",
+      purpose: "Create and verify Picking Lists before orders are issued as Surat Jalan.",
+      steps: [
+        "Use Active to create a Picking List for an invoiced Sales Order or Customer PO and assign the Picking PIC.",
+        "Record availability, available quantity, packed quantity, operational notes, and the Packing PIC.",
+        "Complete Pick & Pack after all available units are packed. Shortage is allowed when every shortage has a note.",
+        "Filter Completed by reference, either PIC, fulfillment condition, completion date, or Surat Jalan status.",
+        "Admin and Manager can Reopen a completed list before Surat Jalan is issued; a reason is required.",
+        "Use Create Surat Jalan to continue in the separate delivery module."
+      ]
     }
   },
   {
@@ -157,14 +172,13 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
   {
     match: (pathname) => pathname.startsWith("/surat-jalan"),
     content: {
-      title: "Picking List & Surat Jalan Help",
-      purpose: "Prepare Picking Lists, verify packing, and issue and track Surat Jalan in one module.",
+      title: "Surat Jalan Help",
+      purpose: "Prepare, issue, and track Surat Jalan after warehouse preparation is complete.",
       steps: [
-        "Use Picking & Packing to create a Picking List for an eligible Sales Order or Customer PO.",
-        "Record picked and packed quantities, picker, packer, and package count before marking Packed.",
-        "Create Surat Jalan from a Packed list, then select the driver and vehicle plate.",
-        "Review recipient, driver, vehicle plate, delivery date, status, and delivered items.",
-        "Surat Jalan Open contains active deliveries; Delivered moves to Completed. Cancelled records have a separate archive."
+        "Choose a customer, then select packed items from one or more Prepared SO / Customer PO lists for the same destination. The Draft stores every included source line for audit.",
+        "While Draft, adjust recipient, delivery assignment, and final quantity up to each packed quantity. Review the stored outstanding delivery.",
+        "Select Issue & Lock when final quantities are correct. Draft cannot be printed; the issued print contains only positive final quantities.",
+        "Surat Jalan Open contains Draft and Issued records; Delivered moves to Completed. Cancelled records have a separate archive."
       ]
     }
   },

@@ -6,11 +6,21 @@ import { ProcessTabs, normalizeProcessTab } from "@/components/process-tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusStack } from "@/components/status-stack";
 import { TableActionGroup, TableActionLink } from "@/components/table-actions";
+import { ServerPagination } from "@/components/server-pagination";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { isDoneCollectionTask, isOngoingCollectionTask } from "@/lib/process-status";
-import { getSearchMessage, syncOverdueInvoices, toDateInputValue } from "@/lib/workflow";
+import {
+  DONE_COLLECTION_TASK_STATUSES,
+  ONGOING_COLLECTION_TASK_STATUSES
+} from "@/lib/process-status";
+import { getSearchMessage, toDateInputValue } from "@/lib/workflow";
+import { getOpenInvoiceWhere } from "@/lib/invoice-status";
 import { Eye, PhoneCall, Search } from "lucide-react";
+import {
+  getCursorArgs,
+  getCursorPage,
+  getCursorPagination
+} from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -27,24 +37,27 @@ export async function CollectionsPage({
   const selectedInvoiceId = getFirst(params.invoiceId);
   const activeTab = normalizeProcessTab(params.tab);
   const { success, error } = getSearchMessage(params);
+  const pagination = getCursorPagination(params);
+  const visibleStatuses =
+    activeTab === "done"
+      ? [...DONE_COLLECTION_TASK_STATUSES]
+      : [...ONGOING_COLLECTION_TASK_STATUSES];
 
-  await syncOverdueInvoices();
-
-  const [customers, openInvoices, collectionTasks] = await Promise.all([
-    prisma.customer.findMany({
+  const [customers, openInvoices, collectionTaskRecords, ongoingCount, doneCount] =
+    await Promise.all([
+    activeTab === "ongoing" ? prisma.customer.findMany({
       where: { status: "Active" },
-      orderBy: { companyName: "asc" }
-    }),
-    prisma.invoice.findMany({
-      where: {
-        remainingAmount: { gt: 0 },
-        status: { in: ["Unpaid", "Partial", "Overdue"] }
-      },
+      orderBy: [{ companyName: "asc" }, { id: "asc" }]
+    }) : Promise.resolve([]),
+    activeTab === "ongoing" ? prisma.invoice.findMany({
+      where: getOpenInvoiceWhere(),
       include: { customer: true },
       orderBy: { dueDate: "asc" }
-    }),
+    }) : Promise.resolve([]),
     prisma.collectionTask.findMany({
-      orderBy: { scheduledDate: "asc" },
+      where: { status: { in: visibleStatuses } },
+      orderBy: [{ scheduledDate: "asc" }, { id: "asc" }],
+      ...getCursorArgs(pagination),
       include: {
         customer: true,
         invoice: {
@@ -58,13 +71,18 @@ export async function CollectionsPage({
           }
         }
       }
+    }),
+    prisma.collectionTask.count({
+      where: { status: { in: [...ONGOING_COLLECTION_TASK_STATUSES] } }
+    }),
+    prisma.collectionTask.count({
+      where: { status: { in: [...DONE_COLLECTION_TASK_STATUSES] } }
     })
   ]);
 
   const selectedInvoice = openInvoices.find((invoice) => invoice.id === selectedInvoiceId);
-  const ongoingCollectionTasks = collectionTasks.filter((collectionTask) => isOngoingCollectionTask(collectionTask.status));
-  const doneCollectionTasks = collectionTasks.filter((collectionTask) => isDoneCollectionTask(collectionTask.status));
-  const visibleCollectionTasks = activeTab === "done" ? doneCollectionTasks : ongoingCollectionTasks;
+  const collectionTaskPage = getCursorPage(collectionTaskRecords, pagination);
+  const visibleCollectionTasks = collectionTaskPage.items;
 
   return (
     <>
@@ -78,8 +96,8 @@ export async function CollectionsPage({
       <ProcessTabs
         basePath="/collections"
         activeTab={activeTab}
-        ongoingCount={ongoingCollectionTasks.length}
-        doneCount={doneCollectionTasks.length}
+        ongoingCount={ongoingCount}
+        doneCount={doneCount}
       />
 
       {activeTab === "ongoing" && (
@@ -181,7 +199,7 @@ export async function CollectionsPage({
           />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Customer</th>
@@ -234,6 +252,14 @@ export async function CollectionsPage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={collectionTaskPage.hasNext}
+          label="collection tasks"
+          nextCursor={collectionTaskPage.nextCursor}
+          pathname="/collections"
+          searchParams={params}
+          state={pagination}
+        />
       </section>
     </>
   );
@@ -248,10 +274,11 @@ export async function CustomerOutreachPage({
   const selectedCustomerId = getFirst(params.customerId);
   const query = getFirst(params.q);
   const { success, error } = getSearchMessage(params);
+  const pagination = getCursorPagination(params);
 
-  const [allCustomers, customers] = await Promise.all([
+  const [allCustomers, customerRecords] = await Promise.all([
     prisma.customer.findMany({
-      orderBy: { companyName: "asc" },
+      orderBy: [{ companyName: "asc" }, { id: "asc" }],
       select: { id: true, companyName: true, name: true }
     }),
     prisma.customer.findMany({
@@ -264,7 +291,8 @@ export async function CustomerOutreachPage({
             ]
           }
         : undefined,
-      orderBy: { companyName: "asc" },
+      orderBy: [{ companyName: "asc" }, { id: "asc" }],
+      ...getCursorArgs(pagination),
       include: {
         outreachActivities: {
           orderBy: [{ contactDate: "desc" }, { createdAt: "desc" }],
@@ -273,6 +301,8 @@ export async function CustomerOutreachPage({
       }
     })
   ]);
+  const customerPage = getCursorPage(customerRecords, pagination);
+  const customers = customerPage.items;
 
   return (
     <>
@@ -363,7 +393,7 @@ export async function CustomerOutreachPage({
           <EmptyState message="No customers match your search." />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Company</th>
@@ -409,6 +439,14 @@ export async function CustomerOutreachPage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={customerPage.hasNext}
+          label="customers"
+          nextCursor={customerPage.nextCursor}
+          pathname="/customer-outreach"
+          searchParams={params}
+          state={pagination}
+        />
       </section>
     </>
   );

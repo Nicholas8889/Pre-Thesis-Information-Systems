@@ -24,7 +24,10 @@ import { createAuditTrailLog } from "@/lib/audit";
 import { getCustomerPaymentSummary } from "@/lib/customer-intelligence";
 import { customerInvoiceBalanceSelect } from "@/lib/customer-payment-query";
 import { prisma } from "@/lib/prisma";
-import { canFulfillOrder, isPickingComplete } from "@/lib/picking-list";
+import {
+  canCreateDeliveryFromPickingList,
+  canFulfillOrder,
+} from "@/lib/picking-list";
 import { parseOptionalNpwp } from "@/lib/npwp";
 import { canRole } from "@/lib/role-access";
 import {
@@ -69,6 +72,7 @@ const pathsToRefresh = [
   "/sales-orders",
   "/invoices",
   "/payments",
+  "/pick-pack",
   "/surat-jalan",
   "/receivables",
   "/collections",
@@ -1630,17 +1634,29 @@ export async function recordCustomerOutreach(formData: FormData) {
 export async function createDeliveryNote(formData: FormData) {
   const currentUser = await requireCurrentUser();
   if (!canRole(currentUser.role, "CREATE_SURAT_JALAN")) {
-    redirectWithMessage("/surat-jalan?tab=picking", "error", "Only Admin and Manager roles can create Surat Jalan");
+    redirectWithMessage("/surat-jalan?mode=create", "error", "Only Admin and Manager roles can create Surat Jalan");
   }
-
 
   const pickingListIds = formData.getAll("pickingListId").map(value => typeof value === "string" ? value.trim() : "");
   if (!pickingListIds.length || pickingListIds.some(id => !id)) {
-    redirectWithMessage("/surat-jalan?tab=picking", "error", "Create and complete a Picking List before making Surat Jalan");
+    redirectWithMessage("/surat-jalan?mode=create", "error", "Create and complete a Picking List before making Surat Jalan");
   }
   if (new Set(pickingListIds).size !== pickingListIds.length || pickingListIds.length > 100) {
-    redirectWithMessage("/surat-jalan?tab=picking", "error", "Select each Picking List once, up to 100 orders");
+    redirectWithMessage("/surat-jalan?mode=create", "error", "Select each Picking List once, up to 100 orders");
   }
+
+  const explicitItemSelection = getString(formData, "itemSelectionMode") === "explicit";
+  const requestedItemIds = formData.getAll("selectedItemId")
+    .map(value => typeof value === "string" ? value.trim() : "");
+  if (explicitItemSelection && (
+    !requestedItemIds.length ||
+    requestedItemIds.some(id => !id) ||
+    new Set(requestedItemIds).size !== requestedItemIds.length ||
+    requestedItemIds.length > 1000
+  )) {
+    redirectWithMessage("/surat-jalan?mode=create", "error", "Select at least one packed item, without duplicates");
+  }
+
   const recipientName = getRequiredString(formData, "recipientName");
   const recipientPhone = getString(formData, "recipientPhone");
   const recipientAddress = getRequiredString(formData, "recipientAddress");
@@ -1651,41 +1667,85 @@ export async function createDeliveryNote(formData: FormData) {
     vehiclePlateNumber: formData.get("vehiclePlateNumber")
   });
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
+
   const deliveryNote = await withDeliveryNoteNumberRetry(async (deliveryNoteNumber) => prisma.$transaction(async tx => {
-    // Lock in stable order: two operators cannot claim an overlapping selection.
     await tx.$queryRaw(Prisma.sql`SELECT id FROM picking_lists WHERE id IN (${Prisma.join([...pickingListIds].sort())}) ORDER BY id FOR UPDATE`);
     const lists = await tx.pickingList.findMany({
+      relationLoadStrategy: "join",
       where: { id: { in: pickingListIds } },
       orderBy: { id: "asc" },
-      include: {
-        items: true, deliveryNote: { select: { id: true } }, deliverySource: true,
-        salesOrder: { include: {
-          customer: true, items: true, deliverySources: true,
-          invoice: { include: { deliveryNotes: { select: { id: true } }, deliverySources: true } },
+      select: {
+        id: true, status: true, salesOrderId: true, pickerName: true, packerName: true,
+        items: { select: {
+          id: true, salesOrderItemId: true, itemName: true, orderedQuantity: true,
+          availableQuantity: true, packedQuantity: true, availabilityStatus: true, notes: true
+        } },
+        deliveryNote: { select: { id: true } },
+        deliverySource: { select: { id: true } },
+        salesOrder: { select: {
+          customerId: true, status: true, approvalStatus: true,
+          items: { select: { id: true, itemName: true, quantity: true } },
+          deliverySources: { select: { id: true } },
+          invoice: { select: {
+            id: true, status: true, paymentTermType: true,
+            deliveryNotes: { select: { id: true } },
+            deliverySources: { select: { id: true } }
+          } },
           deliveryNotes: { select: { id: true } }
         } }
       }
     });
+
     if (lists.length !== pickingListIds.length || lists.some(list => {
       const order = list.salesOrder;
       return list.status !== "Packed" || list.deliveryNote || list.deliverySource ||
-        !canFulfillOrder(order) || !list.pickerName || !list.packerName || !list.packageCount ||
-        !isPickingComplete(list.items) || order.deliveryNotes.length > 0 ||
+        !canFulfillOrder(order) || !list.pickerName || !list.packerName ||
+        !canCreateDeliveryFromPickingList(list.items) || order.deliveryNotes.length > 0 ||
         order.deliverySources.length > 0 || (order.invoice?.deliveryNotes.length ?? 0) > 0 ||
         (order.invoice?.deliverySources.length ?? 0) > 0 ||
         order.items.length !== list.items.length ||
         list.items.some(item => !order.items.some(source =>
           source.id === item.salesOrderItemId && source.itemName === item.itemName && source.quantity === item.orderedQuantity));
     })) {
-      redirectWithMessage("/surat-jalan?tab=picking", "error", "Picking List is not ready or the source order has changed");
+      redirectWithMessage("/surat-jalan?mode=create", "error", "Picking List is not ready or the source order has changed");
     }
+
     const first = lists[0];
     if (lists.some(list => list.salesOrder.customerId !== first.salesOrder.customerId)) {
-      redirectWithMessage("/surat-jalan?tab=picking", "error", "All selected orders must belong to the same customer and delivery destination");
+      redirectWithMessage("/surat-jalan?mode=create", "error", "All selected orders must belong to the same customer and delivery destination");
+    }
+
+    const allItems = lists.flatMap(list => list.items);
+    const selectedItemIds = explicitItemSelection
+      ? new Set(requestedItemIds)
+      : new Set(allItems.filter(item => item.packedQuantity > 0).map(item => item.id));
+    if (
+      !selectedItemIds.size ||
+      [...selectedItemIds].some(id => {
+        const item = allItems.find(candidate => candidate.id === id);
+        return !item || item.packedQuantity <= 0;
+      }) ||
+      lists.some(list => !list.items.some(item => selectedItemIds.has(item.id)))
+    ) {
+      redirectWithMessage("/surat-jalan?mode=create", "error", "Selected items must be packed and each selected order must contain an item to deliver");
+    }
+
+    const finalQuantityByItemId = new Map<string, number>();
+    for (const item of allItems) {
+      if (!selectedItemIds.has(item.id)) continue;
+      const rawQuantity = explicitItemSelection
+        ? getString(formData, "quantity_" + item.id)
+        : String(item.packedQuantity);
+      const quantity = Number(rawQuantity);
+      if (!rawQuantity || !Number.isInteger(quantity) || quantity < 1 || quantity > item.packedQuantity) {
+        redirectWithMessage("/surat-jalan?mode=create", "error", "Final delivery quantity must be between one and the packed quantity");
+      }
+      finalQuantityByItemId.set(item.id, quantity);
     }
     if (!recipientName || !recipientAddress || !rawDeliveryDate || Number.isNaN(deliveryDate.getTime()) || !deliveryAssignment.valid) {
-      redirectWithMessage("/surat-jalan?tab=picking&mode=delivery", "error", "Recipient, address, date, driver, and vehicle plate are required");
+      redirectWithMessage("/surat-jalan?mode=create", "error", "Recipient, address, date, driver, and vehicle plate are required");
     }
+
     const note = await tx.deliveryNote.create({
       data: {
         deliveryNoteNumber,
@@ -1693,8 +1753,8 @@ export async function createDeliveryNote(formData: FormData) {
         invoiceId: lists.length === 1 ? first.salesOrder.invoice!.id : null,
         salesOrderId: lists.length === 1 ? first.salesOrderId : null,
         customerId: first.salesOrder.customerId,
-        recipientName, recipientPhone, recipientAddress, deliveryDate, status: "Issued",
-        notes: mergeActionNotes(getString(formData, "notes"), actionNote),
+        recipientName, recipientPhone, recipientAddress, deliveryDate, status: "Draft",
+        notes: getString(formData, "notes") || null,
         receiverName: getString(formData, "receiverName") || null,
         senderName: getString(formData, "senderName") || null,
         driverName: deliveryAssignment.value.driverName,
@@ -1708,34 +1768,190 @@ export async function createDeliveryNote(formData: FormData) {
       },
       include: { sources: true }
     });
+
     await tx.deliveryNoteItem.createMany({
       data: lists.flatMap(list => list.items.map(item => ({
         deliveryNoteId: note.id,
         sourceId: note.sources.find(source => source.pickingListId === list.id)!.id,
-        itemName: item.itemName, quantity: item.packedQuantity, unit: "PCS"
+        pickingListItemId: item.id,
+        itemName: item.itemName,
+        orderedQuantitySnapshot: item.orderedQuantity,
+        packedQuantitySnapshot: item.packedQuantity,
+        quantity: finalQuantityByItemId.get(item.id) ?? 0,
+        outstandingQuantity: item.orderedQuantity - (finalQuantityByItemId.get(item.id) ?? 0),
+        unit: "PCS"
       })))
     });
     return note;
   }, { timeout: 20000 })).catch((error: unknown) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      redirectWithMessage("/surat-jalan?tab=picking", "error", "A selected Picking List already belongs to a Surat Jalan. Refresh and try again.");
+      redirectWithMessage("/surat-jalan?mode=create", "error", "A selected Picking List already belongs to a Surat Jalan. Refresh and try again.");
     }
     throw error;
   });
+
   await createAuditTrailLog({
-    moduleName: "Picking List & Surat Jalan",
-    entityType: "DELIVERY_NOTE", entityId: deliveryNote.id,
-    recordReference: deliveryNote.deliveryNoteNumber, action: "CREATED", actionNote,
-    changeSummary: "Surat Jalan " + deliveryNote.deliveryNoteNumber + " created from " + pickingListIds.length + " Picking List(s)",
+    actor: currentUser,
+    moduleName: "Surat Jalan",
+    entityType: "DELIVERY_NOTE",
+    entityId: deliveryNote.id,
+    recordReference: deliveryNote.deliveryNoteNumber,
+    action: "CREATED",
+    actionNote,
+    changeSummary: "Draft Surat Jalan " + deliveryNote.deliveryNoteNumber + " created from " + pickingListIds.length + " Picking List(s)",
     newValue: {
       sources: deliveryNote.sources,
-      status: deliveryNote.status, recipientName: deliveryNote.recipientName,
+      status: deliveryNote.status,
+      recipientName: deliveryNote.recipientName,
       recipientAddress: deliveryNote.recipientAddress,
-      driverName: deliveryNote.driverName, vehiclePlateNumber: deliveryNote.vehiclePlateNumber
+      driverName: deliveryNote.driverName,
+      vehiclePlateNumber: deliveryNote.vehiclePlateNumber
     }
   });
+
   refreshApp();
-  redirect("/surat-jalan?tab=open&view=" + deliveryNote.id + "&success=" + encodeURIComponent("Surat Jalan created"));
+  redirect("/surat-jalan?tab=open&view=" + deliveryNote.id + "&success=" + encodeURIComponent("Draft Surat Jalan created"));
+}
+
+export async function saveDeliveryNoteDraft(formData: FormData) {
+  const currentUser = await requireCurrentUser();
+  if (!canRole(currentUser.role, "CREATE_SURAT_JALAN")) {
+    redirectWithMessage("/surat-jalan?tab=open", "error", "Only Admin and Manager can edit Surat Jalan");
+  }
+
+  const id = getRequiredString(formData, "id");
+  const version = getRequiredString(formData, "version");
+  const intent = getString(formData, "intent") === "issue" ? "issue" : "save";
+  const recipientName = getRequiredString(formData, "recipientName");
+  const recipientPhone = getString(formData, "recipientPhone");
+  const recipientAddress = getRequiredString(formData, "recipientAddress");
+  const rawDeliveryDate = getRequiredString(formData, "deliveryDate");
+  const deliveryDate = new Date(rawDeliveryDate);
+  const deliveryAssignment = validateDeliveryAssignment({
+    driverName: formData.get("driverName"),
+    vehiclePlateNumber: formData.get("vehiclePlateNumber")
+  });
+  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
+
+  if (!id || !version || !recipientName || !recipientAddress || !rawDeliveryDate ||
+      Number.isNaN(deliveryDate.getTime()) || !deliveryAssignment.valid) {
+    redirectWithMessage("/surat-jalan?tab=open&view=" + id, "error", "Recipient, address, date, driver, and vehicle plate are required");
+  }
+
+  const result = await prisma.$transaction(async tx => {
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM delivery_notes WHERE id = ${id} FOR UPDATE`);
+    const oldNote = await tx.deliveryNote.findUnique({
+      where: { id },
+      include: {
+        items: { orderBy: { id: "asc" } },
+        sources: { select: { salesOrderId: true } }
+      }
+    });
+
+    if (!oldNote) throw new Error("DELIVERY_NOTE_NOT_FOUND");
+    if (oldNote.status !== "Draft") throw new Error("DELIVERY_NOTE_LOCKED");
+    if (oldNote.updatedAt.toISOString() !== version) throw new Error("DELIVERY_NOTE_CONFLICT");
+
+    const items = oldNote.items.map(item => {
+      const rawQuantity = getString(formData, "quantity_" + item.id);
+      const quantity = Number(rawQuantity);
+      if (!rawQuantity || !Number.isInteger(quantity) || quantity < 0 || quantity > item.packedQuantitySnapshot) {
+        throw new Error("DELIVERY_NOTE_INVALID_QUANTITY");
+      }
+      return {
+        id: item.id,
+        quantity,
+        outstandingQuantity: item.orderedQuantitySnapshot - quantity,
+        adjustmentNote: getString(formData, "adjustmentNote_" + item.id) || null
+      };
+    });
+    if (intent === "issue" && !items.some(item => item.quantity > 0)) {
+      throw new Error("DELIVERY_NOTE_EMPTY");
+    }
+
+    const updateResult = await tx.deliveryNote.updateMany({
+      where: { id, status: "Draft", updatedAt: oldNote.updatedAt },
+      data: {
+        recipientName, recipientPhone, recipientAddress, deliveryDate,
+        notes: getString(formData, "notes") || null,
+        receiverName: getString(formData, "receiverName") || null,
+        senderName: getString(formData, "senderName") || null,
+        driverName: deliveryAssignment.value.driverName,
+        vehiclePlateNumber: deliveryAssignment.value.vehiclePlateNumber,
+        authorizedBy: getString(formData, "authorizedBy") || null,
+        status: intent === "issue" ? "Issued" : "Draft",
+        issuedAt: intent === "issue" ? new Date() : null,
+        issuedBy: intent === "issue" ? (currentUser.displayName || currentUser.username) : null
+      }
+    });
+    if (updateResult.count !== 1) throw new Error("DELIVERY_NOTE_CONFLICT");
+
+    for (const item of items) {
+      const itemResult = await tx.deliveryNoteItem.updateMany({
+        where: { id: item.id, deliveryNoteId: id },
+        data: {
+          quantity: item.quantity,
+          outstandingQuantity: item.outstandingQuantity,
+          adjustmentNote: item.adjustmentNote
+        }
+      });
+      if (itemResult.count !== 1) throw new Error("DELIVERY_NOTE_CONFLICT");
+    }
+
+    const deliveryNote = await tx.deliveryNote.findUniqueOrThrow({
+      where: { id },
+      include: {
+        items: { orderBy: { id: "asc" } },
+        sources: { select: { salesOrderId: true } }
+      }
+    });
+    return { oldNote, deliveryNote };
+  }, { timeout: 20000 }).catch((error: unknown) => {
+    if (error instanceof Error) {
+      if (error.message === "DELIVERY_NOTE_NOT_FOUND") redirectWithMessage("/surat-jalan", "error", "Surat Jalan was not found");
+      if (error.message === "DELIVERY_NOTE_LOCKED") redirectWithMessage("/surat-jalan?tab=open&view=" + id, "error", "Issued Surat Jalan is locked and can no longer be edited");
+      if (error.message === "DELIVERY_NOTE_CONFLICT") redirectWithMessage("/surat-jalan?tab=open&view=" + id, "error", "Surat Jalan changed. Refresh and review the latest draft.");
+      if (error.message === "DELIVERY_NOTE_INVALID_QUANTITY") redirectWithMessage("/surat-jalan?tab=open&view=" + id, "error", "Each delivery quantity must be between zero and its packed quantity");
+      if (error.message === "DELIVERY_NOTE_EMPTY") redirectWithMessage("/surat-jalan?tab=open&view=" + id, "error", "At least one item must have a delivery quantity before Issue");
+    }
+    throw error;
+  });
+
+  const issued = result.deliveryNote.status === "Issued";
+  await createAuditTrailLog({
+    actor: currentUser,
+    moduleName: "Surat Jalan",
+    entityType: "DELIVERY_NOTE",
+    entityId: result.deliveryNote.id,
+    recordReference: result.deliveryNote.deliveryNoteNumber,
+    action: issued ? "ISSUED" : "DRAFT_UPDATED",
+    actionNote,
+    changeSummary: issued ? `Surat Jalan ${result.deliveryNote.deliveryNoteNumber} issued and locked` : `Draft Surat Jalan ${result.deliveryNote.deliveryNoteNumber} updated`,
+    oldValue: {
+      status: result.oldNote.status,
+      recipientName: result.oldNote.recipientName,
+      recipientAddress: result.oldNote.recipientAddress,
+      items: result.oldNote.items.map(item => ({ id: item.id, quantity: item.quantity, outstandingQuantity: item.outstandingQuantity, adjustmentNote: item.adjustmentNote }))
+    },
+    newValue: {
+      status: result.deliveryNote.status,
+      issuedAt: result.deliveryNote.issuedAt,
+      issuedBy: result.deliveryNote.issuedBy,
+      recipientName: result.deliveryNote.recipientName,
+      recipientAddress: result.deliveryNote.recipientAddress,
+      items: result.deliveryNote.items.map(item => ({
+        id: item.id,
+        orderedQuantity: item.orderedQuantitySnapshot,
+        packedQuantity: item.packedQuantitySnapshot,
+        quantity: item.quantity,
+        outstandingQuantity: item.outstandingQuantity,
+        adjustmentNote: item.adjustmentNote
+      }))
+    }
+  });
+
+  refreshApp();
+  redirect(`/surat-jalan?tab=open&view=${id}&success=${encodeURIComponent(issued ? "Surat Jalan issued and locked" : "Draft Surat Jalan saved")}`);
 }
 
 export async function updateDeliveryNoteStatus(formData: FormData) {
@@ -1746,33 +1962,24 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
   const id = getRequiredString(formData, "id");
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
   const requestedStatus = getRequiredString(formData, "status");
-  if (!["Issued", "Delivered", "Cancelled"].includes(requestedStatus)) {
+  if (!["Delivered", "Cancelled"].includes(requestedStatus)) {
     redirectWithMessage("/surat-jalan?tab=open", "error", "Invalid Surat Jalan status transition");
   }
   const status = requestedStatus as DeliveryNoteStatus;
-
-  if (!id) {
-    redirectWithMessage("/surat-jalan", "error", "Surat Jalan ID is required");
-  }
+  if (!id) redirectWithMessage("/surat-jalan", "error", "Surat Jalan ID is required");
 
   const oldDeliveryNote = await prisma.deliveryNote.findUnique({
     where: { id },
     select: { id: true, deliveryNoteNumber: true, status: true, notes: true }
   });
-
-  if (!oldDeliveryNote) {
-    redirectWithMessage("/surat-jalan", "error", "Surat Jalan was not found");
-  }
+  if (!oldDeliveryNote) redirectWithMessage("/surat-jalan", "error", "Surat Jalan was not found");
 
   const allowedNextStatus = oldDeliveryNote.status === "Draft"
-    ? ["Issued", "Cancelled"]
-    : oldDeliveryNote.status === "Issued"
-      ? ["Delivered", "Cancelled"]
-      : [];
+    ? ["Cancelled"]
+    : oldDeliveryNote.status === "Issued" ? ["Delivered", "Cancelled"] : [];
   if (!allowedNextStatus.includes(status)) {
     redirectWithMessage("/surat-jalan?tab=open", "error", "Invalid Surat Jalan status transition");
   }
-
 
   const { deliveryNote, completedInquiries } = await prisma.$transaction(async tx => {
     const deliveryNote = await tx.deliveryNote.update({
@@ -1798,6 +2005,7 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
   });
 
   await createAuditTrailLog({
+    actor: currentUser,
     moduleName: "Surat Jalan",
     entityType: "DELIVERY_NOTE",
     entityId: deliveryNote.id,
@@ -1809,7 +2017,6 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
     newValue: { status: deliveryNote.status }
   });
 
-
   for (const inquiry of completedInquiries) {
     await createAuditTrailLog({
       moduleName: "Customer Inquiry", entityType: "CUSTOMER_INQUIRY", entityId: inquiry.id,
@@ -1818,7 +2025,6 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
       newValue: { status: "Done", salesOrderId: inquiry.salesOrderId }
     });
   }
-
 
   refreshApp();
   redirect(`/surat-jalan?tab=${status === "Delivered" || status === "Cancelled" ? "completed" : "open"}&view=${id}&success=${encodeURIComponent("Surat Jalan status updated")}`);

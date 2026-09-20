@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -107,6 +108,15 @@ enum PickingListStatus {
   Packed
 
   @@map("picking_list_status")
+}
+
+enum PickingItemAvailability {
+  Unchecked
+  Available
+  Partial
+  Unavailable
+
+  @@map("picking_item_availability")
 }
 
 enum UserRole {
@@ -360,16 +370,18 @@ model PickingList {
 }
 
 model PickingListItem {
-  id               String  @id(map: "picking_list_items_pkey") @default(cuid())
-  pickingListId    String  @map("picking_list_id")
-  salesOrderItemId String  @map("sales_order_item_id")
-  itemName         String  @map("item_name")
-  orderedQuantity  Int     @map("ordered_quantity")
-  pickedQuantity   Int     @default(0) @map("picked_quantity")
-  packedQuantity   Int     @default(0) @map("packed_quantity")
-  notes            String?
+  id                 String                  @id(map: "picking_list_items_pkey") @default(cuid())
+  pickingListId      String                  @map("picking_list_id")
+  salesOrderItemId   String                  @map("sales_order_item_id")
+  itemName           String                  @map("item_name")
+  orderedQuantity    Int                     @map("ordered_quantity")
+  availableQuantity  Int                     @default(0) @map("available_quantity")
+  packedQuantity     Int                     @default(0) @map("packed_quantity")
+  availabilityStatus PickingItemAvailability @default(Unchecked) @map("availability_status")
+  notes              String?
 
-  pickingList PickingList @relation(fields: [pickingListId], references: [id], onDelete: Cascade, map: "picking_list_items_picking_list_id_fkey")
+  pickingList      PickingList       @relation(fields: [pickingListId], references: [id], onDelete: Cascade, map: "picking_list_items_picking_list_id_fkey")
+  deliveryNoteItem DeliveryNoteItem?
 
   @@unique([pickingListId, salesOrderItemId], map: "picking_list_items_list_order_item_key")
   @@index([pickingListId], map: "picking_list_items_picking_list_id_idx")
@@ -476,6 +488,8 @@ model DeliveryNote {
   driverName         String?            @map("driver_name")
   vehiclePlateNumber String?            @map("vehicle_plate_number")
   authorizedBy       String?            @map("authorized_by")
+  issuedAt           DateTime?          @map("issued_at")
+  issuedBy           String?            @map("issued_by")
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
@@ -493,15 +507,21 @@ model DeliveryNote {
 }
 
 model DeliveryNoteItem {
-  sourceId       String?             @map("source_id")
-  source         DeliveryNoteSource? @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  id             String              @id(map: "delivery_note_items_pkey") @default(cuid()) @map("id")
-  deliveryNoteId String              @map("delivery_note_id")
-  productCode    String?             @map("product_code")
-  itemName       String              @map("item_name")
-  quantity       Int
-  unit           String              @default("PCS")
-  description    String?
+  sourceId                String?             @map("source_id")
+  source                  DeliveryNoteSource? @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  pickingListItemId       String?             @unique(map: "delivery_note_items_picking_list_item_id_key") @map("picking_list_item_id")
+  pickingListItem         PickingListItem?    @relation(fields: [pickingListItemId], references: [id], onDelete: SetNull, map: "delivery_note_items_picking_list_item_id_fkey")
+  id                      String              @id(map: "delivery_note_items_pkey") @default(cuid()) @map("id")
+  deliveryNoteId          String              @map("delivery_note_id")
+  productCode             String?             @map("product_code")
+  itemName                String              @map("item_name")
+  orderedQuantitySnapshot Int                 @map("ordered_quantity_snapshot")
+  packedQuantitySnapshot  Int                 @map("packed_quantity_snapshot")
+  quantity                Int
+  outstandingQuantity     Int                 @map("outstanding_quantity")
+  unit                    String              @default("PCS")
+  description             String?
+  adjustmentNote          String?             @map("adjustment_note")
 
   deliveryNote DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade, map: "delivery_note_items_delivery_note_id_fkey")
 

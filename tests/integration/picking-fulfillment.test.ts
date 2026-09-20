@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 vi.mock("@/lib/session", () => ({
-  requireCurrentUser: async () => ({ id: "test-admin", role: "ADMIN" }),
+  requireCurrentUser: async () => ({ id: "test-admin", username: "admin", displayName: "Test Admin", role: "ADMIN" }),
 }));
 vi.mock("@/lib/audit", () => ({ createAuditTrailLog: vi.fn() }));
 vi.mock("@/lib/customer-inquiry-lifecycle", () => ({
@@ -38,10 +38,12 @@ vi.mock("@/lib/prisma", () => ({
 
 import {
   createPickingList,
+  reopenPickingList,
   savePickingList,
 } from "../../src/lib/picking-list-actions";
 import {
   createDeliveryNote,
+  saveDeliveryNoteDraft,
   updateDeliveryNoteStatus,
 } from "../../src/lib/actions";
 
@@ -150,6 +152,11 @@ describe("Picking List to Delivered with the real database", () => {
             ).toBe(0);
             await expect(
               createPickingList(form({ salesOrderId: order.id })),
+            ).rejects.toThrow("Picking+PIC+is+required");
+            await expect(
+              createPickingList(
+                form({ salesOrderId: order.id, pickerName: "Picking PIC Test" }),
+              ),
             ).rejects.toThrow("success=Picking%20List%20created");
             let list = await tx.pickingList.findUniqueOrThrow({
               where: { salesOrderId: order.id },
@@ -158,32 +165,51 @@ describe("Picking List to Delivered with the real database", () => {
             await expect(
               createDeliveryNote(form({ pickingListId: list.id })),
             ).rejects.toThrow("Picking%20List%20is%20not%20ready");
-            const progressForm = (complete: boolean, full: boolean) =>
+            const progressForm = (
+              complete: boolean,
+              full: boolean,
+              withShortage = false,
+            ) =>
               form({
                 id: list.id,
                 version: list.updatedAt.toISOString(),
                 intent: complete ? "complete" : "save",
-                pickerName: "Picker Test",
-                packerName: "Packer Test",
-                packageCount: "2",
+                pickerName: "Picking PIC Test",
+                packerName: complete ? "Packing PIC Test" : "",
                 ...Object.fromEntries(
-                  list.items.flatMap((item) => [
-                    [`picked_${item.id}`, String(item.orderedQuantity)],
-                    [
-                      `packed_${item.id}`,
-                      String(full ? item.orderedQuantity : 0),
-                    ],
-                    [`notes_${item.id}`, full ? "" : "Awaiting packing"],
-                  ]),
+                  list.items.flatMap((item) => {
+                    const available =
+                      full && withShortage && item.itemName === "Test product A"
+                        ? item.orderedQuantity - 1
+                        : full
+                          ? item.orderedQuantity
+                          : 0;
+                    const availabilityStatus = !full
+                      ? "Unchecked"
+                      : available === item.orderedQuantity
+                        ? "Available"
+                        : "Partial";
+                    return [
+                      [`availability_${item.id}`, availabilityStatus],
+                      [`available_${item.id}`, String(available)],
+                      [`packed_${item.id}`, String(available)],
+                      [
+                        `notes_${item.id}`,
+                        available < item.orderedQuantity && full
+                          ? "One unit unavailable"
+                          : "",
+                      ],
+                    ];
+                  }),
                 ),
               });
             await expect(
               savePickingList(progressForm(true, false)),
-            ).rejects.toThrow("All+items+must+be+fully+picked+and+packed");
+            ).rejects.toThrow("Review+every+item");
             const staleForm = progressForm(true, true);
             await expect(
               savePickingList(progressForm(false, false)),
-            ).rejects.toThrow("success=Picking%20progress%20saved");
+            ).rejects.toThrow("success=Pick%20%26%20Pack%20progress%20saved");
             await expect(savePickingList(staleForm)).rejects.toThrow(
               "This+Picking+List+changed",
             );
@@ -192,19 +218,64 @@ describe("Picking List to Delivered with the real database", () => {
               include: { items: true },
             });
             expect(list.status).toBe("InProgress");
+            const missingPackingPic = progressForm(true, true);
+            missingPackingPic.set("packerName", "");
+            await expect(savePickingList(missingPackingPic)).rejects.toThrow(
+              "Review+every+item",
+            );
             await expect(
               savePickingList(progressForm(true, true)),
-            ).rejects.toThrow("success=Picking%20List%20marked%20Packed");
+            ).rejects.toThrow("success=Pick%20%26%20Pack%20completed");
             list = await tx.pickingList.findUniqueOrThrow({
               where: { id: list.id },
               include: { items: true },
             });
-            expect(list.status).toBe("Packed");
+            expect(list).toMatchObject({
+              status: "Packed",
+              pickerName: "Picking PIC Test",
+              packerName: "Packing PIC Test",
+            });
             expect(list.packedAt).not.toBeNull();
             expect(await summary()).toMatchObject({
               paymentStatus: "Clean",
               outstandingAmount: 0,
             });
+            await expect(
+              reopenPickingList(
+                form({
+                  id: list.id,
+                  version: list.updatedAt.toISOString(),
+                }),
+              ),
+            ).rejects.toThrow("A+reason+is+required+to+reopen");
+            await expect(
+              reopenPickingList(
+                form({
+                  id: list.id,
+                  version: list.updatedAt.toISOString(),
+                  confirmationNote: "Correct completed quantities",
+                }),
+              ),
+            ).rejects.toThrow("success=Picking%20List%20reopened");
+            list = await tx.pickingList.findUniqueOrThrow({
+              where: { id: list.id },
+              include: { items: true },
+            });
+            expect(list.status).toBe("InProgress");
+            expect(list.packedAt).toBeNull();
+            await expect(
+              savePickingList(progressForm(true, true, true)),
+            ).rejects.toThrow("success=Pick%20%26%20Pack%20completed");
+            list = await tx.pickingList.findUniqueOrThrow({
+              where: { id: list.id },
+              include: { items: true },
+            });
+            expect(list).toMatchObject({
+              status: "Packed",
+              pickerName: "Picking PIC Test",
+              packerName: "Packing PIC Test",
+            });
+            expect(list.packedAt).not.toBeNull();
             await expect(
               savePickingList(progressForm(false, true)),
             ).rejects.toThrow("can+no+longer+be+edited");
@@ -228,17 +299,55 @@ describe("Picking List to Delivered with the real database", () => {
               include: { items: true },
             });
             expect(note).toMatchObject({
-              status: "Issued",
+              status: "Draft",
               customerId,
               invoiceId: invoice.id,
               salesOrderId: order.id,
             });
+            await expect(
+              reopenPickingList(
+                form({
+                  id: list.id,
+                  version: list.updatedAt.toISOString(),
+                  confirmationNote: "Should not reopen after delivery",
+                }),
+              ),
+            ).rejects.toThrow(
+              "Picking+Lists+linked+to+Surat+Jalan+cannot+be+reopened",
+            );
             expect(
               note.items.map((item) => [item.itemName, item.quantity]).sort(),
             ).toEqual([
-              ["Test product A", 8],
+              ["Test product A", 7],
               ["Test product B", 2],
             ]);
+            const issueData = form({
+              id: note.id,
+              version: note.updatedAt.toISOString(),
+              intent: "issue",
+              recipientName: note.recipientName,
+              recipientPhone: note.recipientPhone,
+              recipientAddress: note.recipientAddress,
+              deliveryDate: "2026-09-12",
+              driverName: note.driverName!,
+              vehiclePlateNumber: note.vehiclePlateNumber!,
+            });
+            for (const item of note.items) {
+              issueData.set("quantity_" + item.id, item.itemName === "Test product A" ? "6" : "2");
+            }
+            await expect(saveDeliveryNoteDraft(issueData)).rejects.toThrow("issued%20and%20locked");
+            const issuedNote = await tx.deliveryNote.findUniqueOrThrow({
+              where: { id: note.id },
+              include: { items: true },
+            });
+            expect(issuedNote.status).toBe("Issued");
+            expect(issuedNote.items.map(item => [item.itemName, item.outstandingQuantity]).sort()).toEqual([
+              ["Test product A", 2],
+              ["Test product B", 0],
+            ]);
+            await expect(saveDeliveryNoteDraft(issueData)).rejects.toThrow(
+              "Issued%20Surat%20Jalan%20is%20locked",
+            );
             await expect(createDeliveryNote(deliveryForm)).rejects.toThrow(
               "Picking%20List%20is%20not%20ready",
             );

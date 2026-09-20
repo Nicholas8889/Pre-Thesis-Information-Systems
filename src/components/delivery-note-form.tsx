@@ -258,7 +258,7 @@ export function DeliveryNoteForm({
         selectedInvoice &&
         selectedInvoice.status !== "Paid" && (
           <div className="rounded-md bg-warning px-4 py-3 text-sm font-medium text-strong">
-            Surat Jalan can be created before full payment once picking and packing are complete.
+            Surat Jalan can be created before full payment once order preparation is complete.
           </div>
         )
       )}

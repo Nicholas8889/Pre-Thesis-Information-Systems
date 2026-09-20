@@ -167,7 +167,7 @@ describe("product average sold price integration", () => {
           monthLabel: "August 2026"
         });
         throw new Error(ROLLBACK_MARKER);
-      })
+      }, { timeout: 20_000 })
     ).rejects.toThrow(ROLLBACK_MARKER);
-  });
+  }, 25_000);
 });

@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 vi.mock("@/lib/session", () => ({
-  requireCurrentUser: async () => ({ id: "test-admin", role: "ADMIN" }),
+  requireCurrentUser: async () => ({ id: "test-admin", username: "admin", displayName: "Test Admin", role: "ADMIN" }),
 }));
 vi.mock("@/lib/audit", () => ({ createAuditTrailLog: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
@@ -35,6 +35,7 @@ vi.mock("@/lib/prisma", () => ({
 
 import {
   createDeliveryNote,
+  saveDeliveryNoteDraft,
   updateDeliveryNoteStatus,
 } from "../../src/lib/actions";
 
@@ -82,27 +83,55 @@ describe("combined delivery with the real database", () => {
           pickingListNumber: "PL-" + marker + "-" + index, salesOrderId: order.id, status: "Packed",
           pickerName: "Picker", packerName: "Packer", packageCount: 1, packedAt: new Date(),
           items: { create: { salesOrderItemId: order.items[0].id, itemName: "Shared product",
-            orderedQuantity: 10, pickedQuantity: 10, packedQuantity: 10 } }
-        } }));
+            orderedQuantity: 10, availableQuantity: 10, packedQuantity: 10, availabilityStatus: "Available" } }
+        }, include: { items: true } }));
       }
       const summary = async () => getCustomerPaymentSummary(await tx.customer.findUniqueOrThrow({
         where: { id: customerId }, include: { invoices: { select: customerInvoiceBalanceSelect } }
       }));
       const data = form({ recipientName: customer.name, recipientAddress: customer.address,
         deliveryDate: "2026-09-13", driverName: "Budi Santoso", vehiclePlateNumber: "B 1234 TJK" });
-      lists.forEach(list => data.append("pickingListId", list.id));
+      data.set("itemSelectionMode", "explicit");
+      lists.forEach((list, index) => {
+        data.append("pickingListId", list.id);
+        data.append("selectedItemId", list.items[0].id);
+        data.set("quantity_" + list.items[0].id, index === 0 ? "9" : "10");
+      });
       await expect(createDeliveryNote(data)).rejects.toThrow("tab=open");
       const note = await tx.deliveryNote.findFirstOrThrow({
         where: { customerId }, include: { sources: true, items: true }
       });
+      expect(note.status).toBe("Draft");
       expect(note.sources).toHaveLength(2);
       expect(note.items).toHaveLength(2);
       expect(new Set(note.items.map(item => item.sourceId)).size).toBe(2);
-      expect(note.items.map(item => item.quantity)).toEqual([10, 10]);
+      expect(note.items.map(item => [item.quantity, item.outstandingQuantity])).toEqual([
+        [9, 1],
+        [10, 0],
+      ]);
       expect(note.salesOrderId).toBeNull();
       expect(await summary()).toMatchObject({ outstandingAmount: 0, openInvoiceCount: 0 });
       await expect(createDeliveryNote(data)).rejects.toThrow("Picking%20List%20is%20not%20ready");
       expect(await tx.deliveryNote.count({ where: { customerId } })).toBe(1);
+      if (status === "Delivered") {
+        const issueData = form({
+          id: note.id,
+          version: note.updatedAt.toISOString(),
+          intent: "issue",
+          recipientName: note.recipientName,
+          recipientPhone: note.recipientPhone,
+          recipientAddress: note.recipientAddress,
+          deliveryDate: "2026-09-13",
+          driverName: note.driverName!,
+          vehiclePlateNumber: note.vehiclePlateNumber!,
+        });
+        note.items.forEach((item, index) => issueData.set("quantity_" + item.id, index === 0 ? "8" : "10"));
+        await expect(saveDeliveryNoteDraft(issueData)).rejects.toThrow("issued%20and%20locked");
+        const issued = await tx.deliveryNote.findUniqueOrThrow({ where: { id: note.id }, include: { items: true } });
+        expect(issued.status).toBe("Issued");
+        expect(issued.issuedAt).not.toBeNull();
+        expect(issued.items.map(item => item.outstandingQuantity)).toEqual([2, 0]);
+      }
       await expect(updateDeliveryNoteStatus(form({ id: note.id, status }))).rejects.toThrow("tab=completed");
       expect(await summary()).toMatchObject({
         outstandingAmount: status === "Delivered" ? 1600 : 0,

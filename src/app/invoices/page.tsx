@@ -14,15 +14,25 @@ import {
   TableOverflowMenu
 } from "@/components/table-actions";
 import { RestrictedAction } from "@/components/restricted-action";
+import { ServerPagination } from "@/components/server-pagination";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { canCreateDeliveryNoteForInvoice, getPaymentTermLabel } from "@/lib/calculations";
-import { isDoneInvoice, isOngoingInvoice } from "@/lib/process-status";
-import { getSearchMessage, syncOverdueInvoices } from "@/lib/workflow";
+import { getSearchMessage } from "@/lib/workflow";
+import {
+  getClosedInvoiceWhere,
+  getOpenInvoiceWhere,
+  withEffectiveInvoiceStatus
+} from "@/lib/invoice-status";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
 import { formatNpwp } from "@/lib/npwp";
 import { formatPpnRate } from "@/lib/tax";
+import {
+  getCursorArgs,
+  getCursorPage,
+  getCursorPagination
+} from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -37,22 +47,31 @@ export default async function InvoicesPage({
   const { success, error } = getSearchMessage(params);
   const currentUser = await getCurrentUser();
   const canCreateSuratJalan = canRole(currentUser?.role, "CREATE_SURAT_JALAN");
+  const pagination = getCursorPagination(params);
+  const now = new Date();
+  const ongoingWhere = getOpenInvoiceWhere();
+  const doneWhere = getClosedInvoiceWhere();
+  const visibleWhere = activeTab === "done" ? doneWhere : ongoingWhere;
 
-  await syncOverdueInvoices();
+  const [invoiceRecords, ongoingCount, doneCount] = await Promise.all([
+    prisma.invoice.findMany({
+      where: visibleWhere,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...getCursorArgs(pagination),
+      include: {
+        customer: true,
+        salesOrder: true
+      }
+    }),
+    prisma.invoice.count({ where: ongoingWhere }),
+    prisma.invoice.count({ where: doneWhere })
+  ]);
+  const invoicePage = getCursorPage(invoiceRecords, pagination);
+  const visibleInvoices = invoicePage.items.map((invoice) =>
+    withEffectiveInvoiceStatus(invoice, now)
+  );
 
-  const invoices = await prisma.invoice.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      customer: true,
-      salesOrder: true
-    }
-  });
-
-  const ongoingInvoices = invoices.filter((invoice) => isOngoingInvoice(invoice.status));
-  const doneInvoices = invoices.filter((invoice) => isDoneInvoice(invoice.status));
-  const visibleInvoices = activeTab === "done" ? doneInvoices : ongoingInvoices;
-
-  const selectedInvoice =
+  const selectedInvoiceRecord =
     activeTab === "ongoing"
       ? viewId
         ? await prisma.invoice.findUnique({
@@ -74,6 +93,9 @@ export default async function InvoicesPage({
             })
           : null
       : null;
+  const selectedInvoice = selectedInvoiceRecord
+    ? withEffectiveInvoiceStatus(selectedInvoiceRecord, now)
+    : null;
 
   return (
     <>
@@ -87,8 +109,8 @@ export default async function InvoicesPage({
       <ProcessTabs
         basePath="/invoices"
         activeTab={activeTab}
-        ongoingCount={ongoingInvoices.length}
-        doneCount={doneInvoices.length}
+        ongoingCount={ongoingCount}
+        doneCount={doneCount}
       />
 
       {selectedInvoice && (
@@ -112,7 +134,7 @@ export default async function InvoicesPage({
                 status: selectedInvoice.status
               }) && canCreateSuratJalan ? (
                 <Link
-                  href={`/surat-jalan?tab=picking&invoiceId=${selectedInvoice.id}`}
+                  href={`/pick-pack?invoiceId=${selectedInvoice.id}`}
                   title="Open Warehouse"
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-4 text-sm font-semibold text-brand"
                 >
@@ -241,7 +263,7 @@ export default async function InvoicesPage({
           />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Invoice</th>
@@ -316,6 +338,14 @@ export default async function InvoicesPage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={invoicePage.hasNext}
+          label="invoices"
+          nextCursor={invoicePage.nextCursor}
+          pathname="/invoices"
+          searchParams={params}
+          state={pagination}
+        />
       </section>
     </>
   );

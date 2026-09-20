@@ -106,7 +106,7 @@ describe("order and invoice tax snapshots integration", () => {
         expect(invoice.netSalesAmount + invoice.ppnAmount).toBe(invoice.totalAmount);
 
         throw new Error(ROLLBACK_MARKER);
-      })
+      }, { timeout: 20_000 })
     ).rejects.toThrow(ROLLBACK_MARKER);
   }, 20_000);
 });

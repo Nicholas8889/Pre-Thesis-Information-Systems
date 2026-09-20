@@ -1,11 +1,13 @@
 "use server";
 
-import { Prisma } from "@prisma/client";
+import { PickingItemAvailability, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { normalizeActionNote } from "@/lib/action-notes";
 import { createAuditTrailLog } from "@/lib/audit";
 import {
   canCreatePickingList,
+  getPickingTotals,
   isPickingComplete,
   validatePickingQuantities,
 } from "@/lib/picking-list";
@@ -18,15 +20,20 @@ function getText(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function fail(message: string, pickingListId?: string): never {
-  const query = new URLSearchParams({ tab: "picking", error: message });
-  if (pickingListId) query.set("viewPicking", pickingListId);
-  redirect(`/surat-jalan?${query.toString()}`);
+function fail(
+  message: string,
+  pickingListId?: string,
+  tab: "active" | "completed" = "active",
+): never {
+  const query = new URLSearchParams({ tab, error: message });
+  if (pickingListId) query.set("view", pickingListId);
+  redirect(`/pick-pack?${query.toString()}`);
 }
 
 function refreshPickingViews() {
   for (const path of [
     "/",
+    "/pick-pack",
     "/surat-jalan",
     "/sales-orders",
     "/customer-purchase-orders",
@@ -44,7 +51,9 @@ export async function createPickingList(formData: FormData) {
     fail("Only Admin and Manager can create Picking Lists");
 
   const salesOrderId = getText(formData, "salesOrderId");
+  const pickerName = getText(formData, "pickerName");
   if (!salesOrderId) fail("Select a Sales Order or Customer PO");
+  if (!pickerName) fail("Picking PIC is required");
 
   const order = await prisma.salesOrder.findUnique({
     where: { id: salesOrderId },
@@ -82,11 +91,15 @@ export async function createPickingList(formData: FormData) {
       data: {
         pickingListNumber: `PL-${order.orderNumber}`,
         salesOrderId: order.id,
+        pickerName,
         items: {
           create: order.items.map((item) => ({
             salesOrderItemId: item.id,
             itemName: item.itemName,
             orderedQuantity: item.quantity,
+            availableQuantity: 0,
+            packedQuantity: 0,
+            availabilityStatus: "Unchecked",
           })),
         },
       },
@@ -104,18 +117,22 @@ export async function createPickingList(formData: FormData) {
   }
 
   await createAuditTrailLog({
-    moduleName: "Picking List & Surat Jalan",
+    moduleName: "Pick & Pack",
     entityType: "PICKING_LIST",
     actionNote: getText(formData, "confirmationNote"),
     entityId: pickingList.id,
     recordReference: pickingList.pickingListNumber,
     action: "CREATED",
     changeSummary: `Picking List created from ${order.orderNumber}`,
-    newValue: { salesOrderId: order.id, itemCount: order.items.length },
+    newValue: {
+      salesOrderId: order.id,
+      pickerName,
+      itemCount: order.items.length,
+    },
   });
   refreshPickingViews();
   redirect(
-    `/surat-jalan?tab=picking&viewPicking=${pickingList.id}&success=${encodeURIComponent("Picking List created")}`,
+    `/pick-pack?tab=active&view=${pickingList.id}&success=${encodeURIComponent("Picking List created")}`,
   );
 }
 
@@ -151,48 +168,40 @@ export async function savePickingList(formData: FormData) {
   const items = pickingList.items.map((item) => ({
     id: item.id,
     orderedQuantity: item.orderedQuantity,
-    pickedQuantity: /^\d+$/.test(getText(formData, `picked_${item.id}`))
-      ? Number(getText(formData, `picked_${item.id}`))
+    availabilityStatus: getText(
+      formData,
+      `availability_${item.id}`,
+    ) as PickingItemAvailability,
+    availableQuantity: /^\d+$/.test(
+      getText(formData, `available_${item.id}`),
+    )
+      ? Number(getText(formData, `available_${item.id}`))
       : NaN,
-    packedQuantity: /^\d+$/.test(getText(formData, `packed_${item.id}`))
+    packedQuantity: /^\d+$/.test(
+      getText(formData, `packed_${item.id}`),
+    )
       ? Number(getText(formData, `packed_${item.id}`))
       : NaN,
     notes: getText(formData, `notes_${item.id}`) || null,
   }));
   if (!validatePickingQuantities(items)) {
     fail(
-      "Each picked and packed quantity must be between zero and the ordered quantity; packed cannot exceed picked",
+      "Availability, available quantity, and packed quantity are inconsistent",
       id,
     );
   }
 
-  const pickerName = getText(formData, "pickerName") || null;
+  const pickerName = getText(formData, "pickerName") || pickingList.pickerName;
   const packerName = getText(formData, "packerName") || null;
-  const rawPackageCount = getText(formData, "packageCount");
-  const packageCount = rawPackageCount ? Number(rawPackageCount) : null;
-  if (
-    packageCount !== null &&
-    (!Number.isSafeInteger(packageCount) ||
-      packageCount < 1 ||
-      packageCount > 2147483647)
-  ) {
-    fail("Package count must be a positive whole number", id);
-  }
-  if (
-    intent === "complete" &&
-    (!isPickingComplete(items) || !pickerName || !packerName || !packageCount)
-  ) {
+  if (intent === "complete" && (!isPickingComplete(items) || !pickerName || !packerName)) {
     fail(
-      "All items must be fully picked and packed, with picker, packer, and package count recorded",
+      "Review every item, pack all available stock, record Picking and Packing PIC, and explain every shortage",
       id,
     );
   }
 
-  const hasProgress = items.some(
-    (item) => item.pickedQuantity > 0 || item.packedQuantity > 0,
-  );
-  const status =
-    intent === "complete" ? "Packed" : hasProgress ? "InProgress" : "Pending";
+  const totals = getPickingTotals(items);
+  const status = intent === "complete" ? "Packed" : "InProgress";
   try {
     await prisma.$transaction(async (tx) => {
       const updated = await tx.pickingList.updateMany({
@@ -207,7 +216,7 @@ export async function savePickingList(formData: FormData) {
           status,
           pickerName,
           packerName,
-          packageCount,
+          packageCount: null,
           notes: getText(formData, "notes") || null,
           packedAt: intent === "complete" ? new Date() : null,
         },
@@ -217,8 +226,9 @@ export async function savePickingList(formData: FormData) {
         await tx.pickingListItem.update({
           where: { id: item.id },
           data: {
-            pickedQuantity: item.pickedQuantity,
+            availableQuantity: item.availableQuantity,
             packedQuantity: item.packedQuantity,
+            availabilityStatus: item.availabilityStatus,
             notes: item.notes,
           },
         });
@@ -235,7 +245,7 @@ export async function savePickingList(formData: FormData) {
   }
 
   await createAuditTrailLog({
-    moduleName: "Picking List & Surat Jalan",
+    moduleName: "Pick & Pack",
     entityType: "PICKING_LIST",
     actionNote: getText(formData, "confirmationNote"),
     entityId: id,
@@ -243,22 +253,102 @@ export async function savePickingList(formData: FormData) {
     action: intent === "complete" ? "PACKED" : "UPDATED",
     changeSummary:
       intent === "complete"
-        ? "Picking and packing completed"
-        : "Picking progress saved",
+        ? `Pick & Pack completed with ${totals.shortage} shortage unit(s)`
+        : "Pick & Pack progress saved",
     oldValue: {
       status: pickingList.status,
       items: pickingList.items.map(
-        ({ id, pickedQuantity, packedQuantity }) => ({
+        ({ id, availableQuantity, packedQuantity, availabilityStatus }) => ({
           id,
-          pickedQuantity,
+          availableQuantity,
           packedQuantity,
+          availabilityStatus,
         }),
       ),
     },
-    newValue: { status, pickerName, packerName, packageCount, items },
+    newValue: {
+      status,
+      pickerName,
+      packerName,
+      shortageQuantity: totals.shortage,
+      items,
+    },
   });
   refreshPickingViews();
   redirect(
-    `/surat-jalan?tab=picking&viewPicking=${id}&success=${encodeURIComponent(intent === "complete" ? "Picking List marked Packed" : "Picking progress saved")}`,
+    `/pick-pack?tab=${intent === "complete" ? "completed" : "active"}&view=${id}&success=${encodeURIComponent(intent === "complete" ? "Pick & Pack completed" : "Pick & Pack progress saved")}`,
+  );
+}
+
+export async function reopenPickingList(formData: FormData) {
+  const user = await requireCurrentUser();
+  if (!canRole(user.role, "CREATE_SURAT_JALAN")) {
+    fail("Only Admin and Manager can reopen Picking Lists", undefined, "completed");
+  }
+
+  const id = getText(formData, "id");
+  if (!id) fail("Invalid Picking List action", undefined, "completed");
+  const actionNote = normalizeActionNote(getText(formData, "confirmationNote"));
+  if (!actionNote) {
+    fail("A reason is required to reopen a Picking List", id, "completed");
+  }
+
+  const pickingList = await prisma.pickingList.findUnique({
+    where: { id },
+    include: {
+      deliveryNote: { select: { id: true } },
+      deliverySource: { select: { id: true } },
+    },
+  });
+  if (!pickingList || pickingList.status !== "Packed") {
+    fail("Only completed Picking Lists can be reopened", id, "completed");
+  }
+  if (pickingList.deliveryNote || pickingList.deliverySource) {
+    fail(
+      "Picking Lists linked to Surat Jalan cannot be reopened",
+      id,
+      "completed",
+    );
+  }
+  if (getText(formData, "version") !== pickingList.updatedAt.toISOString()) {
+    fail(
+      "This Picking List changed. Review the latest status and try again.",
+      id,
+      "completed",
+    );
+  }
+
+  const updated = await prisma.pickingList.updateMany({
+    where: {
+      id,
+      updatedAt: pickingList.updatedAt,
+      status: "Packed",
+      deliveryNote: { is: null },
+      deliverySource: { is: null },
+    },
+    data: { status: "InProgress", packerName: null, packedAt: null },
+  });
+  if (updated.count !== 1) {
+    fail(
+      "This Picking List changed. Review the latest status and try again.",
+      id,
+      "completed",
+    );
+  }
+
+  await createAuditTrailLog({
+    moduleName: "Pick & Pack",
+    entityType: "PICKING_LIST",
+    actionNote,
+    entityId: id,
+    recordReference: pickingList.pickingListNumber,
+    action: "REOPENED",
+    changeSummary: "Completed Picking List reopened for correction",
+    oldValue: { status: pickingList.status, packedAt: pickingList.packedAt },
+    newValue: { status: "InProgress", packedAt: null },
+  });
+  refreshPickingViews();
+  redirect(
+    `/pick-pack?tab=active&view=${id}&success=${encodeURIComponent("Picking List reopened")}`,
   );
 }

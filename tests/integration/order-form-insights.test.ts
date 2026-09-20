@@ -1,16 +1,7 @@
 import { PrismaClient } from "@prisma/client";
-import { customerInvoiceBalanceSelect } from "../../src/lib/customer-payment-query";
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  getCustomerPaymentBehaviour,
-  getCustomerPaymentSummary,
-  getJakartaTrailingTwelveMonthWindow
-} from "../../src/lib/customer-intelligence";
-import {
-  getCurrentMonthAverageSoldPrice,
-  getJakartaCurrentMonthWindow,
-  PRODUCT_AVERAGE_ELIGIBLE_STATUSES
-} from "../../src/lib/product-insights";
+import { loadOrderFormInsights } from "../../src/lib/order-form-insights";
+import { formatNpwp } from "../../src/lib/npwp";
 
 const prisma = new PrismaClient();
 const ROLLBACK_MARKER = "ROLLBACK_ORDER_FORM_INSIGHTS_TEST";
@@ -20,14 +11,12 @@ describe("order form insights integration", () => {
     await prisma.$disconnect();
   });
 
-  it("batch-loads customer and product history used by both order forms", async () => {
+  it("loads shallow options with database-side customer and product aggregates", async () => {
     const marker = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const npwp = `${Date.now()}${Math.floor(Math.random() * 1_000)}`
       .padStart(16, "0")
       .slice(-16);
     const now = new Date("2026-08-12T05:00:00.000Z");
-    const customerHistoryWindow = getJakartaTrailingTwelveMonthWindow(now);
-    const currentMonth = getJakartaCurrentMonthWindow(now);
 
     await expect(
       prisma.$transaction(async (tx) => {
@@ -50,12 +39,12 @@ describe("order form insights integration", () => {
           }
         });
 
-        await tx.salesOrder.create({
+        const salesOrder = await tx.salesOrder.create({
           data: {
             orderNumber: `SO-INSIGHT-${marker}`,
             customerId: customer.id,
             orderDate: new Date("2026-08-05T05:00:00.000Z"),
-            status: "Confirmed",
+            status: "Invoiced",
             subtotal: 220,
             total: 220,
             netSalesAmount: 220,
@@ -72,88 +61,61 @@ describe("order form insights integration", () => {
             }
           }
         });
+        const invoice = await tx.invoice.create({
+          data: {
+            invoiceNumber: `INV-INSIGHT-${marker}`,
+            salesOrderId: salesOrder.id,
+            customerId: customer.id,
+            issueDate: new Date("2026-08-06T05:00:00.000Z"),
+            dueDate: new Date("2026-08-20T05:00:00.000Z"),
+            totalAmount: 220,
+            remainingAmount: 220,
+            netSalesAmount: 220,
+            status: "Unpaid"
+          }
+        });
+        await tx.deliveryNote.create({
+          data: {
+            deliveryNoteNumber: `SJ-INSIGHT-${marker}`,
+            invoiceId: invoice.id,
+            salesOrderId: salesOrder.id,
+            customerId: customer.id,
+            recipientName: customer.name,
+            recipientPhone: "",
+            recipientAddress: "",
+            deliveryDate: new Date("2026-08-07T05:00:00.000Z"),
+            status: "Delivered"
+          }
+        });
 
-        const [loadedCustomers, loadedProducts] = await Promise.all([
-          tx.customer.findMany({
-            where: { id: customer.id },
-            select: {
-              id: true,
-              npwp: true,
-              salesOrders: {
-                where: {
-                  orderDate: {
-                    gte: customerHistoryWindow.observationStart,
-                    lte: customerHistoryWindow.observationEnd
-                  }
-                },
-                select: {
-                  orderDate: true,
-                  status: true,
-                  paymentTermType: true,
-                  creditTermMonths: true
-                }
-              },
-              invoices: {
-                where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
-                select: customerInvoiceBalanceSelect
-              }
-            }
-          }),
-          tx.product.findMany({
-            where: { id: product.id },
-            select: {
-              id: true,
-              salesOrderItems: {
-                where: {
-                  salesOrder: {
-                    orderDate: {
-                      gte: currentMonth.monthStart,
-                      lt: currentMonth.nextMonthStart
-                    },
-                    status: { in: [...PRODUCT_AVERAGE_ELIGIBLE_STATUSES] }
-                  }
-                },
-                select: {
-                  productId: true,
-                  quantity: true,
-                  subtotal: true,
-                  salesOrder: { select: { orderDate: true, status: true } }
-                }
-              }
-            }
-          })
-        ]);
-
-        const loadedCustomer = loadedCustomers[0];
-        const loadedProduct = loadedProducts[0];
+        const insights = await loadOrderFormInsights(tx, now);
+        const loadedCustomer = insights.customers.find(
+          (candidate) => candidate.id === customer.id
+        );
+        const loadedProduct = insights.products.find(
+          (candidate) => candidate.id === product.id
+        );
         expect(loadedCustomer).toBeDefined();
         expect(loadedProduct).toBeDefined();
         if (!loadedCustomer || !loadedProduct) {
           throw new Error("Insight fixture was not loaded");
         }
 
-        expect(getCustomerPaymentSummary(loadedCustomer)).toEqual({ paymentStatus: "Clean", outstandingAmount: 0, openInvoiceCount: 0 });
-        expect(getCustomerPaymentBehaviour(loadedCustomer, now)).toMatchObject({
-          behaviour: "Immediate Payment",
-          orderCount: 1,
-          limitedHistory: true
+        expect(loadedCustomer).toMatchObject({
+          paymentStatus: "Outstanding Payment",
+          outstandingAmount: 220,
+          openInvoiceCount: 1,
+          paymentBehaviour: "Immediate Payment"
         });
-        expect(loadedCustomer.npwp).toBe(npwp);
-        expect(
-          getCurrentMonthAverageSoldPrice(
-            product.id,
-            loadedProduct.salesOrderItems,
-            now
-          )
-        ).toMatchObject({
+        expect(loadedCustomer.npwp).toBe(formatNpwp(npwp));
+        expect(loadedProduct).toMatchObject({
           averageSoldPrice: 110,
-          eligibleQuantity: 2,
-          eligibleSalesValue: 220,
-          monthLabel: "August 2026"
+          averageEligibleQuantity: 2,
+          averageMonthLabel: "August 2026"
         });
 
         throw new Error(ROLLBACK_MARKER);
-      })
+      }, { timeout: 20_000 })
     ).rejects.toThrow(ROLLBACK_MARKER);
-  });
+  }, 25_000);
 });

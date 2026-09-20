@@ -6,6 +6,12 @@ export type CustomerPaymentSummary = {
   openInvoiceCount: number;
 };
 
+export type CustomerPaymentBehaviourCounts = {
+  immediatePayment: number;
+  shortTermCredit: number;
+  longTermCredit: number;
+};
+
 type CustomerInvoiceBalance = {
   remainingAmount: number;
   status: string;
@@ -40,6 +46,19 @@ export function getCustomerPaymentSummary(customer: {
     }
   }
 
+  return getCustomerPaymentSummaryFromAggregate({
+    outstandingAmount,
+    openInvoiceCount
+  });
+}
+
+export function getCustomerPaymentSummaryFromAggregate({
+  outstandingAmount,
+  openInvoiceCount
+}: {
+  outstandingAmount: number;
+  openInvoiceCount: number;
+}): CustomerPaymentSummary {
   return {
     paymentStatus: outstandingAmount > 0 ? "Outstanding Payment" : "Clean",
     outstandingAmount,
@@ -113,7 +132,7 @@ export function getCustomerPaymentBehaviour(
   now = new Date()
 ): CustomerPaymentBehaviourResult {
   const { observationStart, observationEnd } = getJakartaTrailingTwelveMonthWindow(now);
-  const counts = {
+  const counts: CustomerPaymentBehaviourCounts = {
     immediatePayment: 0,
     shortTermCredit: 0,
     longTermCredit: 0
@@ -137,6 +156,14 @@ export function getCustomerPaymentBehaviour(
     }
   }
 
+  return getCustomerPaymentBehaviourFromCounts(counts, now);
+}
+
+export function getCustomerPaymentBehaviourFromCounts(
+  counts: CustomerPaymentBehaviourCounts,
+  now = new Date()
+): CustomerPaymentBehaviourResult {
+  const { observationStart, observationEnd } = getJakartaTrailingTwelveMonthWindow(now);
   const orderCount =
     counts.immediatePayment + counts.shortTermCredit + counts.longTermCredit;
   const limitedHistory = orderCount > 0 && orderCount <= 2;

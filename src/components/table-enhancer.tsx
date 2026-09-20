@@ -80,6 +80,7 @@ function enhanceTable(table: HTMLTableElement) {
   if (!body || headers.length === 0) return;
 
   const rows = Array.from(body.rows);
+  const serverPaginated = table.dataset.serverPaginated === "true";
   const existingState = tableStates.get(table);
   if (
     existingState &&
@@ -289,7 +290,11 @@ function enhanceTable(table: HTMLTableElement) {
       const matchesColumns = [...columnFilters.values()].every((filter) => filter(row));
       return matchesSearch && matchesColumns;
     });
-    const range = getTablePageRange(matchingRows.length, currentPage, rowsPerPage);
+    const range = getTablePageRange(
+      matchingRows.length,
+      currentPage,
+      serverPaginated ? Math.max(matchingRows.length, 1) : rowsPerPage
+    );
     currentPage = range.page;
     const pageRows = new Set(matchingRows.slice(range.start, range.end));
     rows.forEach((row) => {
@@ -297,14 +302,17 @@ function enhanceTable(table: HTMLTableElement) {
     });
 
     const firstShown = matchingRows.length === 0 ? 0 : range.start + 1;
-    resultCount.textContent =
-      matchingRows.length === rows.length
+    resultCount.textContent = serverPaginated
+      ? matchingRows.length === rows.length
+        ? `${rows.length} loaded on this page`
+        : `${matchingRows.length} matching on this page (${rows.length} loaded)`
+      : matchingRows.length === rows.length
         ? `Showing ${firstShown}-${range.end} of ${rows.length}`
         : `Showing ${firstShown}-${range.end} of ${matchingRows.length} matching (${rows.length} total)`;
     pageStatus.textContent = `Page ${range.page} of ${range.totalPages}`;
     previousButton.disabled = range.page <= 1;
     nextButton.disabled = range.page >= range.totalPages;
-    pagination.hidden = range.totalPages <= 1;
+    pagination.hidden = serverPaginated || range.totalPages <= 1;
   }
 }
 

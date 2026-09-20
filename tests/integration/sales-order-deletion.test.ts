@@ -76,7 +76,7 @@ describe("sales order process deletion integration", () => {
               deliveryDate: new Date(),
               status: "Issued",
               items: {
-                create: { itemName: "Test Item", quantity: 1, unit: "PCS" }
+                create: { itemName: "Test Item", orderedQuantitySnapshot: 1, packedQuantitySnapshot: 1, quantity: 1, outstandingQuantity: 0, unit: "PCS" }
               }
             },
             include: { items: true }

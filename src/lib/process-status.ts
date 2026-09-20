@@ -1,5 +1,5 @@
-const ongoingInvoiceStatuses = ["Unpaid", "Partial", "Overdue"];
-const doneInvoiceStatuses = ["Paid", "Cancelled"];
+export const ONGOING_INVOICE_STATUSES = ["Unpaid", "Partial", "Overdue"] as const;
+export const DONE_INVOICE_STATUSES = ["Paid", "Cancelled"] as const;
 
 export const ONGOING_SALES_ORDER_STATUSES = ["Draft", "Confirmed", "Invoiced"] as const;
 export const DONE_SALES_ORDER_STATUSES = ["Shipped", "Cancelled"] as const;
@@ -7,15 +7,15 @@ export const DONE_SALES_ORDER_STATUSES = ["Shipped", "Cancelled"] as const;
 const ongoingDeliveryNoteStatuses = ["Draft", "Issued"];
 const doneDeliveryNoteStatuses = ["Delivered", "Cancelled"];
 
-const ongoingCollectionTaskStatuses = ["Planned"];
-const doneCollectionTaskStatuses = ["Done", "Cancelled"];
+export const ONGOING_COLLECTION_TASK_STATUSES = ["Planned"] as const;
+export const DONE_COLLECTION_TASK_STATUSES = ["Done", "Cancelled"] as const;
 
 export function isOngoingInvoice(status: string) {
-  return ongoingInvoiceStatuses.includes(status);
+  return ONGOING_INVOICE_STATUSES.some((ongoingStatus) => ongoingStatus === status);
 }
 
 export function isDoneInvoice(status: string) {
-  return doneInvoiceStatuses.includes(status);
+  return DONE_INVOICE_STATUSES.some((doneStatus) => doneStatus === status);
 }
 
 type SalesOrderProcessInput =
@@ -62,15 +62,22 @@ export function isDoneReceivable({
   status: string;
   remainingAmount: number;
 }) {
-  return remainingAmount <= 0 || doneInvoiceStatuses.includes(status);
+  return (
+    remainingAmount <= 0 ||
+    DONE_INVOICE_STATUSES.some((doneStatus) => doneStatus === status)
+  );
 }
 
 export function isOngoingCollectionTask(status: string) {
-  return ongoingCollectionTaskStatuses.includes(status);
+  return ONGOING_COLLECTION_TASK_STATUSES.some(
+    (ongoingStatus) => ongoingStatus === status
+  );
 }
 
 export function isDoneCollectionTask(status: string) {
-  return doneCollectionTaskStatuses.includes(status);
+  return DONE_COLLECTION_TASK_STATUSES.some(
+    (doneStatus) => doneStatus === status
+  );
 }
 
 function normalizeSalesOrderProcessInput(input: SalesOrderProcessInput) {

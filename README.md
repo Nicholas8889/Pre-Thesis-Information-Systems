@@ -205,7 +205,7 @@ Roles control operational actions in this system. Sales can create Sales Orders,
 7. Open Invoices, show the generated invoice detail, then select View / Print Invoice.
 8. Show the printable invoice layout with Bill To, item table, total, amount in words, payment terms, due date, payment status, and signature area.
 9. Open Payments, select Record Payment from the invoice queue, and record a partial payment.
-10. Open Picking List & Surat Jalan, create a Picking List, record actual picking/packing, mark Packed, and issue Surat Jalan.
+10. Open Pick & Pack, create and verify a Picking List, mark it Prepared, then continue to the separate Surat Jalan module.
 11. Select View / Print to show the printable Surat Jalan document with recipient, item table, attention notes, and signature lines.
 12. Open Receivables and show the remaining balance derived from the invoice.
 13. Select Create Collection Task from the receivable row and save a planned reminder.
@@ -234,8 +234,8 @@ This is a thesis project. It now supports local demo usage and Vercel/Supabase d
 7. Use Admin or Manager access to generate the invoice from an eligible order for a Clean customer. Manager approval generates the invoice automatically for an order requiring approval.
 8. Open Invoices and select View / Print Invoice to show the printable invoice output.
 9. Open Payments and use the invoice queue to record a partial or full payment.
-10. Open the warehouse workflow, complete a Picking List, then issue Surat Jalan from its verified quantities.
-11. Open the printable Surat Jalan view and use Print Surat Jalan if a paper/PDF copy is needed.
+10. Open Pick & Pack, complete a Picking List, create a Draft Surat Jalan, adjust final delivery quantities, then Issue & Lock it.
+11. After Issue, open the printable Surat Jalan; only the locked final items and quantities are shown.
 12. Open Receivables and confirm only invoices with remaining balances appear.
 13. Select Create Collection Task from a receivable row and save the planned reminder.
 14. Return to Dashboard and confirm totals, payment-term counts, Surat Jalan count, receivables, recent orders, and collection updates.
@@ -250,6 +250,7 @@ This is a thesis project. It now supports local demo usage and Vercel/Supabase d
 - Customer Purchase Orders
 - Invoices
 - Payments
+- Pick & Pack
 - Surat Jalan
 - Receivables
 - Collections
@@ -260,28 +261,29 @@ This is a thesis project. It now supports local demo usage and Vercel/Supabase d
 
 This project is intentionally limited to the scope of a thesis project and controlled internal demo/pilot. It does not include payment gateway integration, bank integration, ERP features, full accounting journals, general ledger, inventory management, e-commerce checkout, advanced authentication, complex page-level role isolation, AI features, or automated external API dependencies.
 
-## Picking List & Surat Jalan
+## Pick & Pack and Surat Jalan
 
-The warehouse module at `/surat-jalan` has three tabs:
+Fulfillment is split into two modules:
 
-- **Picking & Packing**: eligible SO/Customer PO orders awaiting a Picking List, plus Pending, InProgress, and Packed lists that do not yet have Surat Jalan. Use **Add Picking List** at the top of this tab.
-- **Surat Jalan Open**: issued deliveries and historical Draft delivery notes.
-- **Completed**: Delivered documents. Cancelled documents remain searchable in the separate **Cancelled archive** filter and are excluded from the Completed count.
+- **Pick & Pack** at `/pick-pack`: **Active** contains eligible SO/Customer PO orders plus Pending and InProgress lists; **Completed** contains every Prepared list, including lists that already have Surat Jalan.
+- **Surat Jalan** at `/surat-jalan`: creation of delivery documents from Prepared lists, active delivery documents in **Surat Jalan Open**, and Delivered documents in **Completed**. Cancelled documents remain available through the separate archive filter.
 
-Admin and Manager create and update Picking Lists and Surat Jalan. Sales can review them. An order must be Confirmed/Invoiced with Approved/NotRequired approval and an active invoice. Both Immediate Payment and Credit invoices may remain Unpaid, Partial, or Overdue during picking and delivery. Existing picking or delivery records prevent a duplicate process.
+Admin and Manager create and update Picking Lists and Surat Jalan. Sales can review them. An order must be Confirmed/Invoiced with Approved/NotRequired approval and an active invoice. Both Immediate Payment and Credit invoices may remain Unpaid, Partial, or Overdue during preparation and delivery. Existing picking or delivery records prevent a duplicate process.
 
-1. Create a Picking List from an eligible SO or Customer PO. Product names and ordered quantities are copied into an internal worksheet without prices.
-2. Print the Pick & Pack Sheet if needed. Record actual picked/packed quantities, discrepancy notes, picker, packer, and package count in the system.
-3. Save partial progress while shortages are resolved. Packed cannot exceed Picked; neither can exceed Ordered.
-4. Select **Mark Packed** only when every line is fully picked and packed and both staff names and package count are recorded. The verified list becomes read-only and stays in Picking & Packing.
-5. Select **Create Surat Jalan** at the top of Picking & Packing or from a Packed list. Choose a customer, select one or more fully packed SO/Customer PO orders, and enter one recipient address, date, driver, and vehicle plate for the entire shipment. Then select **Issue Surat Jalan**. The server uses verified quantities and source order/customer/invoice links; manual creation and old direct entry points cannot bypass picking.
-6. The document moves to Surat Jalan Open. Issued can become Delivered or Cancelled; historical Draft can become Issued or Cancelled. Delivered and Cancelled cannot be reopened through the normal status action.
-7. Delivered moves to Completed and activates customer outstanding only if the linked invoice still has a remaining balance. Printing or completing packing does not change customer payment status.
+1. Open **Pick & Pack** and create a Picking List from an eligible invoiced SO or Customer PO, then assign the required **Picking PIC**. Customer, product, ordered quantity, invoice, and order references are copied automatically without prices.
+2. During physical work, record each item as Available, Partial, Unavailable, or Unchecked; enter Available and Packed quantities, operational notes, and the **Packing PIC**.
+3. Save partial progress at any time. Packed cannot exceed Available, and Available cannot exceed Ordered.
+4. Select **Complete Pick & Pack** after every item has been checked and every available unit is packed. Shortages are allowed, but each shortage requires an operational note. The result becomes read-only and moves to **Completed**.
+5. Completed shows Fully Packed or Shortage, both PICs, quantity totals, and filters for PIC and fulfillment condition. Reopen remains available before Surat Jalan exists.
+6. Select **Create Surat Jalan**, choose a customer, then select packed items from one or more completed SO / Customer PO records for the same customer and destination. Set each selected final quantity from one up to its packed quantity.
+7. A Draft snapshot keeps every line from each included source order. Selected lines use the chosen final quantity; unselected and packed-zero lines use zero, so the difference remains stored as outstanding delivery. While Draft, the header and final quantities can still be adjusted from zero up to the packed quantity.
+8. Select **Issue & Lock** to save and lock the final document. Only positive final quantities are printed. Issued documents can become Delivered or Cancelled; Delivered documents move to **Completed**.
 
-This version supports one Picking List per order. One Surat Jalan can combine multiple fully packed SO/Customer PO orders for the same customer and one shared destination; each order can belong to only one Surat Jalan. Partial shipments, stock balances, reservations, rack locations, and carrier integration are outside scope. Historical Surat Jalan remain usable without fabricated Picking Lists. Orders with Picking Lists cannot be deleted.
+The **Completed** tab supports search, Picking PIC, Packing PIC, fulfillment condition, completion-date, and Surat Jalan-status filters with pagination. Admin and Manager can **Reopen** a completed list with a required reason while no Surat Jalan exists; reopening restores it to **Active** and records the action in Audit Trail. Once linked to a Surat Jalan, the Picking List remains immutable and available as completion history.
 
-The migration `20260912090000_add_picking_list_fulfillment` adds the two Picking List tables, quantity constraints, unique document relations, lookup indexes, and RLS. Apply repository migrations with `npm run prisma:deploy` and regenerate the client with `npm run prisma:generate`.
+This version supports one Picking List and at most one Surat Jalan per source order, while one Surat Jalan may combine selected packed items from several source orders. Remaining outstanding lines are informational and cannot be moved into a follow-up Surat Jalan. Stock balances, reservations, rack locations, and carrier integration remain outside scope.
 
+Migration `20260917215722_add_pick_pack_availability` renames the legacy picked quantity to available quantity, adds an explicit availability status, safely resets unstarted legacy lists, preserves active/completed history, and enforces quantity/status consistency at the database boundary.
 
 ## Second Iteration Connected Flow
 
@@ -346,4 +348,4 @@ A Surat Jalan may qualify an invoice through its invoice link, or through the sa
 
 ### Combined Surat Jalan
 
-One Surat Jalan can contain several fully packed SO/Customer PO orders for one customer and one destination. The form offers packed orders that have no delivery document. Each line retains its source reference in the detail and print views. Invoices and payments remain separate. Marking Delivered completes all linked inquiries and makes each eligible invoice balance count once in customer outstanding. Cancelled deliveries do not activate outstanding and cannot be reused or reopened. Partial shipments and multi-destination trips are not included.
+One Surat Jalan can combine completed SO/Customer PO Pick & Pack records for one customer and one destination. It begins as Draft, preserves each line source and ordered/packed snapshots, and stores outstanding delivery after Admin adjusts the final quantities. Issue locks the document; print shows only positive final quantities. Invoices and payments remain separate. Marking Delivered completes all linked inquiries and makes each eligible invoice balance count once in customer outstanding. Cancelled deliveries do not activate customer payment outstanding and cannot be reused or reopened. Follow-up shipments and multi-destination trips are not included.

@@ -30,8 +30,15 @@ import {
 } from "@/lib/customer-intelligence";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { formatNpwp } from "@/lib/npwp";
+import { getEffectiveInvoiceStatus } from "@/lib/invoice-status";
 import { getSearchMessage } from "@/lib/workflow";
 import { getOppositeCustomerStatus } from "@/lib/customer-status";
+import { ServerPagination } from "@/components/server-pagination";
+import {
+  getCursorArgs,
+  getCursorPage,
+  getCursorPagination
+} from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -49,8 +56,10 @@ export default async function CustomersPage({
   const viewId = getFirst(params.view);
   const editId = getFirst(params.edit);
   const { success, error } = getSearchMessage(params);
+  const pagination = getCursorPagination(params);
+  const now = new Date();
 
-  const customers = await prisma.customer.findMany({
+  const customerRecords = await prisma.customer.findMany({
     where: query
       ? {
           OR: [
@@ -61,7 +70,8 @@ export default async function CustomersPage({
           ]
         }
       : undefined,
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    ...getCursorArgs(pagination),
     include: {
       invoices: {
         where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
@@ -69,6 +79,8 @@ export default async function CustomersPage({
       }
     }
   });
+  const customerPage = getCursorPage(customerRecords, pagination);
+  const customers = customerPage.items;
 
   const selectedCustomer = viewId
     ? await prisma.customer.findUnique({
@@ -94,7 +106,9 @@ export default async function CustomersPage({
               ...customerInvoiceBalanceSelect,
               id: true,
               invoiceNumber: true,
-              dueDate: true
+              dueDate: true,
+              paidAmount: true,
+              totalAmount: true
             }
           }
         }
@@ -247,7 +261,7 @@ export default async function CustomersPage({
                           </Link>
                         </td>
                         <td className="py-3 pr-4">{formatDate(invoice.dueDate)}</td>
-                        <td className="py-3 pr-4"><StatusBadge status={invoice.status} /></td>
+                        <td className="py-3 pr-4"><StatusBadge status={getEffectiveInvoiceStatus(invoice, now)} /></td>
                         <td className="py-3 text-right font-medium">{formatCurrency(invoice.remainingAmount)}</td>
                       </tr>
                     ))}
@@ -296,7 +310,7 @@ export default async function CustomersPage({
                           {order.invoice ? (
                             <span>
                               <span className="block font-medium text-ink">{order.invoice.invoiceNumber}</span>
-                              <span className="mt-1 block text-xs">{order.invoice.status}</span>
+                              <span className="mt-1 block text-xs">{getEffectiveInvoiceStatus(order.invoice, now)}</span>
                             </span>
                           ) : "-"}
                         </td>
@@ -344,7 +358,7 @@ export default async function CustomersPage({
           <EmptyState message="No customers found." />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Name</th>
@@ -398,6 +412,14 @@ export default async function CustomersPage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={customerPage.hasNext}
+          label="customers"
+          nextCursor={customerPage.nextCursor}
+          pathname="/customers"
+          searchParams={params}
+          state={pagination}
+        />
       </section>
     </>
   );

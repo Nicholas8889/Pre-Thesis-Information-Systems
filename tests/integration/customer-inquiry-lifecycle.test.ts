@@ -78,8 +78,8 @@ describe("customer inquiry lifecycle integration", () => {
               status: "Issued",
               items: {
                 create: [
-                  { itemName: product.productName, quantity: 2, unit: "PCS" },
-                  { itemName: `${product.productName} second`, quantity: 3, unit: "PCS" }
+                  { itemName: product.productName, orderedQuantitySnapshot: 2, packedQuantitySnapshot: 2, quantity: 2, outstandingQuantity: 0, unit: "PCS" },
+                  { itemName: `${product.productName} second`, orderedQuantitySnapshot: 3, packedQuantitySnapshot: 3, quantity: 3, outstandingQuantity: 0, unit: "PCS" }
                 ]
               }
             }

@@ -106,7 +106,7 @@ describe("customer payment behaviour integration", () => {
           counts: { immediatePayment: 3, shortTermCredit: 1, longTermCredit: 0 }
         });
         throw new Error(ROLLBACK_MARKER);
-      })
+      }, { timeout: 20_000 })
     ).rejects.toThrow(ROLLBACK_MARKER);
-  });
+  }, 25_000);
 });

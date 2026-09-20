@@ -55,8 +55,7 @@ export function getCurrentMonthAverageSoldPrice(
   }>,
   now = new Date()
 ): CurrentMonthAverageSoldPrice {
-  const { monthStart, nextMonthStart, monthLabel } =
-    getJakartaCurrentMonthWindow(now);
+  const { monthStart, nextMonthStart } = getJakartaCurrentMonthWindow(now);
   const eligibleStatuses = new Set<string>(PRODUCT_AVERAGE_ELIGIBLE_STATUSES);
   let eligibleQuantity = 0;
   let eligibleSalesValue = 0;
@@ -78,6 +77,25 @@ export function getCurrentMonthAverageSoldPrice(
     eligibleQuantity += item.quantity;
     eligibleSalesValue += item.subtotal;
   }
+
+  return getCurrentMonthAverageSoldPriceFromAggregate(
+    { eligibleQuantity, eligibleSalesValue },
+    now
+  );
+}
+
+export function getCurrentMonthAverageSoldPriceFromAggregate(
+  {
+    eligibleQuantity,
+    eligibleSalesValue
+  }: {
+    eligibleQuantity: number;
+    eligibleSalesValue: number;
+  },
+  now = new Date()
+): CurrentMonthAverageSoldPrice {
+  const { monthStart, nextMonthStart, monthLabel } =
+    getJakartaCurrentMonthWindow(now);
 
   return {
     averageSoldPrice:

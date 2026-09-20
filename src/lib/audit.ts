@@ -7,6 +7,12 @@ import { normalizeActionNote } from "@/lib/action-notes";
 import { verifySignedSession } from "@/lib/session-token";
 
 type AuditTrailInput = {
+  actor?: {
+    id: string;
+    username: string;
+    displayName: string;
+    role: string;
+  };
   moduleName: string;
   entityType: string;
   entityId: string;
@@ -20,7 +26,14 @@ type AuditTrailInput = {
 
 export async function createAuditTrailLog(input: AuditTrailInput) {
   try {
-    const actor = await getAuditActor();
+    const actor = input.actor
+      ? {
+          userId: input.actor.id,
+          username: input.actor.username,
+          displayName: input.actor.displayName,
+          role: roleLabel(input.actor.role),
+        }
+      : await getAuditActor();
 
     await prisma.auditTrail.create({
       data: {

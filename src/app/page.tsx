@@ -195,7 +195,7 @@ export default async function DashboardPage() {
                 primary: invoice.invoiceNumber,
                 secondary: `${invoice.customer.companyName} · ${invoice.paymentTermType}`,
                 value: formatCurrency(invoice.totalAmount),
-                href: `/surat-jalan?tab=picking&invoiceId=${invoice.id}`,
+                href: `/pick-pack?invoiceId=${invoice.id}`,
                 action: "Create"
               }))}
             />

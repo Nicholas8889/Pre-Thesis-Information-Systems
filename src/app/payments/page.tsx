@@ -1,4 +1,5 @@
 import { Banknote, Truck } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 import { recordPayment } from "@/lib/actions";
 import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
@@ -13,12 +14,22 @@ import {
   TableActionLink
 } from "@/components/table-actions";
 import { RestrictedAction } from "@/components/restricted-action";
+import { ServerPagination } from "@/components/server-pagination";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { canCreateDeliveryNoteForInvoice, getPaymentTermLabel } from "@/lib/calculations";
-import { getSearchMessage, syncOverdueInvoices, toDateInputValue } from "@/lib/workflow";
+import { getSearchMessage, toDateInputValue } from "@/lib/workflow";
+import {
+  getOpenInvoiceWhere,
+  withEffectiveInvoiceStatus
+} from "@/lib/invoice-status";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
+import {
+  getCursorArgs,
+  getCursorPage,
+  getCursorPagination
+} from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -33,27 +44,50 @@ export default async function PaymentsPage({
   const currentUser = await getCurrentUser();
   const canRecordPayment = canRole(currentUser?.role, "RECORD_PAYMENT");
   const canCreateSuratJalan = canRole(currentUser?.role, "CREATE_SURAT_JALAN");
+  const queuePagination = getCursorPagination(params);
+  const paymentPagination = getCursorPagination(params, "payment");
+  const now = new Date();
+  const openInvoiceWhere: Prisma.InvoiceWhereInput = getOpenInvoiceWhere();
 
-  await syncOverdueInvoices();
-
-  const [openInvoices, payments] = await Promise.all([
+  const [openInvoiceRecords, paymentRecords, selectedInvoiceRecord] = await Promise.all([
     prisma.invoice.findMany({
-      where: {
-        remainingAmount: { gt: 0 },
-        status: { in: ["Unpaid", "Partial", "Overdue"] }
-      },
-      orderBy: { dueDate: "asc" },
+      where: openInvoiceWhere,
+      orderBy: [{ dueDate: "asc" }, { id: "asc" }],
+      ...getCursorArgs(queuePagination),
       include: { customer: true }
     }),
     prisma.payment.findMany({
-      orderBy: { paymentDate: "desc" },
+      orderBy: [{ paymentDate: "desc" }, { id: "desc" }],
+      ...getCursorArgs(paymentPagination),
       include: {
         invoice: {
           include: { customer: true }
         }
       }
-    })
+    }),
+    selectedInvoiceId
+      ? prisma.invoice.findFirst({
+          where: { id: selectedInvoiceId, ...openInvoiceWhere },
+          include: { customer: true }
+        })
+      : Promise.resolve(null)
   ]);
+  const queuePage = getCursorPage(openInvoiceRecords, queuePagination);
+  const paymentPage = getCursorPage(paymentRecords, paymentPagination);
+  const openInvoices = queuePage.items.map((invoice) =>
+    withEffectiveInvoiceStatus(invoice, now)
+  );
+  const payments = paymentPage.items.map((payment) => ({
+    ...payment,
+    invoice: withEffectiveInvoiceStatus(payment.invoice, now)
+  }));
+  const selectedInvoice = selectedInvoiceRecord
+    ? withEffectiveInvoiceStatus(selectedInvoiceRecord, now)
+    : null;
+  const paymentOptions =
+    selectedInvoice && !openInvoices.some((invoice) => invoice.id === selectedInvoice.id)
+      ? [selectedInvoice, ...openInvoices]
+      : openInvoices;
 
   return (
     <>
@@ -74,7 +108,7 @@ export default async function PaymentsPage({
           <EmptyState message="No unpaid or partial invoices are available for payment." />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Invoice</th>
@@ -143,7 +177,7 @@ export default async function PaymentsPage({
                           status: invoice.status
                         }) && (canCreateSuratJalan ? (
                           <TableActionLink
-                            href={`/surat-jalan?tab=picking&invoiceId=${invoice.id}`}
+                            href={`/pick-pack?invoiceId=${invoice.id}`}
                             label="Open Warehouse"
                           >
                             <Truck aria-hidden="true" />
@@ -163,13 +197,21 @@ export default async function PaymentsPage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={queuePage.hasNext}
+          label="open invoices"
+          nextCursor={queuePage.nextCursor}
+          pathname="/payments"
+          searchParams={params}
+          state={queuePagination}
+        />
       </section>
 
-      {openInvoices.length > 0 && (
+      {paymentOptions.length > 0 && (
         <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <h2 className="mb-4 text-lg font-semibold">Record Payment</h2>
           <PaymentForm
-            invoices={openInvoices.map((invoice) => ({
+            invoices={paymentOptions.map((invoice) => ({
               id: invoice.id,
               invoiceNumber: invoice.invoiceNumber,
               customerName: invoice.customer.companyName,
@@ -198,7 +240,7 @@ export default async function PaymentsPage({
           <EmptyState message="No payments recorded yet." />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Invoice</th>
@@ -240,7 +282,7 @@ export default async function PaymentsPage({
                           status: payment.invoice.status
                         }) && (canCreateSuratJalan ? (
                           <TableActionLink
-                            href={`/surat-jalan?tab=picking&invoiceId=${payment.invoice.id}`}
+                            href={`/pick-pack?invoiceId=${payment.invoice.id}`}
                             label="Open Warehouse"
                           >
                             <Truck aria-hidden="true" />
@@ -260,6 +302,14 @@ export default async function PaymentsPage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={paymentPage.hasNext}
+          label="recorded payments"
+          nextCursor={paymentPage.nextCursor}
+          pathname="/payments"
+          searchParams={params}
+          state={paymentPagination}
+        />
       </section>
     </>
   );

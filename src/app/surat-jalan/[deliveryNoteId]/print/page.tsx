@@ -23,13 +23,14 @@ export default async function SuratJalanPrintPage({
       invoice: true,
       salesOrder: true,
       sources: deliverySourcesInclude,
-      items: { include: { source: { include: { salesOrder: true } } }, orderBy: [{ sourceId: "asc" }, { id: "asc" }] }
+      items: { where: { quantity: { gt: 0 } }, include: { source: { include: { salesOrder: true } } }, orderBy: [{ sourceId: "asc" }, { id: "asc" }] }
     }
   });
 
-  if (!deliveryNote) {
+  if (!deliveryNote || !deliveryNote.issuedAt) {
     notFound();
   }
+  const printableItems = deliveryNote.items.filter(item => item.quantity > 0);
   const combined = (deliveryNote.sources?.length ?? 0) > 1;
   const isCustomerPo = deliveryNote.salesOrder?.source === "CUSTOMER_PO";
   const orderLabel = isCustomerPo ? "Customer PO" : "Sales Order";
@@ -138,7 +139,7 @@ export default async function SuratJalanPrintPage({
                 </tr>
               </thead>
               <tbody>
-                {deliveryNote.items.map((item, index) => (
+                {printableItems.map((item, index) => (
                   <tr key={item.id}>
                     <td className="border border-ink/50 px-3 py-2">{index + 1}</td>
                     <td className="border border-ink/50 px-3 py-2">{orderReference(item.source?.salesOrder ?? deliveryNote.salesOrder)}</td>

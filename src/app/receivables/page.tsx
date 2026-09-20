@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { InvoiceStatus, Prisma } from "@prisma/client";
 import { Eye, Filter, Handshake } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -6,11 +7,21 @@ import { ProcessTabs, normalizeProcessTab } from "@/components/process-tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusStack } from "@/components/status-stack";
 import { TableActionGroup, TableActionLink } from "@/components/table-actions";
+import { ServerPagination } from "@/components/server-pagination";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getPaymentTermLabel } from "@/lib/calculations";
-import { isDoneReceivable, isOngoingReceivable } from "@/lib/process-status";
-import { syncOverdueInvoices } from "@/lib/workflow";
+import {
+  getClosedInvoiceWhere,
+  getEffectiveInvoiceStatusWhere,
+  getOpenInvoiceWhere,
+  withEffectiveInvoiceStatus
+} from "@/lib/invoice-status";
+import {
+  getCursorArgs,
+  getCursorPage,
+  getCursorPagination
+} from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -22,47 +33,53 @@ export default async function ReceivablesPage({
   const params = (await searchParams) ?? {};
   const status = getFirst(params.status);
   const activeTab = normalizeProcessTab(params.tab);
-
-  await syncOverdueInvoices();
-
-  const invoices = await prisma.invoice.findMany({
-    orderBy: [{ status: "asc" }, { dueDate: "asc" }],
-    include: {
-      customer: true,
-      salesOrder: {
-        select: {
-          id: true,
-          orderNumber: true
-        }
-      }
-    }
-  });
-
-  const ongoingReceivables = invoices.filter((invoice) =>
-    isOngoingReceivable({
-      status: invoice.status,
-      remainingAmount: invoice.remainingAmount
-    })
-  );
-  const doneReceivables = invoices.filter((invoice) =>
-    isDoneReceivable({
-      status: invoice.status,
-      remainingAmount: invoice.remainingAmount
-    })
-  );
-  const tabReceivables = activeTab === "done" ? doneReceivables : ongoingReceivables;
+  const pagination = getCursorPagination(params);
+  const now = new Date();
   const statusOptions =
     activeTab === "done" ? ["All", "Paid", "Cancelled"] : ["All", "Unpaid", "Partial", "Overdue"];
   const activeStatus = statusOptions.includes(status ?? "") ? status : undefined;
-  const receivables =
+  const ongoingWhere = getOpenInvoiceWhere();
+  const doneWhere = getClosedInvoiceWhere();
+  const tabWhere = activeTab === "done" ? doneWhere : ongoingWhere;
+  const visibleWhere: Prisma.InvoiceWhereInput =
     activeStatus && activeStatus !== "All"
-      ? tabReceivables.filter((invoice) => invoice.status === activeStatus)
-      : tabReceivables;
+      ? {
+          AND: [
+            tabWhere,
+            getEffectiveInvoiceStatusWhere(activeStatus as InvoiceStatus, now)
+          ]
+        }
+      : tabWhere;
 
-  const totalRemaining = receivables.reduce(
-    (sum, invoice) => sum + invoice.remainingAmount,
-    0
+  const [invoiceRecords, ongoingCount, doneCount, filteredCount, remainingAggregate] =
+    await Promise.all([
+      prisma.invoice.findMany({
+        where: visibleWhere,
+        orderBy: [{ status: "asc" }, { dueDate: "asc" }, { id: "asc" }],
+        ...getCursorArgs(pagination),
+        include: {
+          customer: true,
+          salesOrder: {
+            select: {
+              id: true,
+              orderNumber: true
+            }
+          }
+        }
+      }),
+      prisma.invoice.count({ where: ongoingWhere }),
+      prisma.invoice.count({ where: doneWhere }),
+      prisma.invoice.count({ where: visibleWhere }),
+      prisma.invoice.aggregate({
+        where: visibleWhere,
+        _sum: { remainingAmount: true }
+      })
+    ]);
+  const receivablePage = getCursorPage(invoiceRecords, pagination);
+  const receivables = receivablePage.items.map((invoice) =>
+    withEffectiveInvoiceStatus(invoice, now)
   );
+  const totalRemaining = remainingAggregate._sum.remainingAmount ?? 0;
 
   return (
     <>
@@ -74,15 +91,15 @@ export default async function ReceivablesPage({
       <ProcessTabs
         basePath="/receivables"
         activeTab={activeTab}
-        ongoingCount={ongoingReceivables.length}
-        doneCount={doneReceivables.length}
+        ongoingCount={ongoingCount}
+        doneCount={doneCount}
       />
 
       {activeTab === "ongoing" && (
         <section className="mb-6 grid gap-4 md:grid-cols-3">
           <div className="rounded-md border border-line bg-white p-4 shadow-card">
             <p className="text-sm font-medium text-ink/70">Active Receivables</p>
-            <p className="mt-2 text-2xl font-semibold">{receivables.length}</p>
+            <p className="mt-2 text-2xl font-semibold">{filteredCount}</p>
           </div>
           <div className="rounded-md border border-line bg-white p-4 shadow-card md:col-span-2">
             <p className="text-sm font-medium text-ink/70">Remaining Amount</p>
@@ -121,7 +138,7 @@ export default async function ReceivablesPage({
           />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Invoice</th>
@@ -194,6 +211,14 @@ export default async function ReceivablesPage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={receivablePage.hasNext}
+          label="receivables"
+          nextCursor={receivablePage.nextCursor}
+          pathname="/receivables"
+          searchParams={params}
+          state={pagination}
+        />
       </section>
     </>
   );

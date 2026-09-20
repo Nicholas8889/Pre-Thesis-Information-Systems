@@ -2,9 +2,13 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { Printer } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
-import { CombinedDeliveryNoteForm, type PackedDeliveryOption } from "@/components/combined-delivery-note-form";
-import { savePickingList } from "@/lib/picking-list-actions";
-import { canFulfillOrder } from "@/lib/picking-list";
+import { reopenPickingList, savePickingList } from "@/lib/picking-list-actions";
+import {
+  canCreateDeliveryFromPickingList,
+  canFulfillOrder,
+  getPickingTotals,
+  PICKING_AVAILABILITY_STATUSES,
+} from "@/lib/picking-list";
 import { formatDate } from "@/lib/format";
 
 type PickingListDetail = Prisma.PickingListGetPayload<{
@@ -14,29 +18,46 @@ type PickingListDetail = Prisma.PickingListGetPayload<{
     salesOrder: { include: { customer: true; invoice: true } };
   };
 }>;
+
 const inputClass =
   "mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-soft";
 const buttonClass =
   "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-4 text-sm font-semibold text-brand";
 
+function availabilityLabel(status: string) {
+  switch (status) {
+    case "Available":
+      return "Available";
+    case "Partial":
+      return "Partially available";
+    case "Unavailable":
+      return "Unavailable";
+    default:
+      return "Not checked";
+  }
+}
+
+function packingLabel(availableQuantity: number, packedQuantity: number) {
+  if (availableQuantity === 0) return "Nothing to pack";
+  if (packedQuantity === 0) return "Not packed";
+  if (packedQuantity === availableQuantity) return "Packed";
+  return "Partially packed";
+}
+
 export function PickingListPanel({
   list,
   canManage,
-  showIssueForm,
-  deliveryOptions,
 }: {
   list: PickingListDetail;
   canManage: boolean;
-  showIssueForm: boolean;
-  deliveryOptions?: PackedDeliveryOption[];
 }) {
   const editable = canManage && list.status !== "Packed" && !list.deliveryNote;
   const order = list.salesOrder;
   const eligible = canFulfillOrder(order);
-  const shortfall = list.items.reduce(
-    (sum, item) => sum + item.orderedQuantity - item.packedQuantity,
-    0,
-  );
+  const totals = getPickingTotals(list.items);
+  const canCreateDelivery =
+    eligible && canCreateDeliveryFromPickingList(list.items);
+
   return (
     <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-line pb-4">
@@ -46,7 +67,8 @@ export function PickingListPanel({
             {order.orderNumber}
             {order.customerPoNumber
               ? ` · PO ${order.customerPoNumber}`
-              : ""} · {order.customer.companyName}
+              : ""}{" "}
+            · {order.customer.companyName}
           </p>
           <p className="mt-1 text-sm text-ink/70">
             Required date:{" "}
@@ -62,16 +84,31 @@ export function PickingListPanel({
                 ? "Ready to Pick"
                 : list.status === "InProgress"
                   ? "Picking & Packing"
-                  : "Packed"
+                  : totals.shortage > 0
+                    ? "Completed with Shortage"
+                    : "Completed"
             }
           />
-          <Link
-            className={buttonClass}
-            href={`/surat-jalan/picking-list/${list.id}/print`}
-          >
+          <Link className={buttonClass} href={`/pick-pack/${list.id}/print`}>
             <Printer className="h-4 w-4" aria-hidden="true" />
             Print Picking List
           </Link>
+          {list.status === "Packed" && !list.deliveryNote && canManage && (
+            <form
+              action={reopenPickingList}
+              data-confirm-title="Reopen Picking List"
+              data-confirm-require-note="true"
+              data-confirm-summary={`${list.pickingListNumber}\n${order.orderNumber}\nCompleted quantities will be editable again.`}
+            >
+              <input type="hidden" name="id" value={list.id} />
+              <input
+                type="hidden"
+                name="version"
+                value={list.updatedAt.toISOString()}
+              />
+              <button className={buttonClass}>Reopen</button>
+            </form>
+          )}
           {list.deliveryNote ? (
             <Link
               className={buttonClass}
@@ -79,22 +116,44 @@ export function PickingListPanel({
             >
               View Surat Jalan
             </Link>
-          ) : list.status === "Packed" && canManage && eligible ? (
+          ) : list.status === "Packed" && canManage && canCreateDelivery ? (
             <Link
               className={buttonClass}
-              href={`/surat-jalan?tab=picking&viewPicking=${list.id}&issue=${list.id}`}
+              href={`/surat-jalan?mode=create&pickingListId=${list.id}`}
             >
               Create Surat Jalan
             </Link>
           ) : null}
         </div>
       </div>
+
       {!eligible && !list.deliveryNote && (
         <p className="mb-4 rounded-md bg-soft p-3 text-sm">
-          This order no longer meets order, approval, or active-invoice requirements. Resolve
-          the order before issuing Surat Jalan.
+          This order no longer meets order, approval, or active-invoice
+          requirements. Resolve the order before issuing Surat Jalan.
         </p>
       )}
+      {list.status === "Packed" && totals.packed === 0 && !list.deliveryNote && (
+        <p className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+          This Pick & Pack has no packed quantity. It remains recorded as a
+          completed shortage, but a Surat Jalan cannot be created.
+        </p>
+      )}
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-4">
+        {[
+          ["Ordered", totals.ordered],
+          ["Available", totals.available],
+          ["Packed", totals.packed],
+          ["Shortage", totals.shortage],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-md border border-line bg-soft p-3">
+            <p className="text-xs font-semibold uppercase text-ink/60">{label}</p>
+            <p className="mt-1 text-xl font-semibold">{value}</p>
+          </div>
+        ))}
+      </div>
+
       <form action={savePickingList} key={list.updatedAt.toISOString()}>
         <input type="hidden" name="id" value={list.id} />
         <input
@@ -103,18 +162,19 @@ export function PickingListPanel({
           value={list.updatedAt.toISOString()}
         />
         <fieldset disabled={!editable} className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2">
             <label className="text-sm font-medium">
-              Picker name
+              Picking PIC
               <input
                 name="pickerName"
+                required
                 defaultValue={list.pickerName ?? ""}
                 maxLength={120}
                 className={inputClass}
               />
             </label>
             <label className="text-sm font-medium">
-              Packer name
+              Packing PIC
               <input
                 name="packerName"
                 defaultValue={list.packerName ?? ""}
@@ -122,74 +182,111 @@ export function PickingListPanel({
                 className={inputClass}
               />
             </label>
-            <label className="text-sm font-medium">
-              Package count / Koli
-              <input
-                name="packageCount"
-                type="number"
-                min={1}
-                step={1}
-                defaultValue={list.packageCount ?? ""}
-                className={inputClass}
-              />
-            </label>
           </div>
+
           <div className="overflow-x-auto">
             <table>
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-3">Product</th>
-                  <th className="py-3 pr-3">Ordered (PCS)</th>
-                  <th className="py-3 pr-3">Picked</th>
+                  <th className="py-3 pr-3">Ordered</th>
+                  <th className="py-3 pr-3">Availability</th>
+                  <th className="py-3 pr-3">Available</th>
                   <th className="py-3 pr-3">Packed</th>
-                  <th className="py-3">Discrepancy / Notes</th>
+                  <th className="py-3 pr-3">Packing</th>
+                  <th className="py-3 pr-3">Shortage</th>
+                  <th className="py-3">Operational notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
-                {list.items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="py-3 pr-3 font-medium">{item.itemName}</td>
-                    <td className="py-3 pr-3">{item.orderedQuantity}</td>
-                    <td className="py-3 pr-3">
-                      <input
-                        aria-label={`Picked ${item.itemName}`}
-                        name={`picked_${item.id}`}
-                        type="number"
-                        min={0}
-                        max={item.orderedQuantity}
-                        step={1}
-                        required
-                        defaultValue={item.pickedQuantity}
-                        className={`${inputClass} min-w-20`}
-                      />
-                    </td>
-                    <td className="py-3 pr-3">
-                      <input
-                        aria-label={`Packed ${item.itemName}`}
-                        name={`packed_${item.id}`}
-                        type="number"
-                        min={0}
-                        max={item.orderedQuantity}
-                        step={1}
-                        required
-                        defaultValue={item.packedQuantity}
-                        className={`${inputClass} min-w-20`}
-                      />
-                    </td>
-                    <td className="py-3">
-                      <input
-                        aria-label={`Notes ${item.itemName}`}
-                        name={`notes_${item.id}`}
-                        defaultValue={item.notes ?? ""}
-                        maxLength={500}
-                        className={`${inputClass} min-w-40`}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {list.items.map((item) => {
+                  const shortage =
+                    item.orderedQuantity - item.availableQuantity;
+                  return (
+                    <tr key={item.id}>
+                      <td className="py-3 pr-3 font-medium">
+                        {item.itemName}
+                      </td>
+                      <td className="py-3 pr-3">{item.orderedQuantity}</td>
+                      <td className="py-3 pr-3">
+                        <select
+                          aria-label={`Availability ${item.itemName}`}
+                          name={`availability_${item.id}`}
+                          required
+                          defaultValue={item.availabilityStatus}
+                          className={`${inputClass} min-w-36`}
+                        >
+                          {PICKING_AVAILABILITY_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {availabilityLabel(status)}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-3 pr-3">
+                        <input
+                          aria-label={`Available ${item.itemName}`}
+                          name={`available_${item.id}`}
+                          type="number"
+                          min={0}
+                          max={item.orderedQuantity}
+                          step={1}
+                          required
+                          defaultValue={item.availableQuantity}
+                          className={`${inputClass} min-w-20`}
+                        />
+                      </td>
+                      <td className="py-3 pr-3">
+                        <input
+                          aria-label={`Packed ${item.itemName}`}
+                          name={`packed_${item.id}`}
+                          type="number"
+                          min={0}
+                          max={item.orderedQuantity}
+                          step={1}
+                          required
+                          defaultValue={item.packedQuantity}
+                          className={`${inputClass} min-w-20`}
+                        />
+                      </td>
+                      <td className="py-3 pr-3">
+                        {packingLabel(
+                          item.availableQuantity,
+                          item.packedQuantity,
+                        )}
+                      </td>
+                      <td className="py-3 pr-3 font-semibold">
+                        {shortage}
+                      </td>
+                      <td className="py-3">
+                        <input
+                          aria-label={`Notes ${item.itemName}`}
+                          name={`notes_${item.id}`}
+                          defaultValue={item.notes ?? ""}
+                          maxLength={500}
+                          placeholder={
+                            shortage > 0
+                              ? "Required for shortage"
+                              : "Optional"
+                          }
+                          className={`${inputClass} min-w-48`}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+
+          <div className="rounded-md bg-soft p-3 text-sm text-ink/75">
+            <p>
+              Available must match the selected availability status. Complete
+              Pick & Pack is allowed with shortages when every available unit
+              is packed, Packing PIC is filled, and every shortage has a note.
+            </p>
+          </div>
+
           <label className="block text-sm font-medium">
             Internal notes
             <textarea
@@ -200,14 +297,7 @@ export function PickingListPanel({
               className={inputClass}
             />
           </label>
-          <p className="text-sm text-ink/70">
-            {shortfall > 0
-              ? `${shortfall} units still need packing. Save progress while resolving shortages.`
-              : "All ordered quantities have been packed."}
-            {editable
-              ? " Mark Packed requires all quantities, picker, packer, and package count."
-              : ""}
-          </p>
+
           {editable && (
             <div className="flex flex-wrap gap-3">
               <button name="intent" value="save" className={buttonClass}>
@@ -218,25 +308,20 @@ export function PickingListPanel({
                 value="complete"
                 className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white"
               >
-                Mark Packed
+                Complete Pick & Pack
               </button>
             </div>
           )}
         </fieldset>
       </form>
+
       {list.packedAt && (
         <p className="mt-4 text-sm text-ink/70">
-          Packing completed {formatDate(list.packedAt)}. Quantities are locked
-          for delivery.
+          Pick & Pack completed {formatDate(list.packedAt)} by{" "}
+          {list.packerName ?? "an unspecified Packing PIC"}. Quantities are
+          locked for delivery.
         </p>
       )}
-      {showIssueForm &&
-        list.status === "Packed" &&
-        !list.deliveryNote &&
-        canManage &&
-        eligible && (
-          <CombinedDeliveryNoteForm lists={deliveryOptions ?? [list]} initialPickingListId={list.id} />
-        )}
     </section>
   );
 }

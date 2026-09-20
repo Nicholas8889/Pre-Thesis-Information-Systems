@@ -17,7 +17,7 @@ import {
 import { formatCurrency, formatDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { canGenerateInvoiceForApproval, getApprovalReasonLabel } from "@/lib/sales-order-approval";
-import { syncOverdueInvoices } from "@/lib/workflow";
+import { withEffectiveInvoiceStatus } from "@/lib/invoice-status";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
 import { canDeleteOngoingSalesOrder } from "@/lib/sales-order-deletion";
@@ -52,8 +52,6 @@ export default async function SalesOrderDetailPage({
   const canRecordPayment = canRole(currentUser?.role, "RECORD_PAYMENT");
   const canCreateSuratJalan = canRole(currentUser?.role, "CREATE_SURAT_JALAN");
   const canDeleteSalesOrder = canRole(currentUser?.role, "DELETE_SALES_ORDER");
-
-  await syncOverdueInvoices();
 
   const salesOrder = await prisma.salesOrder.findUnique({
     where: { id: salesOrderId },
@@ -90,7 +88,9 @@ export default async function SalesOrderDetailPage({
   const orderLabel = isCustomerPo ? "Customer PO" : "Sales Order";
   const basePath = isCustomerPo ? "/customer-purchase-orders" : "/sales-orders";
 
-  const invoice = salesOrder.invoice;
+  const invoice = salesOrder.invoice
+    ? withEffectiveInvoiceStatus(salesOrder.invoice)
+    : null;
   const payments = invoice?.payments ?? [];
   const deliveryNotes = Array.from(
     new Map(
@@ -563,18 +563,18 @@ function RelatedSections({
 
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold">Picking List & Surat Jalan</h2>
+          <h2 className="text-lg font-semibold">Pick & Pack / Surat Jalan</h2>
           {deliveryNotes.length === 0 && invoice && (
             canCreateDeliveryNoteForInvoice({
               paymentTermType: invoice.paymentTermType,
               status: invoice.status
             }) && canCreateSuratJalan ? (
               <Link
-                href={`/surat-jalan?tab=picking&invoiceId=${invoice.id}`}
+                href={`/pick-pack?invoiceId=${invoice.id}`}
                 className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"
               >
                 <Truck aria-hidden="true" className="h-4 w-4" />
-                Open Warehouse
+                Open Pick & Pack
               </Link>
             ) : canCreateDeliveryNoteForInvoice({
                 paymentTermType: invoice.paymentTermType,
@@ -583,7 +583,7 @@ function RelatedSections({
               <RestrictedAction message={getRestrictionMessage("CREATE_SURAT_JALAN")}>
                 <button disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-soft px-3 text-sm font-semibold text-ink/50">
                   <Truck aria-hidden="true" className="h-4 w-4" />
-                  Open Warehouse
+                  Open Pick & Pack
                 </button>
               </RestrictedAction>
             ) : (
@@ -593,7 +593,7 @@ function RelatedSections({
             )
           )}
         </div>
-        {pickingList && <p className="mb-3 text-sm"><Link className="font-semibold text-brand" href={`/surat-jalan?tab=picking&viewPicking=${pickingList.id}`}>{pickingList.pickingListNumber}</Link> · {pickingList.status === "InProgress" ? "Picking & Packing" : pickingList.status}</p>}
+        {pickingList && <p className="mb-3 text-sm"><Link className="font-semibold text-brand" href={`/pick-pack?view=${pickingList.id}`}>{pickingList.pickingListNumber}</Link> · {pickingList.status === "Pending" ? "Ready to Prepare" : pickingList.status === "InProgress" ? "Preparing" : "Prepared"}</p>}
         {deliveryNotes.length > 0 ? (
           <div className="space-y-4">
             {deliveryNotes.map((deliveryNote) => (

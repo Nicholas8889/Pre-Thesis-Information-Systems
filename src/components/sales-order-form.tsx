@@ -431,11 +431,11 @@ export function SalesOrderForm({
                     value={formatCurrency(proposedUnitPrice)}
                   />
                   <InsightMetric
-                    label="Difference"
+                    label="Selisih Nominal"
                     value={formatSignedCurrency(comparison.absoluteDifference)}
                   />
                   <InsightMetric
-                    label="Difference (%)"
+                    label="Selisih Persentase"
                     value={formatSignedPercentage(comparison.percentageDifference)}
                   />
                 </div>

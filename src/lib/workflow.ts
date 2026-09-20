@@ -149,27 +149,6 @@ export function toDateInputValue(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
-export async function syncOverdueInvoices() {
-  const today = new Date(toDateInputValue());
-
-  await prisma.invoice.updateMany({
-    where: {
-      dueDate: {
-        lt: today
-      },
-      remainingAmount: {
-        gt: 0
-      },
-      status: {
-        notIn: ["Overdue", "Cancelled"]
-      }
-    },
-    data: {
-      status: "Overdue"
-    }
-  });
-}
-
 export async function nextDocumentNumber(prefix: "SO" | "PO" | "INV") {
   const year = new Date().getFullYear();
   const sequencePrefix = `${prefix}-${year}-`;

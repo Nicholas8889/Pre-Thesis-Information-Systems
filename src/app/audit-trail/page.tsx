@@ -3,8 +3,14 @@ import { Eye, Search } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { TableActionGroup, TableDetailsAction } from "@/components/table-actions";
+import { ServerPagination } from "@/components/server-pagination";
 import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
+import {
+  getCursorArgs,
+  getCursorPage,
+  getCursorPagination
+} from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -21,6 +27,7 @@ export default async function AuditTrailPage({
   const moduleName = getFirst(params.moduleName);
   const actorUsername = getFirst(params.actorUsername);
   const action = getFirst(params.action);
+  const pagination = getCursorPagination(params);
 
   const where: Prisma.AuditTrailWhereInput = {
     ...(query
@@ -44,8 +51,8 @@ export default async function AuditTrailPage({
   const [auditTrailRecords, moduleOptions, userOptions, actionOptions] = await Promise.all([
     prisma.auditTrail.findMany({
       where,
-      orderBy: { createdAt: "desc" },
-      take: 200
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...getCursorArgs(pagination)
     }),
     prisma.auditTrail.findMany({
       distinct: ["moduleName"],
@@ -63,6 +70,8 @@ export default async function AuditTrailPage({
       select: { action: true }
     })
   ]);
+  const auditTrailPage = getCursorPage(auditTrailRecords, pagination);
+  const visibleAuditTrailRecords = auditTrailPage.items;
 
   return (
     <>
@@ -137,11 +146,11 @@ export default async function AuditTrailPage({
       </section>
 
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
-        {auditTrailRecords.length === 0 ? (
+        {visibleAuditTrailRecords.length === 0 ? (
           <EmptyState message="No audit trail records yet." />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Date & Time</th>
@@ -156,7 +165,7 @@ export default async function AuditTrailPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
-                {auditTrailRecords.map((record) => (
+                {visibleAuditTrailRecords.map((record) => (
                   <tr key={record.id} className="align-top transition hover:bg-soft">
                     <td className="whitespace-nowrap py-3 pr-4 text-ink/80">
                       {formatDateTime(record.createdAt)}
@@ -204,6 +213,14 @@ export default async function AuditTrailPage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={auditTrailPage.hasNext}
+          label="audit records"
+          nextCursor={auditTrailPage.nextCursor}
+          pathname="/audit-trail"
+          searchParams={params}
+          state={pagination}
+        />
       </section>
     </>
   );

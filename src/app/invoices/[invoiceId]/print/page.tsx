@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { prisma } from "@/lib/prisma";
 import { getPaymentTermLabel } from "@/lib/calculations";
 import { amountToWords, formatDate, formatInvoiceCurrency } from "@/lib/format";
-import { syncOverdueInvoices } from "@/lib/workflow";
+import { withEffectiveInvoiceStatus } from "@/lib/invoice-status";
 import { formatNpwp } from "@/lib/npwp";
 import { formatPpnRate } from "@/lib/tax";
 
@@ -19,9 +19,7 @@ export default async function InvoicePrintPage({
 }) {
   const { invoiceId } = await params;
 
-  await syncOverdueInvoices();
-
-  const invoice = await prisma.invoice.findUnique({
+  const invoiceRecord = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: {
       customer: true,
@@ -34,9 +32,10 @@ export default async function InvoicePrintPage({
     }
   });
 
-  if (!invoice) {
+  if (!invoiceRecord) {
     notFound();
   }
+  const invoice = withEffectiveInvoiceStatus(invoiceRecord);
 
   const paymentTerm = getPaymentTermLabel({
     paymentTermType: invoice.paymentTermType,

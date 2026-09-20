@@ -177,7 +177,7 @@ describe("canonical naming revenue cycle integration", () => {
               recipientAddress: customer.address,
               deliveryDate: issueDate,
               status: "Issued",
-              items: { create: { itemName: order.items[0].itemName, quantity: 1 } }
+              items: { create: { itemName: order.items[0].itemName, orderedQuantitySnapshot: 1, packedQuantitySnapshot: 1, quantity: 1, outstandingQuantity: 0 } }
             }
           }
         },

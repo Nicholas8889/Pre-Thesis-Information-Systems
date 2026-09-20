@@ -11,6 +11,12 @@ import { formatDate } from "@/lib/format";
 import { getSearchMessage } from "@/lib/workflow";
 import { getCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
+import { ServerPagination } from "@/components/server-pagination";
+import {
+  getCursorArgs,
+  getCursorPage,
+  getCursorPagination
+} from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -27,8 +33,10 @@ export default async function SettingsPage({
   const currentUser = await getCurrentUser();
   const canCreateAccount = canRole(currentUser?.role, "CREATE_ACCOUNT");
   const accountRestriction = getRestrictionMessage("CREATE_ACCOUNT");
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "asc" },
+  const pagination = getCursorPagination(params);
+  const userRecords = await prisma.user.findMany({
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    ...getCursorArgs(pagination),
     select: {
       id: true,
       username: true,
@@ -38,6 +46,8 @@ export default async function SettingsPage({
       createdAt: true
     }
   });
+  const userPage = getCursorPage(userRecords, pagination);
+  const users = userPage.items;
 
   return (
     <>
@@ -107,7 +117,7 @@ export default async function SettingsPage({
           <EmptyState message="No accounts found. Seed the database or add an account." />
         ) : (
           <div className="overflow-x-auto">
-            <table>
+            <table data-server-paginated="true">
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Username</th>
@@ -135,6 +145,14 @@ export default async function SettingsPage({
             </table>
           </div>
         )}
+        <ServerPagination
+          hasNext={userPage.hasNext}
+          label="accounts"
+          nextCursor={userPage.nextCursor}
+          pathname="/settings"
+          searchParams={params}
+          state={pagination}
+        />
       </section>
     </>
   );

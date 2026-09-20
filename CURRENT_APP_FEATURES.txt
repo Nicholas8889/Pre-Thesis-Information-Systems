@@ -110,9 +110,24 @@ CURRENT SCOPE
 - This is a system focused on the revenue cycle: Customer -> Sales Order -> Invoice -> Delivery -> Payment -> Receivable -> Billing/Follow Up.
 - Roles currently control the dashboard experience and reminders; full page-by-page permission restrictions are not yet implemented.
 
-Picking List & Surat Jalan (12 September 2026)
-- Picking & Packing, Surat Jalan Open, and Completed tabs share one warehouse module.
-- Packed lists remain in Picking & Packing until Surat Jalan is issued.
-- Cancelled deliveries have a separate archive and do not count as completed deliveries.
-- The server blocks direct creation, partial packing completion, duplicate documents, and reopening Delivered/Cancelled.
+Pick & Pack availability and PIC workflow (Phase 1, 18 September 2026)
+- Pick & Pack is a dedicated module at /pick-pack for creating, updating, verifying, and printing Picking Lists after an active invoice exists.
+- Picking PIC is required when a Picking List is created; Packing PIC is required when Pick & Pack is completed.
+- Each item stores explicit availability state, available quantity, packed quantity, operational notes, and derived shortage.
+- Completed Pick & Pack may contain documented shortages as long as every available unit is packed.
+- Surat Jalan is a separate module at /surat-jalan for creating Draft delivery documents from Prepared lists and tracking Draft, Issued, Delivered, and Cancelled records.
+- Active contains the ready-order queue and Pending/InProgress lists; Prepared lists move to the dedicated Completed tab whether or not Surat Jalan has been issued.
+- Completed supports search, both PICs, fulfillment condition, completion-date, and Surat Jalan-status filters, pagination, and read-only detail.
+- Admin and Manager can reopen a Prepared list with a required reason only before Surat Jalan exists; the transition is concurrency-safe and audited.
+- Existing server validation still blocks direct delivery creation, inconsistent quantities, undocumented shortages, duplicate documents, and reopening after Surat Jalan exists.
 - Customer outstanding starts at Delivered when an invoice balance remains.
+
+Draft Surat Jalan and outstanding delivery (Phase 2, 18 September 2026)
+- New Surat Jalan records start as Draft after Admin or Manager selects packed items from one or more completed SO / Customer PO records for the same customer and destination.
+- Every line from each selected source order is snapshot-stored: selected lines use the chosen final quantity, while unselected lines use zero and remain visible as outstanding delivery.
+- Each line stores immutable ordered and packed snapshots, editable final delivery quantity, persisted outstanding delivery, and an optional internal adjustment note.
+- Admin and Manager may reduce a Draft line to zero or restore it up to the packed quantity; packed-zero shortage lines remain recorded.
+- Issue & Lock saves the current Draft atomically, records issued_at and issued_by, and prevents later header or item edits.
+- A Draft cannot be printed. The final print is available after Issue and includes only positive final quantities.
+- Database constraints enforce final quantity bounds and outstanding = ordered snapshot - final quantity.
+- Follow-up shipments remain out of scope; outstanding delivery is informational and auditable.

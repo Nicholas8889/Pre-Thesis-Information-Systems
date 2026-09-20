@@ -471,6 +471,8 @@ async function main() {
       recipientAddress: sinarMaju.address,
       deliveryDate: new Date("2026-05-28"),
       status: "Delivered",
+      issuedAt: new Date("2026-05-28"),
+      issuedBy: "Admin Demo",
       notes: "Delivery note generated after full payment.",
       receiverName: "Andi Saputra",
       senderName: "Admin CV Tajuk",
@@ -482,14 +484,20 @@ async function main() {
           {
             productCode: "PKG-A",
             itemName: "Product Package A",
+            orderedQuantitySnapshot: 3,
+            packedQuantitySnapshot: 3,
             quantity: 3,
+            outstandingQuantity: 0,
             unit: "PCS",
             description: "Delivered according to invoice INV-2026-001."
           },
           {
             productCode: "DLV-SVC",
             itemName: "Delivery Service",
+            orderedQuantitySnapshot: 1,
+            packedQuantitySnapshot: 1,
             quantity: 1,
+            outstandingQuantity: 0,
             unit: "PCS",
             description: "Local delivery service."
           }
@@ -509,6 +517,8 @@ async function main() {
       recipientAddress: tokoHarapan.address,
       deliveryDate: new Date("2026-06-06"),
       status: "Issued",
+      issuedAt: new Date("2026-06-06"),
+      issuedBy: "Admin Demo",
       notes: "Credit transaction. Delivery allowed before full payment for thesis demo flow.",
       receiverName: "Rizky Pratama",
       senderName: "Admin CV Tajuk",
@@ -520,7 +530,10 @@ async function main() {
           {
             productCode: "RST-PKG",
             itemName: "Retail Stock Package",
+            orderedQuantitySnapshot: 5,
+            packedQuantitySnapshot: 5,
             quantity: 5,
+            outstandingQuantity: 0,
             unit: "PCS",
             description: "Delivery based on partial payment invoice."
           }
@@ -807,6 +820,8 @@ async function createGeneratedDemoData({
             recipientAddress: customer.address,
             deliveryDate,
             status: index % 2 === 0 ? "Delivered" : "Issued",
+            issuedAt: deliveryDate,
+            issuedBy: adminUser.displayName,
             notes: "Generated delivery document.",
             receiverName: customer.name,
             senderName: "Admin CV Tajuk",
@@ -821,7 +836,10 @@ async function createGeneratedDemoData({
               create: [{
                 productCode: `DEMO-${paddedSequence}`,
                 itemName: primaryProductName,
+                orderedQuantitySnapshot: quantity,
+                packedQuantitySnapshot: quantity,
                 quantity,
+                outstandingQuantity: 0,
                 unit: "PCS",
                 description: "Generated delivery item."
               }]
