@@ -67,7 +67,7 @@ describe("order form insights integration", () => {
             salesOrderId: salesOrder.id,
             customerId: customer.id,
             issueDate: new Date("2026-08-06T05:00:00.000Z"),
-            dueDate: new Date("2026-08-20T05:00:00.000Z"),
+            dueDate: new Date("2026-08-10T05:00:00.000Z"),
             totalAmount: 220,
             remainingAmount: 220,
             netSalesAmount: 220,
@@ -105,8 +105,9 @@ describe("order form insights integration", () => {
           paymentStatus: "Outstanding Payment",
           outstandingAmount: 220,
           openInvoiceCount: 1,
-          paymentBehaviour: "Immediate Payment"
+          overdueInvoiceCount: 1
         });
+        expect(loadedCustomer).not.toHaveProperty("paymentBehaviour");
         expect(loadedCustomer.npwp).toBe(formatNpwp(npwp));
         expect(loadedProduct).toMatchObject({
           averageSoldPrice: 110,

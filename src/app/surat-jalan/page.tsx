@@ -1,10 +1,11 @@
 import { CombinedDeliveryNoteForm } from "@/components/combined-delivery-note-form";
 import { DeliveryNoteDraftForm } from "@/components/delivery-note-draft-form";
+import { DeliveryNoteStatusActions } from "@/components/delivery-note-status-actions";
 import { deliverySourcesInclude, orderReference } from "@/lib/delivery-note-links";
 import Link from "next/link";
 import type { DeliveryNoteStatus } from "@prisma/client";
 import { redirect } from "next/navigation";
-import { Eye, Pencil, Plus, Printer } from "lucide-react";
+import { CircleCheckBig, Eye, Pencil, Plus, Printer } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
@@ -16,12 +17,15 @@ import {
   TableMenuLink,
   TableOverflowMenu,
 } from "@/components/table-actions";
-import { updateDeliveryNoteStatus } from "@/lib/actions";
 import {
   canCreateDeliveryFromPickingList,
   canFulfillOrder,
 } from "@/lib/picking-list";
 import { formatDate } from "@/lib/format";
+import {
+  getDeliveryNoteStatusLabel,
+  toJakartaDateTimeInputValue
+} from "@/lib/delivery-note-status";
 import { getPaymentTermLabel } from "@/lib/calculations";
 import { prisma } from "@/lib/prisma";
 import { getSearchMessage } from "@/lib/workflow";
@@ -35,8 +39,6 @@ import {
 } from "@/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
-const inputClass =
-  "w-full rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-brand";
 export default async function SuratJalanPage({
   searchParams,
 }: {
@@ -50,7 +52,7 @@ export default async function SuratJalanPage({
   const canCreateSuratJalan = canRole(user.role, "CREATE_SURAT_JALAN");
   const { success, error } = getSearchMessage(params);
   const viewId = getFirst(params.view);
-  const editStatusId = getFirst(params.editStatus);
+  const receiveId = getFirst(params.receive) ?? getFirst(params.editStatus);
   const mode = getFirst(params.mode);
   const sourceInvoiceId = getFirst(params.invoiceId);
   let sourceOrderId = getFirst(params.salesOrderId);
@@ -236,7 +238,7 @@ export default async function SuratJalanPage({
             className={!showCancelled ? "text-brand" : "text-ink/60"}
             href="/surat-jalan?tab=completed"
           >
-            Delivered ({completedCount})
+            Diterima ({completedCount})
           </Link>
           <Link
             className={showCancelled ? "text-brand" : "text-ink/60"}
@@ -261,16 +263,22 @@ export default async function SuratJalanPage({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <StatusBadge status={selectedDeliveryNote.status} />
-              {activeTab === "open" && canCreateSuratJalan && selectedDeliveryNote.status === "Issued" && (
-                <Link
-                  href={`/surat-jalan?tab=${activeTab}&view=${selectedDeliveryNote.id}&editStatus=${selectedDeliveryNote.id}`}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-4 text-sm font-semibold text-brand"
-                >
-                  <Pencil aria-hidden="true" className="h-4 w-4" />
-                  Edit Status
-                </Link>
-              )}
+              <StatusBadge
+                status={selectedDeliveryNote.status}
+                label={getDeliveryNoteStatusLabel(selectedDeliveryNote.status)}
+              />
+              {activeTab === "open" &&
+                canCreateSuratJalan &&
+                (selectedDeliveryNote.status === "Draft" ||
+                  selectedDeliveryNote.status === "Issued") && (
+                  <DeliveryNoteStatusActions
+                    deliveryNoteId={selectedDeliveryNote.id}
+                    status={selectedDeliveryNote.status}
+                    defaultReceivedAt={toJakartaDateTimeInputValue(new Date())}
+                    defaultReceiverName={selectedDeliveryNote.receiverName ?? ""}
+                    initialReceiveOpen={receiveId === selectedDeliveryNote.id}
+                  />
+                )}
               {selectedDeliveryNote.pickingList && (
                 <Link
                   className="text-sm font-semibold text-brand"
@@ -291,46 +299,6 @@ export default async function SuratJalanPage({
             </div>
           </div>
 
-          {activeTab === "open" &&
-            canCreateSuratJalan &&
-            selectedDeliveryNote.status === "Issued" &&
-            editStatusId === selectedDeliveryNote.id && (
-              <form
-                action={updateDeliveryNoteStatus}
-                className="mb-5 grid gap-3 rounded-md border border-line bg-soft p-4 sm:grid-cols-[1fr_auto_auto]"
-              >
-                <input
-                  type="hidden"
-                  name="id"
-                  value={selectedDeliveryNote.id}
-                />
-                <label className="text-sm font-medium text-ink">
-                  Status
-                  <select
-                    name="status"
-                    defaultValue="Delivered"
-                    className={`${inputClass} mt-1`}
-                  >
-                    <option value="Delivered">Delivered</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
-                </label>
-                <div className="flex items-end">
-                  <button className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
-                    Save Status
-                  </button>
-                </div>
-                <div className="flex items-end">
-                  <Link
-                    href={`/surat-jalan?tab=${activeTab}&view=${selectedDeliveryNote.id}`}
-                    className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-ink/80"
-                  >
-                    Cancel
-                  </Link>
-                </div>
-              </form>
-            )}
-
           {selectedDeliveryNote.status === "Draft" && canCreateSuratJalan && (
             <DeliveryNoteDraftForm
               note={{
@@ -341,7 +309,6 @@ export default async function SuratJalanPage({
                 recipientAddress: selectedDeliveryNote.recipientAddress,
                 deliveryDate: selectedDeliveryNote.deliveryDate.toISOString().slice(0, 10),
                 notes: selectedDeliveryNote.notes,
-                receiverName: selectedDeliveryNote.receiverName,
                 senderName: selectedDeliveryNote.senderName,
                 driverName: selectedDeliveryNote.driverName,
                 vehiclePlateNumber: selectedDeliveryNote.vehiclePlateNumber,
@@ -360,6 +327,17 @@ export default async function SuratJalanPage({
               }}
             />
           )}
+
+          <DeliveryProgress
+            status={selectedDeliveryNote.status}
+            createdAt={selectedDeliveryNote.createdAt}
+            createdBy={selectedDeliveryNote.createdBy}
+            issuedAt={selectedDeliveryNote.issuedAt}
+            issuedBy={selectedDeliveryNote.issuedBy}
+            receivedAt={selectedDeliveryNote.receivedAt}
+            receivedBy={selectedDeliveryNote.receivedBy}
+            receiverName={selectedDeliveryNote.receiverName}
+          />
 
           <div className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
             <Detail
@@ -427,6 +405,15 @@ export default async function SuratJalanPage({
               label="Authorized By"
               value={selectedDeliveryNote.authorizedBy ?? "-"}
             />
+            {selectedDeliveryNote.receivedAt && (
+              <Detail
+                label="Received At"
+                value={formatJakartaDateTime(selectedDeliveryNote.receivedAt)}
+              />
+            )}
+            {selectedDeliveryNote.receiverName && (
+              <Detail label="Received By" value={selectedDeliveryNote.receiverName} />
+            )}
           </div>
 
           <p className="mt-4 rounded-md bg-soft p-3 text-sm text-ink/80">
@@ -437,6 +424,12 @@ export default async function SuratJalanPage({
             <p className="mt-3 rounded-md bg-soft p-3 text-sm text-ink/80">
               {selectedDeliveryNote.notes}
             </p>
+          )}
+          {selectedDeliveryNote.receiptNotes && (
+            <div className="mt-3 rounded-md border border-success/30 bg-success/10 p-3 text-sm text-ink">
+              <p className="font-semibold">Catatan Penerimaan</p>
+              <p className="mt-1 whitespace-pre-wrap">{selectedDeliveryNote.receiptNotes}</p>
+            </div>
           )}
 
           <div className="mt-6 overflow-x-auto">
@@ -521,7 +514,10 @@ export default async function SuratJalanPage({
                       </td>
                       <td className="py-3 pr-4">
                         <StatusStack>
-                          <StatusBadge status={deliveryNote.status} />
+                          <StatusBadge
+                            status={deliveryNote.status}
+                            label={getDeliveryNoteStatusLabel(deliveryNote.status)}
+                          />
                         </StatusStack>
                       </td>
                       <td className="max-w-64 whitespace-pre-wrap py-3 pr-4 text-ink/80">
@@ -539,10 +535,14 @@ export default async function SuratJalanPage({
                           }
                           {activeTab === "open" && canCreateSuratJalan && (
                             <TableActionLink
-                              href={deliveryNote.status === "Draft" ? `/surat-jalan?tab=${activeTab}&view=${deliveryNote.id}` : `/surat-jalan?tab=${activeTab}&view=${deliveryNote.id}&editStatus=${deliveryNote.id}`}
-                              label={deliveryNote.status === "Draft" ? "Edit Draft" : "Edit status"}
+                              href={deliveryNote.status === "Draft" ? `/surat-jalan?tab=${activeTab}&view=${deliveryNote.id}` : `/surat-jalan?tab=${activeTab}&view=${deliveryNote.id}&receive=${deliveryNote.id}`}
+                              label={deliveryNote.status === "Draft" ? "Edit Draft" : "Tandai Sudah Diterima"}
                             >
-                              <Pencil aria-hidden="true" />
+                              {deliveryNote.status === "Draft" ? (
+                                <Pencil aria-hidden="true" />
+                              ) : (
+                                <CircleCheckBig aria-hidden="true" />
+                              )}
                             </TableActionLink>
                           )}
                           {deliveryNote.issuedAt && (
@@ -583,6 +583,85 @@ function Detail({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-sm font-medium text-ink">{value || "-"}</p>
     </div>
   );
+}
+
+function DeliveryProgress({
+  status,
+  createdAt,
+  createdBy,
+  issuedAt,
+  issuedBy,
+  receivedAt,
+  receivedBy,
+  receiverName
+}: {
+  status: DeliveryNoteStatus;
+  createdAt: Date;
+  createdBy: string | null;
+  issuedAt: Date | null;
+  issuedBy: string | null;
+  receivedAt: Date | null;
+  receivedBy: string | null;
+  receiverName: string | null;
+}) {
+  const steps = [
+    {
+      label: "Dibuat",
+      completed: true,
+      detail: `${formatJakartaDateTime(createdAt)} · ${createdBy ?? "Data historis"}`
+    },
+    {
+      label: "Dikirim",
+      completed: Boolean(issuedAt),
+      detail: issuedAt
+        ? `${formatJakartaDateTime(issuedAt)} · ${issuedBy ?? "Data historis"}`
+        : "Menunggu Surat Jalan dikirim"
+    },
+    {
+      label: "Diterima",
+      completed: Boolean(receivedAt),
+      detail: receivedAt
+        ? `${formatJakartaDateTime(receivedAt)} · ${receiverName ?? "Penerima tidak tercatat"}${receivedBy ? ` (dicatat ${receivedBy})` : ""}`
+        : "Menunggu konfirmasi penerimaan"
+    }
+  ];
+
+  return (
+    <section className="my-5 rounded-md border border-line bg-soft p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-ink">Progres Pengiriman</h3>
+        {status === "Cancelled" && (
+          <span className="text-xs font-semibold text-danger">Surat Jalan dibatalkan</span>
+        )}
+      </div>
+      <ol className="grid gap-3 md:grid-cols-3">
+        {steps.map((step, index) => (
+          <li key={step.label} className="flex gap-3 rounded-md bg-white p-3">
+            <span
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${step.completed ? "bg-success text-white" : "bg-canvas text-ink/50"}`}
+            >
+              {step.completed ? "✓" : index + 1}
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-ink">{step.label}</p>
+              <p className="mt-1 text-xs leading-5 text-ink/70">{step.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function formatJakartaDateTime(value: Date) {
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(value);
 }
 
 function getFirst(value: string | string[] | undefined) {

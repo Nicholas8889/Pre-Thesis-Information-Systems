@@ -32,6 +32,7 @@ import {
 import { formatCurrency, formatDate } from "@/lib/format";
 import { formatNpwp } from "@/lib/npwp";
 import { getEffectiveInvoiceStatus } from "@/lib/invoice-status";
+import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
 import { getSearchMessage } from "@/lib/workflow";
 import { getOppositeCustomerStatus } from "@/lib/customer-status";
 import { ServerPagination } from "@/components/server-pagination";
@@ -207,15 +208,15 @@ export default async function CustomersPage({
               title="Payment Status"
               value={selectedPaymentSummary?.paymentStatus ?? "Clean"}
               description={selectedPaymentSummary?.openInvoiceCount
-                ? "This customer has unpaid invoices with a Delivered Surat Jalan, including amounts not yet due."
-                : "No unpaid invoices with a Delivered Surat Jalan. Invoices awaiting delivery are not counted yet."}
+                ? "This customer has unpaid invoices with a Diterima Surat Jalan, including amounts not yet due."
+                : "No unpaid invoices with a Diterima Surat Jalan. Invoices awaiting delivery are not counted yet."}
               icon={ShieldCheck}
               tone={selectedPaymentSummary?.openInvoiceCount ? "outstanding" : "clean"}
             />
             <CustomerIntelligenceCard
               title="Outstanding Payment"
               value={formatCurrency(selectedPaymentSummary?.outstandingAmount ?? 0)}
-              description={`${selectedPaymentSummary?.openInvoiceCount ?? 0} open invoice(s) with a Delivered Surat Jalan. Cancelled invoices are excluded.`}
+              description={`${selectedPaymentSummary?.openInvoiceCount ?? 0} open invoice(s) with a Diterima Surat Jalan. Cancelled invoices are excluded.`}
               icon={Wallet}
               tone={selectedPaymentSummary?.openInvoiceCount ? "outstanding" : "clean"}
             />
@@ -245,7 +246,7 @@ export default async function CustomersPage({
           {selectedPaymentSummary && selectedPaymentSummary.openInvoiceCount > 0 && (
             <section className="mt-5 border-t border-line pt-5">
               <h3 className="mb-3 text-base font-semibold text-ink">Outstanding Invoices</h3>
-              <p className="mb-3 text-sm text-ink/70">Remaining balances for invoices with a Delivered Surat Jalan.</p>
+              <p className="mb-3 text-sm text-ink/70">Remaining balances for invoices with a Diterima Surat Jalan.</p>
               <div className="overflow-x-auto">
                 <table>
                   <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
@@ -320,7 +321,7 @@ export default async function CustomersPage({
                         </td>
                         <td className="py-3 pr-4 text-ink/80">
                           {linkedDeliveryNotes(order).length > 0
-                            ? linkedDeliveryNotes(order).map((note) => `${note.deliveryNoteNumber} (${note.status})`).join(", ")
+                            ? linkedDeliveryNotes(order).map((note) => `${note.deliveryNoteNumber} (${getDeliveryNoteStatusLabel(note.status)})`).join(", ")
                             : "-"}
                         </td>
                         <td className="py-3 pr-4 text-right font-medium">{formatCurrency(order.total)}</td>

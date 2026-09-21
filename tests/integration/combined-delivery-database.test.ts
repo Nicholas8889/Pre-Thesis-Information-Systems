@@ -2,6 +2,7 @@ import { PrismaClient, type Prisma } from "@prisma/client";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { customerInvoiceBalanceSelect } from "../../src/lib/customer-payment-query";
 import { getCustomerPaymentSummary } from "../../src/lib/customer-intelligence";
+import { toJakartaDateTimeInputValue } from "../../src/lib/delivery-note-status";
 
 const context = vi.hoisted(() => ({
   tx: null as Prisma.TransactionClient | null,
@@ -15,7 +16,6 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/session", () => ({
   requireCurrentUser: async () => ({ id: "test-admin", username: "admin", displayName: "Test Admin", role: "ADMIN" }),
 }));
-vi.mock("@/lib/audit", () => ({ createAuditTrailLog: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: new Proxy(
     {},
@@ -132,7 +132,30 @@ describe("combined delivery with the real database", () => {
         expect(issued.issuedAt).not.toBeNull();
         expect(issued.items.map(item => item.outstandingQuantity)).toEqual([2, 0]);
       }
-      await expect(updateDeliveryNoteStatus(form({ id: note.id, status }))).rejects.toThrow("tab=completed");
+      const statusData = form({ id: note.id, status });
+      if (status === "Delivered") {
+        statusData.set("receiverName", "Warehouse Recipient");
+        statusData.set("receivedAt", toJakartaDateTimeInputValue(new Date()));
+        statusData.set("receiptNotes", "Received in good condition");
+      }
+      await expect(updateDeliveryNoteStatus(statusData)).rejects.toThrow("tab=completed");
+      const deliveryAuditActions = (await tx.auditTrail.findMany({
+        where: { entityType: "DELIVERY_NOTE", entityId: note.id },
+        select: { action: true }
+      })).map(entry => entry.action).sort();
+      expect(deliveryAuditActions).toEqual(
+        status === "Delivered"
+          ? ["CREATED", "DELIVERED", "ISSUED"]
+          : ["CREATED", "STATUS_CHANGED"]
+      );
+      if (status === "Delivered") {
+        expect(await tx.deliveryNote.findUniqueOrThrow({ where: { id: note.id } })).toMatchObject({
+          receiverName: "Warehouse Recipient",
+          receivedBy: expect.any(String),
+          receivedAt: expect.any(Date),
+          receiptNotes: "Received in good condition"
+        });
+      }
       expect(await summary()).toMatchObject({
         outstandingAmount: status === "Delivered" ? 1600 : 0,
         openInvoiceCount: status === "Delivered" ? 2 : 0

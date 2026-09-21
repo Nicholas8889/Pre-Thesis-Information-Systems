@@ -4,6 +4,7 @@ import { ArrowLeft, Banknote, FilePlus2, FileText, Printer, Truck } from "lucide
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
 import { StatusStack } from "@/components/status-stack";
 import { RestrictedAction } from "@/components/restricted-action";
 import { DeleteSalesOrderButton } from "@/components/delete-sales-order-button";
@@ -606,7 +607,10 @@ function RelatedSections({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <StatusBadge status={deliveryNote.status} />
+                    <StatusBadge
+                      status={deliveryNote.status}
+                      label={getDeliveryNoteStatusLabel(deliveryNote.status)}
+                    />
                     <Link
                       href={`/surat-jalan/${deliveryNote.id}/print`}
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-brand"

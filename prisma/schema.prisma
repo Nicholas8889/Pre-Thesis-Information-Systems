@@ -488,8 +488,12 @@ model DeliveryNote {
   driverName         String?            @map("driver_name")
   vehiclePlateNumber String?            @map("vehicle_plate_number")
   authorizedBy       String?            @map("authorized_by")
+  createdBy          String?            @map("created_by")
   issuedAt           DateTime?          @map("issued_at")
   issuedBy           String?            @map("issued_by")
+  receivedAt         DateTime?          @map("received_at") @db.Timestamptz(3)
+  receivedBy         String?            @map("received_by")
+  receiptNotes       String?            @map("receipt_notes")
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 

@@ -5,13 +5,13 @@ import { linkedDeliveryNotes } from "../../src/lib/delivery-note-links";
 
 const mocks = vi.hoisted(() => ({
   lists: vi.fn(), create: vi.fn(), items: vi.fn(), lock: vi.fn(), update: vi.fn(),
-  find: vi.fn(), inquiry: vi.fn(), role: "ADMIN", writes: [] as string[]
+  find: vi.fn(), findSaved: vi.fn(), inquiry: vi.fn(), audit: vi.fn(), role: "ADMIN", writes: [] as string[]
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(path); } }));
-vi.mock("@/lib/session", () => ({ requireCurrentUser: async () => ({ id: "user", role: mocks.role }) }));
-vi.mock("@/lib/audit", () => ({ createAuditTrailLog: vi.fn() }));
-vi.mock("@/lib/customer-inquiry-lifecycle", () => ({ completeCustomerInquiryForDeliveredOrder: mocks.inquiry }));
+vi.mock("@/lib/session", () => ({ requireCurrentUser: async () => ({ id: "user", username: "admin", displayName: "Admin", role: mocks.role }) }));
+vi.mock("@/lib/audit", () => ({ createAuditTrailLog: mocks.audit }));
+vi.mock("@/lib/customer-inquiry-lifecycle", () => ({ completeCustomerInquiriesForDeliveredOrders: mocks.inquiry }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     deliveryNote: { findMany: async () => [], findUnique: mocks.find },
@@ -21,7 +21,7 @@ vi.mock("@/lib/prisma", () => ({
         const result = await work({
           $queryRaw: mocks.lock,
           pickingList: { findMany: mocks.lists },
-          deliveryNote: { create: mocks.create, update: mocks.update },
+          deliveryNote: { create: mocks.create, updateMany: mocks.update, findUniqueOrThrow: mocks.findSaved },
           deliveryNoteItem: { createMany: mocks.items }
         });
         mocks.writes.push("commit");
@@ -65,6 +65,15 @@ function form(ids = ["a", "b"], selectedItemIds = ids.map(id => "pick-item-" + i
   return data;
 }
 
+function deliveredForm() {
+  const data = new FormData();
+  data.set("id", "sj");
+  data.set("status", "Delivered");
+  data.set("receiverName", "Ayu");
+  data.set("receivedAt", "2026-09-13T12:00");
+  return data;
+}
+
 describe("combined delivery server actions", () => {
   beforeEach(() => {
     vi.clearAllMocks(); mocks.role = "ADMIN"; mocks.writes.length = 0;
@@ -74,7 +83,8 @@ describe("combined delivery server actions", () => {
     mocks.create.mockImplementation(async ({ data }) => ({
       ...data, id: "sj", sources: data.sources.create.map((source: object, index: number) => ({ ...source, id: "source-" + index }))
     }));
-    mocks.inquiry.mockResolvedValue(null);
+    mocks.inquiry.mockResolvedValue([]);
+    mocks.audit.mockResolvedValue(undefined);
   });
   it("creates one SJ for mixed SO/PO, preserving per-order lines and invoice links", async () => {
     const data = form();
@@ -198,20 +208,34 @@ describe("combined delivery server actions", () => {
     await expect(createDeliveryNote(form())).rejects.toThrow("item write failed");
     expect(mocks.writes).toEqual(["begin", "rollback"]);
   });
+  it("rolls back the document if its audit trail cannot be written", async () => {
+    mocks.audit.mockRejectedValueOnce(new Error("audit failed"));
+    await expect(createDeliveryNote(form())).rejects.toThrow("audit failed");
+    expect(mocks.writes).toEqual(["begin", "rollback"]);
+  });
   it("completes every linked inquiry in the Delivered transaction", async () => {
-    mocks.find.mockResolvedValue({ id: "sj", status: "Issued", notes: null });
-    mocks.update.mockResolvedValue({ id: "sj", deliveryNoteNumber: "SJ", status: "Delivered", salesOrderId: null, sources: [{ salesOrderId: "SO-a" }, { salesOrderId: "SO-b" }] });
-    const data = new FormData(); data.set("id", "sj"); data.set("status", "Delivered");
-    await expect(updateDeliveryNoteStatus(data)).rejects.toThrow("tab=completed");
-    expect(mocks.inquiry.mock.calls.map(call => call[1])).toEqual(["SO-a", "SO-b"]);
+    mocks.find.mockResolvedValue({ id: "sj", status: "Issued", notes: null, issuedAt: new Date("2026-09-13T03:00:00.000Z"), receiverName: null, receivedAt: null, receivedBy: null, receiptNotes: null });
+    mocks.update.mockResolvedValue({ count: 1 });
+    mocks.findSaved.mockResolvedValue({ id: "sj", deliveryNoteNumber: "SJ", status: "Delivered", receiverName: "Ayu", receivedAt: new Date("2026-09-13T05:00:00.000Z"), receivedBy: "Admin", receiptNotes: null, salesOrderId: null, sources: [{ salesOrderId: "SO-a" }, { salesOrderId: "SO-b" }] });
+    await expect(updateDeliveryNoteStatus(deliveredForm())).rejects.toThrow("tab=completed");
+    expect(mocks.inquiry).toHaveBeenCalledTimes(1);
+    expect(mocks.inquiry).toHaveBeenCalledWith(expect.anything(), ["SO-a", "SO-b"]);
     expect(mocks.writes).toEqual(["begin", "commit"]);
   });
   it("rolls back Delivered if an inquiry update fails", async () => {
-    mocks.find.mockResolvedValue({ id: "sj", status: "Issued", notes: null });
-    mocks.update.mockResolvedValue({ id: "sj", status: "Delivered", salesOrderId: null, sources: [{ salesOrderId: "SO-a" }] });
+    mocks.find.mockResolvedValue({ id: "sj", status: "Issued", notes: null, issuedAt: new Date("2026-09-13T03:00:00.000Z"), receiverName: null, receivedAt: null, receivedBy: null, receiptNotes: null });
+    mocks.update.mockResolvedValue({ count: 1 });
+    mocks.findSaved.mockResolvedValue({ id: "sj", status: "Delivered", receiverName: "Ayu", receivedAt: new Date("2026-09-13T05:00:00.000Z"), receivedBy: "Admin", receiptNotes: null, salesOrderId: null, sources: [{ salesOrderId: "SO-a" }] });
     mocks.inquiry.mockRejectedValueOnce(new Error("inquiry failed"));
-    const data = new FormData(); data.set("id", "sj"); data.set("status", "Delivered");
-    await expect(updateDeliveryNoteStatus(data)).rejects.toThrow("inquiry failed");
+    await expect(updateDeliveryNoteStatus(deliveredForm())).rejects.toThrow("inquiry failed");
+    expect(mocks.writes).toEqual(["begin", "rollback"]);
+  });
+  it("rolls back Delivered if its audit trail cannot be written", async () => {
+    mocks.find.mockResolvedValue({ id: "sj", status: "Issued", notes: null, issuedAt: new Date("2026-09-13T03:00:00.000Z"), receiverName: null, receivedAt: null, receivedBy: null, receiptNotes: null });
+    mocks.update.mockResolvedValue({ count: 1 });
+    mocks.findSaved.mockResolvedValue({ id: "sj", deliveryNoteNumber: "SJ", status: "Delivered", receiverName: "Ayu", receivedAt: new Date("2026-09-13T05:00:00.000Z"), receivedBy: "Admin", receiptNotes: null, salesOrderId: "SO-a", sources: [] });
+    mocks.audit.mockRejectedValueOnce(new Error("audit failed"));
+    await expect(updateDeliveryNoteStatus(deliveredForm())).rejects.toThrow("audit failed");
     expect(mocks.writes).toEqual(["begin", "rollback"]);
   });
 });

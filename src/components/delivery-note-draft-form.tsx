@@ -25,7 +25,6 @@ type DraftNote = {
   recipientAddress: string;
   deliveryDate: string;
   notes: string | null;
-  receiverName: string | null;
   senderName: string | null;
   driverName: string | null;
   vehiclePlateNumber: string | null;
@@ -92,10 +91,6 @@ export function DeliveryNoteDraftForm({ note }: { note: DraftNote }) {
         <label className="text-sm font-medium">
           Sender
           <input name="senderName" defaultValue={note.senderName ?? ""} className={inputClass} />
-        </label>
-        <label className="text-sm font-medium">
-          Receiver
-          <input name="receiverName" defaultValue={note.receiverName ?? ""} className={inputClass} />
         </label>
         <label className="text-sm font-medium">
           Authorized by
@@ -203,24 +198,66 @@ export function DeliveryNoteDraftForm({ note }: { note: DraftNote }) {
 
 function DraftActions({ canIssue }: { canIssue: boolean }) {
   const { pending } = useFormStatus();
+  const [confirmingIssue, setConfirmingIssue] = useState(false);
   return (
-    <div className="flex flex-wrap gap-3">
-      <button
-        name="intent"
-        value="save"
-        disabled={pending}
-        className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-brand disabled:opacity-50"
-      >
-        {pending ? "Saving..." : "Save Draft"}
-      </button>
-      <button
-        name="intent"
-        value="issue"
-        disabled={pending || !canIssue}
-        className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:opacity-50"
-      >
-        {pending ? "Processing..." : "Issue & Lock"}
-      </button>
-    </div>
+    <>
+      <div className="flex flex-wrap gap-3">
+        <button
+          name="intent"
+          value="save"
+          disabled={pending}
+          className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-brand disabled:opacity-50"
+        >
+          {pending ? "Menyimpan..." : "Simpan Draft"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirmingIssue(true)}
+          disabled={pending || !canIssue}
+          className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          Kirim Surat Jalan
+        </button>
+      </div>
+
+      {confirmingIssue && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-strong/45 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="issue-delivery-note-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setConfirmingIssue(false);
+          }}
+        >
+          <section className="w-full max-w-md rounded-lg border border-line bg-white p-5 shadow-xl">
+            <h2 id="issue-delivery-note-title" className="text-lg font-semibold text-ink">
+              Kirim Surat Jalan?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-ink/80">
+              Data penerima, kendaraan, dan jumlah barang akan dikunci. Setelah dikirim,
+              Surat Jalan tidak dapat diedit lagi.
+            </p>
+            <div className="mt-5 flex justify-end gap-3 border-t border-line pt-4">
+              <button
+                type="button"
+                onClick={() => setConfirmingIssue(false)}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-ink/80"
+              >
+                Kembali
+              </button>
+              <button
+                name="intent"
+                value="issue"
+                disabled={pending}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {pending ? "Memproses..." : "Ya, Kirim & Kunci"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
   );
 }

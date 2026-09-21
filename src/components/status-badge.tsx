@@ -59,7 +59,7 @@ const statusDescriptions: Record<string, string> = {
   Clean: "Customer has no unpaid invoices with a Delivered Surat Jalan"
 };
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
   return (
     <span
       title={statusDescriptions[status] ?? status}
@@ -68,7 +68,7 @@ export function StatusBadge({ status }: { status: string }) {
         statusStyles[status] ?? "bg-canvas text-ink"
       )}
     >
-      {status}
+      {label ?? status}
     </span>
   );
 }

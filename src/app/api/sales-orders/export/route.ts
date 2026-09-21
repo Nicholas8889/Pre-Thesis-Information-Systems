@@ -10,6 +10,7 @@ import {
 } from "@/lib/process-status";
 import { getCurrentUser } from "@/lib/session";
 import type { ProcessTabWithApproval } from "@/components/process-tabs";
+import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -210,7 +211,7 @@ export function createSalesOrderWorkbook({
       total: order.total,
       invoice: order.invoice?.invoiceNumber ?? "-",
       invoiceStatus: order.invoice?.status ?? "No Invoice",
-      deliveryNotes: order.deliveryNotes.map((note) => `${note.deliveryNoteNumber} (${note.status})`).join(", ") || "-",
+      deliveryNotes: order.deliveryNotes.map((note) => `${note.deliveryNoteNumber} (${getDeliveryNoteStatusLabel(note.status)})`).join(", ") || "-",
       notes: order.notes ?? ""
     });
   }

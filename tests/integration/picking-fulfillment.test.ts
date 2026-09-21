@@ -2,6 +2,7 @@ import { PrismaClient, type Prisma } from "@prisma/client";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { customerInvoiceBalanceSelect } from "../../src/lib/customer-payment-query";
 import { getCustomerPaymentSummary } from "../../src/lib/customer-intelligence";
+import { toJakartaDateTimeInputValue } from "../../src/lib/delivery-note-status";
 
 const context = vi.hoisted(() => ({
   tx: null as Prisma.TransactionClient | null,
@@ -17,7 +18,7 @@ vi.mock("@/lib/session", () => ({
 }));
 vi.mock("@/lib/audit", () => ({ createAuditTrailLog: vi.fn() }));
 vi.mock("@/lib/customer-inquiry-lifecycle", () => ({
-  completeCustomerInquiryForDeliveredOrder: vi.fn(),
+  completeCustomerInquiriesForDeliveredOrders: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: new Proxy(
@@ -362,7 +363,12 @@ describe("Picking List to Delivered with the real database", () => {
             });
             await expect(
               updateDeliveryNoteStatus(
-                form({ id: note.id, status: "Delivered" }),
+                form({
+                  id: note.id,
+                  status: "Delivered",
+                  receiverName: "Warehouse Recipient",
+                  receivedAt: toJakartaDateTimeInputValue(new Date())
+                }),
               ),
             ).rejects.toThrow("tab=completed");
             expect(await tx.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).toMatchObject({

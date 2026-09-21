@@ -177,8 +177,8 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       steps: [
         "Choose a customer, then select packed items from one or more Prepared SO / Customer PO lists for the same destination. The Draft stores every included source line for audit.",
         "While Draft, adjust recipient, delivery assignment, and final quantity up to each packed quantity. Review the stored outstanding delivery.",
-        "Select Issue & Lock when final quantities are correct. Draft cannot be printed; the issued print contains only positive final quantities.",
-        "Surat Jalan Open contains Draft and Issued records; Delivered moves to Completed. Cancelled records have a separate archive."
+        "Pilih Kirim Surat Jalan ketika jumlah final sudah benar. Setelah dikirim, data terkunci dan dokumen dapat dicetak.",
+        "Gunakan Tandai Sudah Diterima untuk mencatat nama penerima, waktu penerimaan, dan catatan opsional. Surat Jalan yang diterima berpindah ke Completed; yang dibatalkan masuk arsip terpisah."
       ]
     }
   },

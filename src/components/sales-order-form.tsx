@@ -12,8 +12,7 @@ type CustomerOption = CustomerPaymentSummary & {
   id: string;
   companyName: string;
   name: string;
-  paymentBehaviour: string;
-  paymentBehaviourEvidence: string;
+  overdueInvoiceCount: number;
   npwp: string | null;
   ppnApplied: boolean;
 };
@@ -262,9 +261,8 @@ export function SalesOrderForm({
               help={`${selectedCustomer.openInvoiceCount} open invoice(s) with a Delivered Surat Jalan, including amounts not yet due.`}
             />
             <InsightMetric
-              label="Payment Behaviour"
-              value={selectedCustomer.paymentBehaviour}
-              help={selectedCustomer.paymentBehaviourEvidence}
+              label="Overdue Invoices"
+              value={String(selectedCustomer.overdueInvoiceCount)}
             />
             <InsightMetric
               label="NPWP"

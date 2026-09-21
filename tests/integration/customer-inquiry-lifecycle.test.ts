@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completeCustomerInquiryForDeliveredOrder } from "../../src/lib/customer-inquiry-lifecycle";
+import { completeCustomerInquiriesForDeliveredOrders } from "../../src/lib/customer-inquiry-lifecycle";
 import { prisma } from "../../src/lib/prisma";
 
 describe("customer inquiry lifecycle integration", () => {
@@ -23,6 +23,7 @@ describe("customer inquiry lifecycle integration", () => {
         const product = await tx.product.create({
           data: { productName: `Inquiry Product ${marker}`, listPrice: 30_000 }
         });
+        const linkedRecords: Array<{ inquiryId: string; orderId: string }> = [];
 
         for (const conversion of [
           { status: "ConvertedToSO" as const, source: "DIRECT" as const },
@@ -88,14 +89,23 @@ describe("customer inquiry lifecycle integration", () => {
             where: { id: deliveryNote.id },
             data: { status: "Delivered" }
           });
+          linkedRecords.push({ inquiryId: inquiry.id, orderId: order.id });
+        }
 
-          const completed = await completeCustomerInquiryForDeliveredOrder(tx, order.id);
-          expect(completed).toMatchObject({
-            id: inquiry.id,
+        const completed = await completeCustomerInquiriesForDeliveredOrders(
+          tx,
+          linkedRecords.map(record => record.orderId)
+        );
+        expect(completed).toHaveLength(2);
+        expect(completed.map(inquiry => inquiry.id).sort()).toEqual(
+          linkedRecords.map(record => record.inquiryId).sort()
+        );
+        expect(completed).toEqual(expect.arrayContaining([
+          expect.objectContaining({
             status: "Done",
             statusNote: "Linked order delivery completed"
-          });
-        }
+          })
+        ]));
 
           throw new Error("ROLLBACK_CUSTOMER_INQUIRY_TEST");
         }, { maxWait: 10_000, timeout: 20_000 })

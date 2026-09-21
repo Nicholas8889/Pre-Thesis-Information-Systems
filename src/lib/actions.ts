@@ -40,7 +40,8 @@ import {
 } from "@/lib/sales-order-deletion";
 import { mergeActionNotes, normalizeActionNote } from "@/lib/action-notes";
 import { parseOptionalInquiryPrice } from "@/lib/customer-inquiry";
-import { completeCustomerInquiryForDeliveredOrder } from "@/lib/customer-inquiry-lifecycle";
+import { completeCustomerInquiriesForDeliveredOrders } from "@/lib/customer-inquiry-lifecycle";
+import { parseJakartaDateTimeInput } from "@/lib/delivery-note-status";
 import { nextNumberFromExisting } from "@/lib/document-numbering";
 import { validateDeliveryAssignment } from "@/lib/delivery-options";
 import {
@@ -1745,6 +1746,7 @@ export async function createDeliveryNote(formData: FormData) {
         driverName: deliveryAssignment.value.driverName,
         vehiclePlateNumber: deliveryAssignment.value.vehiclePlateNumber,
         authorizedBy: getString(formData, "authorizedBy") || null,
+        createdBy: currentUser.displayName || currentUser.username,
         sources: { create: lists.map(list => ({
           pickingListId: list.id,
           salesOrderId: list.salesOrderId,
@@ -1767,31 +1769,32 @@ export async function createDeliveryNote(formData: FormData) {
         unit: "PCS"
       })))
     });
+
+    await createAuditTrailLog({
+      actor: currentUser,
+      moduleName: "Surat Jalan",
+      entityType: "DELIVERY_NOTE",
+      entityId: note.id,
+      recordReference: note.deliveryNoteNumber,
+      action: "CREATED",
+      actionNote,
+      changeSummary: "Draft Surat Jalan " + note.deliveryNoteNumber + " created from " + pickingListIds.length + " Picking List(s)",
+      newValue: {
+        sources: note.sources,
+        status: note.status,
+        recipientName: note.recipientName,
+        recipientAddress: note.recipientAddress,
+        driverName: note.driverName,
+        vehiclePlateNumber: note.vehiclePlateNumber
+      }
+    }, { transaction: tx });
+
     return note;
   }, { timeout: 20000 })).catch((error: unknown) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       redirectWithMessage("/surat-jalan?mode=create", "error", "A selected Picking List already belongs to a Surat Jalan. Refresh and try again.");
     }
     throw error;
-  });
-
-  await createAuditTrailLog({
-    actor: currentUser,
-    moduleName: "Surat Jalan",
-    entityType: "DELIVERY_NOTE",
-    entityId: deliveryNote.id,
-    recordReference: deliveryNote.deliveryNoteNumber,
-    action: "CREATED",
-    actionNote,
-    changeSummary: "Draft Surat Jalan " + deliveryNote.deliveryNoteNumber + " created from " + pickingListIds.length + " Picking List(s)",
-    newValue: {
-      sources: deliveryNote.sources,
-      status: deliveryNote.status,
-      recipientName: deliveryNote.recipientName,
-      recipientAddress: deliveryNote.recipientAddress,
-      driverName: deliveryNote.driverName,
-      vehiclePlateNumber: deliveryNote.vehiclePlateNumber
-    }
   });
 
   refreshApp();
@@ -1871,17 +1874,25 @@ export async function saveDeliveryNoteDraft(formData: FormData) {
     });
     if (updateResult.count !== 1) throw new Error("DELIVERY_NOTE_CONFLICT");
 
-    for (const item of items) {
-      const itemResult = await tx.deliveryNoteItem.updateMany({
-        where: { id: item.id, deliveryNoteId: id },
-        data: {
-          quantity: item.quantity,
-          outstandingQuantity: item.outstandingQuantity,
-          adjustmentNote: item.adjustmentNote
-        }
-      });
-      if (itemResult.count !== 1) throw new Error("DELIVERY_NOTE_CONFLICT");
-    }
+    const updatedItemCount = await tx.$executeRaw(Prisma.sql`
+      UPDATE delivery_note_items AS target
+      SET
+        quantity = updates.quantity,
+        outstanding_quantity = updates.outstanding_quantity,
+        adjustment_note = updates.adjustment_note
+      FROM (
+        VALUES ${Prisma.join(items.map(item => Prisma.sql`(
+          ${item.id}::text,
+          ${id}::text,
+          ${item.quantity}::integer,
+          ${item.outstandingQuantity}::integer,
+          ${item.adjustmentNote}::text
+        )`))}
+      ) AS updates(id, delivery_note_id, quantity, outstanding_quantity, adjustment_note)
+      WHERE target.id = updates.id
+        AND target.delivery_note_id = updates.delivery_note_id
+    `);
+    if (updatedItemCount !== items.length) throw new Error("DELIVERY_NOTE_CONFLICT");
 
     const deliveryNote = await tx.deliveryNote.findUniqueOrThrow({
       where: { id },
@@ -1890,6 +1901,40 @@ export async function saveDeliveryNoteDraft(formData: FormData) {
         sources: { select: { salesOrderId: true } }
       }
     });
+
+    const issued = deliveryNote.status === "Issued";
+    await createAuditTrailLog({
+      actor: currentUser,
+      moduleName: "Surat Jalan",
+      entityType: "DELIVERY_NOTE",
+      entityId: deliveryNote.id,
+      recordReference: deliveryNote.deliveryNoteNumber,
+      action: issued ? "ISSUED" : "DRAFT_UPDATED",
+      actionNote,
+      changeSummary: issued ? `Surat Jalan ${deliveryNote.deliveryNoteNumber} issued and locked` : `Draft Surat Jalan ${deliveryNote.deliveryNoteNumber} updated`,
+      oldValue: {
+        status: oldNote.status,
+        recipientName: oldNote.recipientName,
+        recipientAddress: oldNote.recipientAddress,
+        items: oldNote.items.map(item => ({ id: item.id, quantity: item.quantity, outstandingQuantity: item.outstandingQuantity, adjustmentNote: item.adjustmentNote }))
+      },
+      newValue: {
+        status: deliveryNote.status,
+        issuedAt: deliveryNote.issuedAt,
+        issuedBy: deliveryNote.issuedBy,
+        recipientName: deliveryNote.recipientName,
+        recipientAddress: deliveryNote.recipientAddress,
+        items: deliveryNote.items.map(item => ({
+          id: item.id,
+          orderedQuantity: item.orderedQuantitySnapshot,
+          packedQuantity: item.packedQuantitySnapshot,
+          quantity: item.quantity,
+          outstandingQuantity: item.outstandingQuantity,
+          adjustmentNote: item.adjustmentNote
+        }))
+      }
+    }, { transaction: tx });
+
     return { oldNote, deliveryNote };
   }, { timeout: 20000 }).catch((error: unknown) => {
     if (error instanceof Error) {
@@ -1903,38 +1948,6 @@ export async function saveDeliveryNoteDraft(formData: FormData) {
   });
 
   const issued = result.deliveryNote.status === "Issued";
-  await createAuditTrailLog({
-    actor: currentUser,
-    moduleName: "Surat Jalan",
-    entityType: "DELIVERY_NOTE",
-    entityId: result.deliveryNote.id,
-    recordReference: result.deliveryNote.deliveryNoteNumber,
-    action: issued ? "ISSUED" : "DRAFT_UPDATED",
-    actionNote,
-    changeSummary: issued ? `Surat Jalan ${result.deliveryNote.deliveryNoteNumber} issued and locked` : `Draft Surat Jalan ${result.deliveryNote.deliveryNoteNumber} updated`,
-    oldValue: {
-      status: result.oldNote.status,
-      recipientName: result.oldNote.recipientName,
-      recipientAddress: result.oldNote.recipientAddress,
-      items: result.oldNote.items.map(item => ({ id: item.id, quantity: item.quantity, outstandingQuantity: item.outstandingQuantity, adjustmentNote: item.adjustmentNote }))
-    },
-    newValue: {
-      status: result.deliveryNote.status,
-      issuedAt: result.deliveryNote.issuedAt,
-      issuedBy: result.deliveryNote.issuedBy,
-      recipientName: result.deliveryNote.recipientName,
-      recipientAddress: result.deliveryNote.recipientAddress,
-      items: result.deliveryNote.items.map(item => ({
-        id: item.id,
-        orderedQuantity: item.orderedQuantitySnapshot,
-        packedQuantity: item.packedQuantitySnapshot,
-        quantity: item.quantity,
-        outstandingQuantity: item.outstandingQuantity,
-        adjustmentNote: item.adjustmentNote
-      }))
-    }
-  });
-
   refreshApp();
   redirect(`/surat-jalan?tab=open&view=${id}&success=${encodeURIComponent(issued ? "Surat Jalan issued and locked" : "Draft Surat Jalan saved")}`);
 }
@@ -1952,10 +1965,36 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
   }
   const status = requestedStatus as DeliveryNoteStatus;
   if (!id) redirectWithMessage("/surat-jalan", "error", "Surat Jalan ID is required");
+  const receiverName = status === "Delivered" ? getRequiredString(formData, "receiverName") : "";
+  const receiptNotes = status === "Delivered" ? getString(formData, "receiptNotes") : "";
+  const receivedAt = status === "Delivered"
+    ? parseJakartaDateTimeInput(getRequiredString(formData, "receivedAt"))
+    : null;
+
+  if (
+    status === "Delivered" &&
+    (!receiverName || receiverName.length > 200 || !receivedAt || receiptNotes.length > 2000)
+  ) {
+    redirectWithMessage(
+      "/surat-jalan?tab=open&view=" + id,
+      "error",
+      "Receiver name and a valid received date/time are required"
+    );
+  }
 
   const oldDeliveryNote = await prisma.deliveryNote.findUnique({
     where: { id },
-    select: { id: true, deliveryNoteNumber: true, status: true, notes: true }
+    select: {
+      id: true,
+      deliveryNoteNumber: true,
+      status: true,
+      notes: true,
+      issuedAt: true,
+      receiverName: true,
+      receivedAt: true,
+      receivedBy: true,
+      receiptNotes: true
+    }
   });
   if (!oldDeliveryNote) redirectWithMessage("/surat-jalan", "error", "Surat Jalan was not found");
 
@@ -1965,54 +2004,97 @@ export async function updateDeliveryNoteStatus(formData: FormData) {
   if (!allowedNextStatus.includes(status)) {
     redirectWithMessage("/surat-jalan?tab=open", "error", "Invalid Surat Jalan status transition");
   }
+  if (
+    status === "Delivered" &&
+    receivedAt &&
+    (receivedAt.getTime() > Date.now() + 5 * 60 * 1000 ||
+      (oldDeliveryNote.issuedAt && receivedAt < oldDeliveryNote.issuedAt))
+  ) {
+    redirectWithMessage(
+      "/surat-jalan?tab=open&view=" + id,
+      "error",
+      "Received time must be after the Surat Jalan was sent and cannot be in the future"
+    );
+  }
 
-  const { deliveryNote, completedInquiries } = await prisma.$transaction(async tx => {
-    const deliveryNote = await tx.deliveryNote.update({
+  await prisma.$transaction(async tx => {
+    const updateResult = await tx.deliveryNote.updateMany({
       where: { id, status: oldDeliveryNote.status },
-      data: { status, notes: mergeActionNotes(oldDeliveryNote.notes, actionNote) },
+      data: {
+        status,
+        notes: status === "Cancelled"
+          ? mergeActionNotes(oldDeliveryNote.notes, actionNote)
+          : oldDeliveryNote.notes,
+        receiverName: status === "Delivered" ? receiverName : oldDeliveryNote.receiverName,
+        receivedAt: status === "Delivered" ? receivedAt : oldDeliveryNote.receivedAt,
+        receivedBy: status === "Delivered"
+          ? currentUser.displayName || currentUser.username
+          : oldDeliveryNote.receivedBy,
+        receiptNotes: status === "Delivered"
+          ? receiptNotes || null
+          : oldDeliveryNote.receiptNotes
+      }
+    });
+    if (updateResult.count !== 1) throw new Error("DELIVERY_NOTE_CONFLICT");
+    const deliveryNote = await tx.deliveryNote.findUniqueOrThrow({
+      where: { id },
       include: { sources: { select: { salesOrderId: true } } }
     });
-    const completedInquiries = [];
-    if (status === "Delivered") {
-      const orderIds = new Set([deliveryNote.salesOrderId, ...(deliveryNote.sources ?? []).map(source => source.salesOrderId)]);
-      for (const orderId of orderIds) {
-        if (!orderId) continue;
-        const inquiry = await completeCustomerInquiryForDeliveredOrder(tx, orderId);
-        if (inquiry) completedInquiries.push(inquiry);
-      }
-    }
-    return { deliveryNote, completedInquiries };
+    const orderIds = [...new Set([
+      deliveryNote.salesOrderId,
+      ...(deliveryNote.sources ?? []).map(source => source.salesOrderId)
+    ])].filter((orderId): orderId is string => Boolean(orderId));
+    const completedInquiries = status === "Delivered"
+      ? await completeCustomerInquiriesForDeliveredOrders(tx, orderIds)
+      : [];
+
+    await createAuditTrailLog([
+      {
+        actor: currentUser,
+        moduleName: "Surat Jalan",
+        entityType: "DELIVERY_NOTE",
+        entityId: deliveryNote.id,
+        recordReference: deliveryNote.deliveryNoteNumber,
+        action: deliveryNote.status === "Delivered" ? "DELIVERED" : "STATUS_CHANGED",
+        actionNote: status === "Delivered" ? receiptNotes : actionNote,
+        changeSummary: `Surat Jalan status changed from ${oldDeliveryNote.status} to ${deliveryNote.status}`,
+        oldValue: { status: oldDeliveryNote.status },
+        newValue: {
+          status: deliveryNote.status,
+          receiverName: deliveryNote.receiverName,
+          receivedAt: deliveryNote.receivedAt,
+          receivedBy: deliveryNote.receivedBy,
+          receiptNotes: deliveryNote.receiptNotes
+        }
+      },
+      ...completedInquiries.map(inquiry => ({
+        actor: currentUser,
+        moduleName: "Customer Inquiry",
+        entityType: "CUSTOMER_INQUIRY",
+        entityId: inquiry.id,
+        recordReference: inquiry.inquiryNumber,
+        action: "COMPLETED",
+        changeSummary: "Customer inquiry completed after linked order delivery",
+        newValue: { status: "Done", salesOrderId: inquiry.salesOrderId }
+      }))
+    ], { transaction: tx });
+
+    return deliveryNote;
   }, { timeout: 20000 }).catch((error: unknown) => {
+    if (error instanceof Error && error.message === "DELIVERY_NOTE_CONFLICT") {
+      redirectWithMessage("/surat-jalan?tab=open", "error", "Surat Jalan changed. Refresh and review its current status.");
+    }
+    if (error instanceof Error && error.message === "CUSTOMER_INQUIRY_CONFLICT") {
+      redirectWithMessage("/surat-jalan?tab=open", "error", "A linked Customer Inquiry changed. Refresh and try again.");
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
       redirectWithMessage("/surat-jalan?tab=open", "error", "Surat Jalan changed. Refresh and review its current status.");
     }
     throw error;
   });
 
-  await createAuditTrailLog({
-    actor: currentUser,
-    moduleName: "Surat Jalan",
-    entityType: "DELIVERY_NOTE",
-    entityId: deliveryNote.id,
-    recordReference: deliveryNote.deliveryNoteNumber,
-    action: deliveryNote.status === "Delivered" ? "DELIVERED" : "STATUS_CHANGED",
-    actionNote,
-    changeSummary: `Surat Jalan status changed from ${oldDeliveryNote.status} to ${deliveryNote.status}`,
-    oldValue: { status: oldDeliveryNote.status },
-    newValue: { status: deliveryNote.status }
-  });
-
-  for (const inquiry of completedInquiries) {
-    await createAuditTrailLog({
-      moduleName: "Customer Inquiry", entityType: "CUSTOMER_INQUIRY", entityId: inquiry.id,
-      recordReference: inquiry.inquiryNumber, action: "COMPLETED",
-      changeSummary: "Customer inquiry completed after linked order delivery",
-      newValue: { status: "Done", salesOrderId: inquiry.salesOrderId }
-    });
-  }
-
   refreshApp();
-  redirect(`/surat-jalan?tab=${status === "Delivered" || status === "Cancelled" ? "completed" : "open"}&view=${id}&success=${encodeURIComponent("Surat Jalan status updated")}`);
+  redirect(`/surat-jalan?tab=${status === "Delivered" || status === "Cancelled" ? "completed" : "open"}&view=${id}&success=${encodeURIComponent(status === "Delivered" ? "Surat Jalan marked as received" : "Surat Jalan cancelled")}`);
 }
 
 function summarizeCustomer(customer: {

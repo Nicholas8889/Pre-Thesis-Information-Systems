@@ -15,28 +15,21 @@ const moduleNames: Record<string, string> = {
   "/settings": "Account"
 };
 
-export function getCardHelpMetadata(input: {
+export function getCardTitle(input: {
   pathname: string;
   existingTitle?: string;
   hasTable: boolean;
   hasForm: boolean;
 }) {
   const moduleName = getModuleName(input.pathname);
-  const title =
+  return (
     input.existingTitle?.trim() ||
     (input.hasTable
       ? `${moduleName} Records`
       : input.hasForm
         ? `${moduleName} Action`
-        : `${moduleName} Summary`);
-
-  const description = input.hasTable
-    ? `Use this card to view, search, filter, and manage ${moduleName.toLowerCase()} records.`
-    : input.hasForm
-      ? `Use this card to enter and submit ${moduleName.toLowerCase()} information.`
-      : `Use this card to review ${title.toLowerCase()} and related information.`;
-
-  return { title, description };
+        : `${moduleName} Summary`)
+  );
 }
 
 function getModuleName(pathname: string) {

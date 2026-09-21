@@ -6,6 +6,7 @@ import { PrintButton } from "@/components/print-button";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
+import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,10 @@ export default async function SuratJalanPrintPage({
                 No. {deliveryNote.deliveryNoteNumber}
               </p>
               <div className="mt-2 flex sm:justify-end">
-                <StatusBadge status={deliveryNote.status} />
+                <StatusBadge
+                  status={deliveryNote.status}
+                  label={getDeliveryNoteStatusLabel(deliveryNote.status)}
+                />
               </div>
             </div>
           </div>
@@ -197,8 +201,30 @@ export default async function SuratJalanPrintPage({
               value={deliveryNote.vehiclePlateNumber ?? "Not recorded"}
             />
             <InfoRow label="Authorized by" value={deliveryNote.authorizedBy ?? "-"} />
+            {deliveryNote.receivedAt && (
+              <InfoRow
+                label="Received at"
+                value={new Intl.DateTimeFormat("id-ID", {
+                  timeZone: "Asia/Jakarta",
+                  dateStyle: "medium",
+                  timeStyle: "short"
+                }).format(deliveryNote.receivedAt)}
+              />
+            )}
+            {deliveryNote.receivedBy && (
+              <InfoRow label="Receipt recorded by" value={deliveryNote.receivedBy} />
+            )}
           </div>
         </section>
+
+        {deliveryNote.receiptNotes && (
+          <section className="mt-5 border-t border-line pt-5">
+            <p className="text-xs font-bold uppercase text-ink/70">Receipt Notes</p>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+              {deliveryNote.receiptNotes}
+            </p>
+          </section>
+        )}
 
         <footer className="mt-12 grid gap-8 text-center text-sm md:grid-cols-4">
           <Signature label="Received by" name={deliveryNote.receiverName ?? ""} />

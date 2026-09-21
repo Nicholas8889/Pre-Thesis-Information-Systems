@@ -1,10 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 import {
-  getCustomerPaymentBehaviourFromCounts,
-  getCustomerPaymentSummaryFromAggregate,
-  getJakartaTrailingTwelveMonthWindow,
-  type CustomerPaymentBehaviourCounts
+  getCustomerPaymentSummaryFromAggregate
 } from "@/lib/customer-intelligence";
+import { getEffectiveInvoiceStatusWhere } from "@/lib/invoice-status";
 import { formatNpwp } from "@/lib/npwp";
 import {
   getCurrentMonthAverageSoldPriceFromAggregate,
@@ -14,32 +12,19 @@ import {
 
 type OrderFormInsightsClient = Pick<
   PrismaClient,
-  "customer" | "invoice" | "product" | "salesOrder" | "salesOrderItem"
+  "customer" | "invoice" | "product" | "salesOrderItem"
 >;
-
-const PAYMENT_BEHAVIOUR_ELIGIBLE_STATUSES = [
-  "Confirmed",
-  "Invoiced",
-  "Shipped"
-] as const;
-
-const EMPTY_PAYMENT_BEHAVIOUR_COUNTS: CustomerPaymentBehaviourCounts = {
-  immediatePayment: 0,
-  shortTermCredit: 0,
-  longTermCredit: 0
-};
 
 export async function loadOrderFormInsights(
   db: OrderFormInsightsClient,
   now = new Date()
 ) {
-  const customerHistoryWindow = getJakartaTrailingTwelveMonthWindow(now);
   const currentMonth = getJakartaCurrentMonthWindow(now);
 
   const [
     customerRecords,
     customerBalanceAggregates,
-    customerBehaviourAggregates,
+    overdueInvoiceAggregates,
     productRecords,
     productPriceAggregates
   ] = await Promise.all([
@@ -78,15 +63,11 @@ export async function loadOrderFormInsights(
       _sum: { remainingAmount: true },
       _count: { _all: true }
     }),
-    db.salesOrder.groupBy({
-      by: ["customerId", "paymentTermType", "creditTermMonths"],
+    db.invoice.groupBy({
+      by: ["customerId"],
       where: {
         customer: { status: "Active" },
-        orderDate: {
-          gte: customerHistoryWindow.observationStart,
-          lte: customerHistoryWindow.observationEnd
-        },
-        status: { in: [...PAYMENT_BEHAVIOUR_ELIGIBLE_STATUSES] }
+        ...getEffectiveInvoiceStatusWhere("Overdue", now)
       },
       _count: { _all: true }
     }),
@@ -128,27 +109,12 @@ export async function loadOrderFormInsights(
       })
     ])
   );
-  const behaviourCountsByCustomer = new Map<
-    string,
-    CustomerPaymentBehaviourCounts
-  >();
-
-  for (const aggregate of customerBehaviourAggregates) {
-    const counts = behaviourCountsByCustomer.get(aggregate.customerId) ?? {
-      ...EMPTY_PAYMENT_BEHAVIOUR_COUNTS
-    };
-    const count = aggregate._count._all;
-
-    if (aggregate.paymentTermType === "IMMEDIATE") {
-      counts.immediatePayment += count;
-    } else if ((aggregate.creditTermMonths ?? 1) <= 1) {
-      counts.shortTermCredit += count;
-    } else {
-      counts.longTermCredit += count;
-    }
-
-    behaviourCountsByCustomer.set(aggregate.customerId, counts);
-  }
+  const overdueInvoiceCountsByCustomer = new Map(
+    overdueInvoiceAggregates.map((aggregate) => [
+      aggregate.customerId,
+      aggregate._count._all
+    ])
+  );
 
   const pricesByProduct = new Map(
     productPriceAggregates.flatMap((aggregate) =>
@@ -170,13 +136,7 @@ export async function loadOrderFormInsights(
   );
 
   return {
-    customers: customerRecords.map((customer) => {
-      const paymentBehaviour = getCustomerPaymentBehaviourFromCounts(
-        behaviourCountsByCustomer.get(customer.id) ?? EMPTY_PAYMENT_BEHAVIOUR_COUNTS,
-        now
-      );
-
-      return {
+    customers: customerRecords.map((customer) => ({
         id: customer.id,
         companyName: customer.companyName,
         name: customer.name,
@@ -185,12 +145,10 @@ export async function loadOrderFormInsights(
             outstandingAmount: 0,
             openInvoiceCount: 0
           })),
-        paymentBehaviour: paymentBehaviour.behaviour,
-        paymentBehaviourEvidence: paymentBehaviour.evidence,
+        overdueInvoiceCount: overdueInvoiceCountsByCustomer.get(customer.id) ?? 0,
         npwp: formatNpwp(customer.npwp),
         ppnApplied: Boolean(customer.npwp)
-      };
-    }),
+      })),
     products: productRecords.map((product) => {
       const average =
         pricesByProduct.get(product.id) ??

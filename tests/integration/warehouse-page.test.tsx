@@ -156,6 +156,9 @@ describe("warehouse tabs and print views", () => {
 
     const deliveryHtml = renderToStaticMarkup(await SuratJalanPage({}));
     expect(deliveryHtml).toContain("Surat Jalan");
+    expect(deliveryHtml).toContain("Dikirim");
+    expect(deliveryHtml).toContain("Tandai Sudah Diterima");
+    expect(deliveryHtml).not.toContain("Edit Status");
     expect(deliveryHtml).not.toContain("Add Picking List");
     expect(deliveryHtml).toMatch(/Completed<span[^>]*>1<\/span>/);
   });

@@ -36,6 +36,7 @@ import { getApprovalReasonLabel } from "@/lib/sales-order-approval";
 import { loadOrderFormInsights } from "@/lib/order-form-insights";
 import { formatNpwp } from "@/lib/npwp";
 import { withEffectiveInvoiceStatus } from "@/lib/invoice-status";
+import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
 import { formatPpnRate, getConfiguredPpnRateBasisPoints } from "@/lib/tax";
 import {
   getCursorArgs,
@@ -554,7 +555,10 @@ export async function OrdersBySourcePage({
                     <td className="py-3 pr-4 text-ink/80">
                       {order.deliveryNotes[0] ? (
                         <StatusStack>
-                          <StatusBadge status={order.deliveryNotes[0].status} />
+                          <StatusBadge
+                            status={order.deliveryNotes[0].status}
+                            label={getDeliveryNoteStatusLabel(order.deliveryNotes[0].status)}
+                          />
                         </StatusStack>
                       ) : "-"}
                     </td>

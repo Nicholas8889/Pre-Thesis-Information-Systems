@@ -1,28 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { getCardHelpMetadata } from "../../src/lib/card-help";
+import { getCardTitle } from "../../src/lib/card-help";
 
-describe("card titles and help descriptions", () => {
-  it("keeps an existing card title and explains table usage", () => {
+describe("card titles", () => {
+  it("keeps an existing card title", () => {
     expect(
-      getCardHelpMetadata({
+      getCardTitle({
         pathname: "/payments",
         existingTitle: "Recorded Payments",
         hasTable: true,
         hasForm: false
       })
-    ).toEqual({
-      title: "Recorded Payments",
-      description: "Use this card to view, search, filter, and manage payment records."
-    });
+    ).toBe("Recorded Payments");
   });
 
   it("generates a meaningful title for an untitled records card", () => {
     expect(
-      getCardHelpMetadata({
+      getCardTitle({
         pathname: "/surat-jalan",
         hasTable: true,
         hasForm: false
-      }).title
+      })
     ).toBe("Surat Jalan Records");
   });
 });
