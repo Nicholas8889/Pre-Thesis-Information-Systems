@@ -17,6 +17,7 @@ describe("sales order Excel export", () => {
       deliverySources: { none: {} }
     });
     expect(getSalesOrderExportTabFilter("done")).toEqual({
+      approvalStatus: { not: "Pending" },
       OR: [
         { status: { in: ["Shipped", "Cancelled"] } },
         { deliveryNotes: { some: {} } },

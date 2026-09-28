@@ -23,7 +23,8 @@ import {
   getOpenInvoiceWhere,
   withEffectiveInvoiceStatus
 } from "@/lib/invoice-status";
-import { getCurrentUser } from "@/lib/session";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
 import {
   getCursorArgs,
@@ -41,13 +42,17 @@ export default async function PaymentsPage({
   const params = (await searchParams) ?? {};
   const selectedInvoiceId = getFirst(params.invoiceId);
   const { success, error } = getSearchMessage(params);
-  const currentUser = await getCurrentUser();
-  const canRecordPayment = canRole(currentUser?.role, "RECORD_PAYMENT");
-  const canCreateSuratJalan = canRole(currentUser?.role, "CREATE_SURAT_JALAN");
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
+  const canRecordPayment = canRole(currentUser.role, "RECORD_PAYMENT");
+  const canCreateSuratJalan = canRole(currentUser.role, "CREATE_SURAT_JALAN");
   const queuePagination = getCursorPagination(params);
   const paymentPagination = getCursorPagination(params, "payment");
   const now = new Date();
-  const openInvoiceWhere: Prisma.InvoiceWhereInput = getOpenInvoiceWhere();
+  const openInvoiceWhere: Prisma.InvoiceWhereInput = {
+    ...getOpenInvoiceWhere(),
+    ...portfolio.invoiceWhere
+  };
 
   const [openInvoiceRecords, paymentRecords, selectedInvoiceRecord] = await Promise.all([
     prisma.invoice.findMany({
@@ -57,6 +62,7 @@ export default async function PaymentsPage({
       include: { customer: true }
     }),
     prisma.payment.findMany({
+      where: portfolio.paymentWhere,
       orderBy: [{ paymentDate: "desc" }, { id: "desc" }],
       ...getCursorArgs(paymentPagination),
       include: {

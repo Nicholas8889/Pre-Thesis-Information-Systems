@@ -98,6 +98,7 @@ async function main() {
         npwp: "0123456789012345",
         customerSegment: "Retail",
         status: "Active",
+        portfolioOwnerUserId: salesUser.id,
         notes: "Long-term customer with regular monthly orders."
       }
     }),
@@ -110,6 +111,7 @@ async function main() {
         address: "Jl. Cendana No. 7, Jakarta",
         customerSegment: "Wholesale",
         status: "Active",
+        portfolioOwnerUserId: salesUser.id,
         notes: "Usually pays by bank transfer."
       }
     }),
@@ -122,6 +124,7 @@ async function main() {
         address: "Jl. Diponegoro No. 21, Semarang",
         customerSegment: "Retail",
         status: "Active",
+        portfolioOwnerUserId: salesUser.id,
         notes: "Needs reminder before due date."
       }
     }),
@@ -135,6 +138,7 @@ async function main() {
         npwp: "9876543210987654",
         customerSegment: "Corporate",
         status: "Active",
+        portfolioOwnerUserId: salesUser.id,
         notes: "Requests formal invoice copies."
       }
     }),
@@ -147,6 +151,7 @@ async function main() {
         address: "Jl. Sudirman No. 31, Yogyakarta",
         customerSegment: "Wholesale",
         status: "Inactive",
+        portfolioOwnerUserId: salesUser.id,
         notes: "Inactive until next seasonal order."
       }
     }),
@@ -159,6 +164,7 @@ async function main() {
         address: "Jl. Pemuda No. 18, Bogor",
         customerSegment: "Corporate",
         status: "Active",
+        portfolioOwnerUserId: salesUser.id,
         notes: "No eligible order history; demonstrates the No Payment History state."
       }
     })
@@ -176,6 +182,7 @@ async function main() {
     data: {
       orderNumber: "SO-2026-001",
       customerId: sinarMaju.id,
+      deliveryDestinationSnapshot: sinarMaju.address,
       orderDate: new Date("2026-05-20"),
       status: "Invoiced",
       subtotal: 5400000,
@@ -199,6 +206,7 @@ async function main() {
     data: {
       orderNumber: "SO-2026-002",
       customerId: bintangNiaga.id,
+      deliveryDestinationSnapshot: bintangNiaga.address,
       orderDate: new Date("2026-05-24"),
       status: "Invoiced",
       subtotal: 3200000,
@@ -219,6 +227,7 @@ async function main() {
     data: {
       orderNumber: "SO-2026-003",
       customerId: tokoHarapan.id,
+      deliveryDestinationSnapshot: tokoHarapan.address,
       orderDate: new Date("2026-05-28"),
       status: "Invoiced",
       subtotal: 2750000,
@@ -239,6 +248,7 @@ async function main() {
     data: {
       orderNumber: "SO-2026-004",
       customerId: nusantaraJaya.id,
+      deliveryDestinationSnapshot: nusantaraJaya.address,
       orderDate: new Date("2026-04-18"),
       status: "Invoiced",
       subtotal: 7900000,
@@ -262,6 +272,7 @@ async function main() {
     data: {
       orderNumber: "SO-2026-005",
       customerId: makmurBersama.id,
+      deliveryDestinationSnapshot: makmurBersama.address,
       orderDate: new Date("2026-06-03"),
       status: "Invoiced",
       subtotal: 1850000,
@@ -283,6 +294,7 @@ async function main() {
       data: {
         orderNumber: "SO-DEMO-MIX-001",
         customerId: nusantaraJaya.id,
+        deliveryDestinationSnapshot: nusantaraJaya.address,
         orderDate: getRollingDemoOrderDate(1),
         status: "Confirmed",
         subtotal: 1500000,
@@ -310,6 +322,7 @@ async function main() {
       data: {
         orderNumber: "SO-DEMO-MIX-002",
         customerId: nusantaraJaya.id,
+        deliveryDestinationSnapshot: nusantaraJaya.address,
         orderDate: getRollingDemoOrderDate(2),
         status: "Confirmed",
         subtotal: 1800000,
@@ -696,6 +709,7 @@ async function createGeneratedDemoData({
             : null,
         customerSegment: customerSegments[index % customerSegments.length],
         status: index % 15 === 0 ? "Inactive" : "Active",
+        portfolioOwnerUserId: salesUser.id,
         notes: `Generated demonstration customer ${index + 1} for table search, sorting, and filtering.`,
         createdAt
       }
@@ -716,6 +730,7 @@ async function createGeneratedDemoData({
       data: {
         orderNumber: `SO-2026-${paddedSequence}`,
         customerId: customer.id,
+        deliveryDestinationSnapshot: customer.address,
         orderDate,
         status: isPendingApproval ? "Draft" : isConfirmedOnly ? "Confirmed" : "Invoiced",
         subtotal: total,

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Eye, FilePlus2, Printer } from "lucide-react";
-import { updateInvoiceNotes } from "@/lib/actions";
+import { cancelInvoice, updateInvoiceNotes } from "@/lib/actions";
 import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
@@ -24,10 +24,13 @@ import {
   getOpenInvoiceWhere,
   withEffectiveInvoiceStatus
 } from "@/lib/invoice-status";
-import { getCurrentUser } from "@/lib/session";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
 import { formatNpwp } from "@/lib/npwp";
 import { formatPpnRate } from "@/lib/tax";
+import { canCancelInvoice } from "@/lib/invoice-policy";
+import { parseInvoiceItemSnapshots } from "@/lib/invoice-snapshot";
 import {
   getCursorArgs,
   getCursorPage,
@@ -45,12 +48,14 @@ export default async function InvoicesPage({
   const viewId = getFirst(params.view);
   const activeTab = normalizeProcessTab(params.tab);
   const { success, error } = getSearchMessage(params);
-  const currentUser = await getCurrentUser();
-  const canCreateSuratJalan = canRole(currentUser?.role, "CREATE_SURAT_JALAN");
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
+  const canCreateSuratJalan = canRole(currentUser.role, "CREATE_SURAT_JALAN");
+  const canCancel = canRole(currentUser.role, "CANCEL_INVOICE");
   const pagination = getCursorPagination(params);
   const now = new Date();
-  const ongoingWhere = getOpenInvoiceWhere();
-  const doneWhere = getClosedInvoiceWhere();
+  const ongoingWhere = { ...getOpenInvoiceWhere(), ...portfolio.invoiceWhere };
+  const doneWhere = { ...getClosedInvoiceWhere(), ...portfolio.invoiceWhere };
   const visibleWhere = activeTab === "done" ? doneWhere : ongoingWhere;
 
   const [invoiceRecords, ongoingCount, doneCount] = await Promise.all([
@@ -74,8 +79,8 @@ export default async function InvoicesPage({
   const selectedInvoiceRecord =
     activeTab === "ongoing"
       ? viewId
-        ? await prisma.invoice.findUnique({
-            where: { id: viewId },
+        ? await prisma.invoice.findFirst({
+            where: { id: viewId, ...portfolio.invoiceWhere },
             include: {
               customer: true,
               salesOrder: { include: { items: true } },
@@ -83,8 +88,8 @@ export default async function InvoicesPage({
             }
           })
         : visibleInvoices[0]
-          ? await prisma.invoice.findUnique({
-              where: { id: visibleInvoices[0].id },
+          ? await prisma.invoice.findFirst({
+              where: { id: visibleInvoices[0].id, ...portfolio.invoiceWhere },
               include: {
                 customer: true,
                 salesOrder: { include: { items: true } },
@@ -96,6 +101,16 @@ export default async function InvoicesPage({
   const selectedInvoice = selectedInvoiceRecord
     ? withEffectiveInvoiceStatus(selectedInvoiceRecord, now)
     : null;
+  const selectedItems = selectedInvoice
+    ? parseInvoiceItemSnapshots(selectedInvoice.itemsSnapshot)
+    : [];
+  const selectedInvoiceCanBeCancelled = selectedInvoice
+    ? canCancelInvoice({
+        status: selectedInvoice.status,
+        paidAmount: selectedInvoice.paidAmount,
+        paymentCount: selectedInvoice.payments.length
+      })
+    : false;
 
   return (
     <>
@@ -120,10 +135,10 @@ export default async function InvoicesPage({
               <p className="text-sm font-semibold uppercase text-ink/50">Invoice</p>
               <h2 className="mt-1 text-2xl font-semibold">{selectedInvoice.invoiceNumber}</h2>
               <p className="mt-1 text-sm text-ink/80">
-                Sales Order {selectedInvoice.salesOrder.orderNumber}
-                {selectedInvoice.salesOrder.source === "CUSTOMER_PO" &&
-                selectedInvoice.salesOrder.customerPoNumber
-                  ? ` - PO ${selectedInvoice.salesOrder.customerPoNumber}`
+                Sales Order {selectedInvoice.orderNumberSnapshot}
+                {selectedInvoice.orderSourceSnapshot === "CUSTOMER_PO" &&
+                selectedInvoice.customerPoNumberSnapshot
+                  ? ` - PO ${selectedInvoice.customerPoNumberSnapshot}`
                   : ""}
               </p>
             </div>
@@ -171,11 +186,11 @@ export default async function InvoicesPage({
           </div>
 
           <div className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
-            <Detail label="Customer" value={selectedInvoice.customer.companyName} />
-            {selectedInvoice.salesOrder.source === "CUSTOMER_PO" && (
-              <Detail label="Customer PO Number" value={selectedInvoice.salesOrder.customerPoNumber ?? "-"} />
+            <Detail label="Customer" value={selectedInvoice.customerCompanySnapshot} />
+            {selectedInvoice.orderSourceSnapshot === "CUSTOMER_PO" && (
+              <Detail label="Customer PO Number" value={selectedInvoice.customerPoNumberSnapshot ?? "-"} />
             )}
-            <Detail label="Contact" value={selectedInvoice.customer.name} />
+            <Detail label="Contact" value={selectedInvoice.customerNameSnapshot} />
             <Detail label="Issue Date" value={formatDate(selectedInvoice.issueDate)} />
             <Detail label="Due Date" value={formatDate(selectedInvoice.dueDate)} />
             <Detail
@@ -208,7 +223,7 @@ export default async function InvoicesPage({
               label="Remaining Amount"
               value={formatCurrency(selectedInvoice.remainingAmount)}
             />
-            <Detail label="Phone" value={selectedInvoice.customer.phone} />
+            <Detail label="Phone" value={selectedInvoice.customerPhoneSnapshot} />
           </div>
 
           <div className="mt-6 overflow-x-auto">
@@ -222,8 +237,8 @@ export default async function InvoicesPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
-                {selectedInvoice.salesOrder.items.map((item) => (
-                  <tr key={item.id} className="transition hover:bg-soft">
+                {selectedItems.map((item, index) => (
+                  <tr key={`${item.productSku ?? item.itemName}-${index}`} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{item.itemName}</td>
                     <td className="py-3 pr-4 text-right text-ink/80">{item.quantity}</td>
                     <td className="py-3 pr-4 text-right text-ink/80">
@@ -253,6 +268,34 @@ export default async function InvoicesPage({
               Save Notes
             </button>
           </form>
+
+          {selectedInvoiceCanBeCancelled && (
+            <form action={cancelInvoice} className="mt-6 border-t border-line pt-4">
+              <input type="hidden" name="invoiceId" value={selectedInvoice.id} />
+              <input type="hidden" name="expectedVersion" value={selectedInvoice.version} />
+              <label className="block text-sm font-medium text-ink">
+                Cancellation Reason
+                <textarea
+                  name="cancellationReason"
+                  required
+                  maxLength={150}
+                  className="mt-1 min-h-20 w-full rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-brand"
+                  placeholder="Required reason (maximum 150 characters)"
+                />
+              </label>
+              {canCancel ? (
+                <button className="mt-3 inline-flex h-10 items-center justify-center rounded-md border border-danger px-4 text-sm font-semibold text-danger">
+                  Cancel Invoice
+                </button>
+              ) : (
+                <RestrictedAction message={getRestrictionMessage("CANCEL_INVOICE")}>
+                  <button disabled className="mt-3 inline-flex h-10 items-center justify-center rounded-md border border-line bg-soft px-4 text-sm font-semibold text-ink/50">
+                    Cancel Invoice
+                  </button>
+                </RestrictedAction>
+              )}
+            </form>
+          )}
         </section>
       )}
 
@@ -283,7 +326,7 @@ export default async function InvoicesPage({
                 {visibleInvoices.map((invoice) => (
                   <tr key={invoice.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{invoice.invoiceNumber}</td>
-                    <td className="py-3 pr-4 text-ink/80">{invoice.customer.companyName}</td>
+                    <td className="py-3 pr-4 text-ink/80">{invoice.customerCompanySnapshot}</td>
                     <td className="py-3 pr-4 text-ink/80">{formatDate(invoice.issueDate)}</td>
                     <td className="py-3 pr-4 text-ink/80">{formatDate(invoice.dueDate)}</td>
                     <td className="py-3 pr-4 text-ink/80">

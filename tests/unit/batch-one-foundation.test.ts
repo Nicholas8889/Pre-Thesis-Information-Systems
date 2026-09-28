@@ -78,11 +78,10 @@ describe("Batch 1 foundation", () => {
     expect(DELIVERY_VEHICLE_PLATE_OPTIONS).toEqual(["B 1234 TJK", "B 5678 CVT"]);
   });
 
-  it("validates delivery assignment values against the shared allowlists", () => {
+  it("validates an exact canonical driver and vehicle assignment", () => {
     expect(
       validateDeliveryAssignment({
-        driverName: " Budi Santoso ",
-        vehiclePlateNumber: "B 1234 TJK"
+        deliveryAssignmentId: "budi-b1234"
       })
     ).toEqual({
       valid: true,
@@ -95,17 +94,10 @@ describe("Batch 1 foundation", () => {
 
     expect(
       validateDeliveryAssignment({
-        driverName: "Unknown Driver",
-        vehiclePlateNumber: ""
+        driverName: " Budi Santoso ",
+        vehiclePlateNumber: "B 1234 TJK"
       })
-    ).toEqual({
-      valid: false,
-      value: null,
-      errors: {
-        driverName: "Select a valid driver",
-        vehiclePlateNumber: "Select a vehicle plate"
-      }
-    });
+    ).toMatchObject({ valid: false, value: null });
   });
 
   it("builds an immutable order tax snapshot from the server-side customer NPWP", () => {

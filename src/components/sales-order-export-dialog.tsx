@@ -6,10 +6,14 @@ import type { ProcessTabWithApproval } from "@/components/process-tabs";
 
 export function SalesOrderExportDialog({
   source = "DIRECT",
-  tab
+  tab,
+  search,
+  paymentTermType
 }: {
   source?: "DIRECT" | "CUSTOMER_PO";
   tab: ProcessTabWithApproval;
+  search?: string;
+  paymentTermType?: string;
 }) {
   const isCustomerPo = source === "CUSTOMER_PO";
   const label = isCustomerPo ? "Customer PO" : "Sales Order";
@@ -37,9 +41,10 @@ export function SalesOrderExportDialog({
     setIsDownloading(true);
 
     try {
-      const response = await fetch(
-        `/api/sales-orders/export?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&source=${source}&tab=${tab}`
-      );
+      const query = new URLSearchParams({ startDate, endDate, source, tab });
+      if (search) query.set("q", search);
+      if (paymentTermType) query.set("paymentTermType", paymentTermType);
+      const response = await fetch(`/api/sales-orders/export?${query.toString()}`);
 
       if (!response.ok) {
         const result = (await response.json().catch(() => null)) as { error?: string } | null;

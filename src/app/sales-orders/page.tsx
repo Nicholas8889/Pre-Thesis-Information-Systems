@@ -26,17 +26,22 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getPaymentTermLabel } from "@/lib/calculations";
 import {
-  DONE_SALES_ORDER_STATUSES,
-  ONGOING_SALES_ORDER_STATUSES
-} from "@/lib/process-status";
+  buildSalesOrderWhere,
+  SALES_ORDER_STABLE_ORDER
+} from "@/lib/sales-order-query";
 import { getSearchMessage } from "@/lib/workflow";
-import { getCurrentUser } from "@/lib/session";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
 import { getApprovalReasonLabel } from "@/lib/sales-order-approval";
 import { loadOrderFormInsights } from "@/lib/order-form-insights";
 import { formatNpwp } from "@/lib/npwp";
 import { withEffectiveInvoiceStatus } from "@/lib/invoice-status";
 import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
+import {
+  canConvertCustomerInquiryItems,
+  resolveAgreedUnitPrice
+} from "@/lib/customer-inquiry";
 import { formatPpnRate, getConfiguredPpnRateBasisPoints } from "@/lib/tax";
 import {
   getCursorArgs,
@@ -71,13 +76,16 @@ export async function OrdersBySourcePage({
   const isCreateFlow = mode === "create" || (!isCustomerPo && mode === "choose");
   const viewId = getFirst(params.view);
   const inquiryId = getFirst(params.inquiryId);
-  const currentUser = await getCurrentUser();
-  const canCreateSalesOrder = canRole(currentUser?.role, "CREATE_SALES_ORDER");
-  const canCreateInvoice = canRole(currentUser?.role, "CREATE_INVOICE");
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
+  const canCreateSalesOrder = canRole(currentUser.role, "CREATE_SALES_ORDER");
+  const canCreateInvoice = canRole(currentUser.role, "CREATE_INVOICE");
   const salesOrderRestriction = getRestrictionMessage("CREATE_SALES_ORDER");
   const invoiceRestriction = getRestrictionMessage("CREATE_INVOICE");
   const canViewApprovals = currentUser?.role === "MANAGER" || currentUser?.role === "SALES";
   const requestedTab = getFirst(params.tab);
+  const query = getFirst(params.q);
+  const paymentTermFilter = getFirst(params.paymentTermType);
   const activeTab =
     requestedTab === "approval" && canViewApprovals
       ? "approval"
@@ -86,25 +94,15 @@ export async function OrdersBySourcePage({
   const now = new Date();
   const ppnRateBasisPoints = getConfiguredPpnRateBasisPoints();
   const pagination = getCursorPagination(params);
-  const ongoingWhere: Prisma.SalesOrderWhereInput = {
+  const sharedQuery = {
     source,
-    approvalStatus: { not: "Pending" },
-    status: { in: [...ONGOING_SALES_ORDER_STATUSES] },
-    deliveryNotes: { none: {} },
-    deliverySources: { none: {} }
+    search: query,
+    paymentTermType: paymentTermFilter,
+    portfolioWhere: portfolio.salesOrderWhere
   };
-  const approvalWhere: Prisma.SalesOrderWhereInput = {
-    source,
-    approvalStatus: "Pending"
-  };
-  const doneWhere: Prisma.SalesOrderWhereInput = {
-    source,
-    OR: [
-      { status: { in: [...DONE_SALES_ORDER_STATUSES] } },
-      { deliveryNotes: { some: {} } },
-      { deliverySources: { some: {} } }
-    ]
-  };
+  const ongoingWhere: Prisma.SalesOrderWhereInput = buildSalesOrderWhere({ ...sharedQuery, tab: "ongoing" });
+  const approvalWhere: Prisma.SalesOrderWhereInput = buildSalesOrderWhere({ ...sharedQuery, tab: "approval" });
+  const doneWhere: Prisma.SalesOrderWhereInput = buildSalesOrderWhere({ ...sharedQuery, tab: "done" });
   const visibleWhere =
     activeTab === "approval"
       ? approvalWhere
@@ -120,11 +118,11 @@ export async function OrdersBySourcePage({
     doneCount
   ] = await Promise.all([
     mode === "create"
-      ? loadOrderFormInsights(prisma, now)
+      ? loadOrderFormInsights(prisma, now, portfolio.customerWhere)
       : Promise.resolve({ customers: [], products: [] }),
     !isCreateFlow ? prisma.salesOrder.findMany({
       where: visibleWhere,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: SALES_ORDER_STABLE_ORDER,
       ...getCursorArgs(pagination),
       select: {
         id: true,
@@ -173,16 +171,36 @@ export async function OrdersBySourcePage({
   }));
   const { customers, products } = orderFormInsights;
   const conversionInquiry = inquiryId && mode === "create"
-    ? await prisma.customerInquiry.findFirst({ where: { id: inquiryId, status: "Open" }, include: { items: true } })
+    ? await prisma.customerInquiry.findFirst({
+        where: { id: inquiryId, status: "Open", ...portfolio.inquiryWhere },
+        include: {
+          items: {
+            include: {
+              product: { select: { status: true, listPrice: true } }
+            }
+          }
+        }
+      })
     : null;
-  const inquiryItems = conversionInquiry?.items.every((item) => item.productId && item.agreedUnitPrice !== null)
-    ? conversionInquiry.items.map((item) => ({ productId: item.productId!, itemName: item.itemName, quantity: item.quantity, baseUnitPrice: item.agreedUnitPrice!, markupPercent: 0, discountPercent: 0 }))
+  const inquiryItems = conversionInquiry && canConvertCustomerInquiryItems(conversionInquiry.items)
+    ? conversionInquiry.items.map((item) => ({
+        productId: item.productId!,
+        itemName: item.itemName,
+        quantity: item.quantity,
+        baseUnitPrice: resolveAgreedUnitPrice({
+          agreedUnitPrice: item.agreedUnitPrice,
+          requestedUnitPrice: item.requestedUnitPrice,
+          productListPrice: item.product!.listPrice
+        })!,
+        markupPercent: 0,
+        discountPercent: 0
+      }))
     : undefined;
 
   const selectedOrderRecord =
     (activeTab === "ongoing" || activeTab === "approval") && viewId
       ? await prisma.salesOrder.findFirst({
-          where: { id: viewId, source },
+          where: { id: viewId, source, ...portfolio.salesOrderWhere },
           include: { customer: true, invoice: true, items: true, deliveryNotes: true, deliverySources: { include: { deliveryNote: true } } }
         })
       : null;
@@ -222,7 +240,7 @@ export async function OrdersBySourcePage({
             </Link>
           ) : (
             <div className="flex flex-wrap justify-end gap-2">
-              <SalesOrderExportDialog source={source} tab={activeTab} />
+              <SalesOrderExportDialog source={source} tab={activeTab} search={query} paymentTermType={paymentTermFilter} />
               {activeTab === "ongoing" && (
                 canCreateSalesOrder ? (
                   <Link
@@ -255,7 +273,22 @@ export async function OrdersBySourcePage({
           ongoingCount={ongoingCount}
           doneCount={doneCount}
           approvalCount={canViewApprovals ? approvalCount : undefined}
+          searchParams={params}
+          preserveParams={["q", "paymentTermType"]}
         />
+      )}
+
+      {!isCreateFlow && (
+        <form className="mb-4 grid gap-3 rounded-md border border-line bg-white p-4 sm:grid-cols-[1fr_220px_auto]">
+          <input type="hidden" name="tab" value={activeTab} />
+          <input name="q" defaultValue={query} placeholder="Search order, PO number, or customer" className="h-10 rounded-md border border-line px-3 text-sm" />
+          <select name="paymentTermType" defaultValue={paymentTermFilter} className="h-10 rounded-md border border-line px-3 text-sm">
+            <option value="">All payment terms</option>
+            <option value="IMMEDIATE">Immediate</option>
+            <option value="CREDIT">Credit</option>
+          </select>
+          <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
+        </form>
       )}
 
       {!isCustomerPo && mode === "choose" && (
@@ -421,6 +454,7 @@ export async function OrdersBySourcePage({
                   className="flex flex-1 flex-wrap items-center justify-end gap-2"
                 >
                   <input type="hidden" name="salesOrderId" value={selectedOrder.id} />
+                  <input type="hidden" name="expectedVersion" value={selectedOrder.version} />
                   <input type="hidden" name="returnPath" value={basePath} />
                   <button
                     name="decision"
@@ -614,6 +648,7 @@ export async function OrdersBySourcePage({
           pathname={basePath}
           searchParams={params}
           state={pagination}
+          preserveParams={["tab", "q", "paymentTermType"]}
         />
       </section>
       )}

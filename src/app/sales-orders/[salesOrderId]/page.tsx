@@ -8,7 +8,7 @@ import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
 import { StatusStack } from "@/components/status-stack";
 import { RestrictedAction } from "@/components/restricted-action";
 import { DeleteSalesOrderButton } from "@/components/delete-sales-order-button";
-import { generateInvoice } from "@/lib/actions";
+import { generateInvoice, updateCustomerPoDraftMetadata } from "@/lib/actions";
 import {
   calculateTotalPaidFromPayments,
   canCreateDeliveryNoteForInvoice,
@@ -17,9 +17,11 @@ import {
 } from "@/lib/calculations";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import { canGenerateInvoiceForApproval, getApprovalReasonLabel } from "@/lib/sales-order-approval";
+import { getApprovalReasonLabel } from "@/lib/sales-order-approval";
+import { canGenerateInvoiceForOrder } from "@/lib/invoice-policy";
 import { withEffectiveInvoiceStatus } from "@/lib/invoice-status";
-import { getCurrentUser } from "@/lib/session";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
 import { canDeleteOngoingSalesOrder } from "@/lib/sales-order-deletion";
 import { formatNpwp } from "@/lib/npwp";
@@ -48,17 +50,19 @@ export default async function SalesOrderDetailPage({
   params: Promise<{ salesOrderId: string }>;
 }) {
   const { salesOrderId } = await params;
-  const currentUser = await getCurrentUser();
-  const canCreateInvoice = canRole(currentUser?.role, "CREATE_INVOICE");
-  const canRecordPayment = canRole(currentUser?.role, "RECORD_PAYMENT");
-  const canCreateSuratJalan = canRole(currentUser?.role, "CREATE_SURAT_JALAN");
-  const canDeleteSalesOrder = canRole(currentUser?.role, "DELETE_SALES_ORDER");
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
+  const canCreateInvoice = canRole(currentUser.role, "CREATE_INVOICE");
+  const canRecordPayment = canRole(currentUser.role, "RECORD_PAYMENT");
+  const canCreateSuratJalan = canRole(currentUser.role, "CREATE_SURAT_JALAN");
+  const canDeleteSalesOrder = canRole(currentUser.role, "DELETE_SALES_ORDER");
 
-  const salesOrder = await prisma.salesOrder.findUnique({
-    where: { id: salesOrderId },
+  const salesOrder = await prisma.salesOrder.findFirst({
+    where: { id: salesOrderId, ...portfolio.salesOrderWhere },
     include: {
       deliverySources: { include: { deliveryNote: { include: { invoice: true, items: true } } } },
       customer: true,
+      customerInquiry: { select: { id: true } },
       pickingList: { select: { id: true, status: true, pickingListNumber: true } },
       items: true,
       invoice: {
@@ -92,6 +96,11 @@ export default async function SalesOrderDetailPage({
   const invoice = salesOrder.invoice
     ? withEffectiveInvoiceStatus(salesOrder.invoice)
     : null;
+  const invoiceEligible = canGenerateInvoiceForOrder({
+    status: salesOrder.status,
+    approvalStatus: salesOrder.approvalStatus,
+    hasInvoice: Boolean(invoice)
+  });
   const payments = invoice?.payments ?? [];
   const deliveryNotes = Array.from(
     new Map(
@@ -119,6 +128,7 @@ export default async function SalesOrderDetailPage({
     salesOrderStatus: salesOrder.status,
     hasPickingList: Boolean(salesOrder.pickingList),
     invoiceStatus: invoice?.status,
+    hasInquiry: Boolean(salesOrder.customerInquiry),
     deliveryNoteStatuses: deliveryNotes.map((note) => note.status)
   });
   const relatedRecordCount =
@@ -260,7 +270,7 @@ export default async function SalesOrderDetailPage({
                 )
               )}
             </>
-          ) : canGenerateInvoiceForApproval(salesOrder.approvalStatus) && canCreateInvoice ? (
+          ) : invoiceEligible && canCreateInvoice ? (
             <form action={generateInvoice}>
               <input type="hidden" name="salesOrderId" value={salesOrder.id} />
               <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white">
@@ -268,7 +278,7 @@ export default async function SalesOrderDetailPage({
                 Generate Invoice
               </button>
             </form>
-          ) : canGenerateInvoiceForApproval(salesOrder.approvalStatus) ? (
+          ) : invoiceEligible ? (
             <RestrictedAction message={getRestrictionMessage("CREATE_INVOICE")}>
               <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
                 <FilePlus2 aria-hidden="true" className="h-4 w-4" />
@@ -304,6 +314,47 @@ export default async function SalesOrderDetailPage({
             ))}
         </div>
       </section>
+
+      {isCustomerPo && salesOrder.status === "Draft" && !invoice && !salesOrder.pickingList && deliveryNotes.length === 0 && (
+        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
+          <h2 className="text-lg font-semibold">Edit Customer PO Draft Metadata</h2>
+          <p className="mt-1 text-sm text-ink/70">
+            Required date and document can be revised while the PO remains Draft. Confirmation or downstream documents lock these fields.
+          </p>
+          <form action={updateCustomerPoDraftMetadata} className="mt-4 grid gap-4 md:grid-cols-2">
+            <input type="hidden" name="salesOrderId" value={salesOrder.id} />
+            <input type="hidden" name="version" value={salesOrder.version} />
+            <label className="text-sm font-medium text-ink">
+              Product Required Date
+              <input
+                required
+                type="date"
+                name="requiredDate"
+                defaultValue={salesOrder.requiredDate?.toISOString().slice(0, 10)}
+                className="mt-1 w-full rounded-md border border-line px-3 py-2"
+              />
+            </label>
+            <label className="text-sm font-medium text-ink">
+              Replacement PDF (optional)
+              <input
+                type="file"
+                name="customerPoDocument"
+                accept=".pdf,application/pdf"
+                className="mt-1 w-full rounded-md border border-line px-3 py-2"
+              />
+            </label>
+            <label className="text-sm font-medium text-ink md:col-span-2">
+              Change note (optional)
+              <input name="confirmationNote" maxLength={150} className="mt-1 w-full rounded-md border border-line px-3 py-2" />
+            </label>
+            <div className="md:col-span-2">
+              <button className="inline-flex h-10 items-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
+                Save Draft Metadata
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
 
       <section className="mb-6 grid gap-6 lg:grid-cols-[360px_1fr]">
         <div className="rounded-md border border-line bg-white p-5 shadow-card">
@@ -381,6 +432,7 @@ export default async function SalesOrderDetailPage({
         collectionTasks={collectionTasks}
         hasActiveReceivable={hasActiveReceivable}
         remainingAmount={remainingAmount}
+        invoiceEligible={invoiceEligible}
         canCreateInvoice={canCreateInvoice}
         canRecordPayment={canRecordPayment}
         canCreateSuratJalan={canCreateSuratJalan}
@@ -398,6 +450,7 @@ function RelatedSections({
   collectionTasks,
   hasActiveReceivable,
   remainingAmount,
+  invoiceEligible,
   canCreateInvoice,
   canRecordPayment,
   canCreateSuratJalan
@@ -440,6 +493,7 @@ function RelatedSections({
   }>;
   hasActiveReceivable: boolean;
   remainingAmount: number;
+  invoiceEligible: boolean;
   canCreateInvoice: boolean;
   canRecordPayment: boolean;
   canCreateSuratJalan: boolean;
@@ -484,7 +538,7 @@ function RelatedSections({
         ) : (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <EmptyState message="Invoice has not been generated yet." />
-            {canCreateInvoice ? (
+            {invoiceEligible && canCreateInvoice ? (
               <form action={generateInvoice}>
                 <input type="hidden" name="salesOrderId" value={salesOrderId} />
                 <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white">
@@ -492,13 +546,17 @@ function RelatedSections({
                   Generate Invoice
                 </button>
               </form>
-            ) : (
+            ) : invoiceEligible ? (
               <RestrictedAction message={getRestrictionMessage("CREATE_INVOICE")}>
                 <button disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink/15 px-4 text-sm font-semibold text-ink/70">
                   <FilePlus2 aria-hidden="true" className="h-4 w-4" />
                   Generate Invoice
                 </button>
               </RestrictedAction>
+            ) : (
+              <p className="text-sm text-ink/70">
+                The order must be confirmed and approved before an invoice can be generated.
+              </p>
             )}
           </div>
         )}

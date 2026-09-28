@@ -6,7 +6,7 @@ import { signSession } from "../src/lib/session-token";
 config({ path: ".env.local" });
 config();
 
-type TestUser = { id: string; username: string; role: UserRole };
+type TestUser = { id: string; username: string; role: UserRole; sessionVersion: number };
 const db = new PrismaClient();
 let admin: TestUser;
 let manager: TestUser;
@@ -20,7 +20,7 @@ test.beforeAll(async () => {
   }
   const users = await db.user.findMany({
     where: { status: "Active", role: { in: ["ADMIN", "MANAGER", "SALES"] } },
-    select: { id: true, username: true, role: true }
+    select: { id: true, username: true, role: true, sessionVersion: true }
   });
   admin = users.find((user) => user.role === "ADMIN")!;
   manager = users.find((user) => user.role === "MANAGER")!;
@@ -35,6 +35,7 @@ test.afterAll(async () => { await db.$disconnect(); });
 async function authenticate(page: Page, user: TestUser) {
   const token = await signSession({
     userId: user.id, username: user.username, role: user.role,
+    sessionVersion: user.sessionVersion,
     exp: Math.floor(Date.now() / 1000) + 3600
   });
   await page.context().addCookies([{

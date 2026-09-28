@@ -5,7 +5,8 @@ import { linkedDeliveryNotes } from "../../src/lib/delivery-note-links";
 
 const mocks = vi.hoisted(() => ({
   lists: vi.fn(), create: vi.fn(), items: vi.fn(), lock: vi.fn(), update: vi.fn(),
-  find: vi.fn(), findSaved: vi.fn(), inquiry: vi.fn(), audit: vi.fn(), role: "ADMIN", writes: [] as string[]
+  find: vi.fn(), findSaved: vi.fn(), inquiry: vi.fn(), audit: vi.fn(), sequence: vi.fn(),
+  role: "ADMIN", writes: [] as string[]
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(path); } }));
@@ -15,11 +16,13 @@ vi.mock("@/lib/customer-inquiry-lifecycle", () => ({ completeCustomerInquiriesFo
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     deliveryNote: { findMany: async () => [], findUnique: mocks.find },
+    documentSequence: { upsert: mocks.sequence },
     $transaction: async (work: (tx: unknown) => Promise<unknown>) => {
       mocks.writes.push("begin");
       try {
         const result = await work({
           $queryRaw: mocks.lock,
+          documentSequence: { upsert: mocks.sequence },
           pickingList: { findMany: mocks.lists },
           deliveryNote: { create: mocks.create, updateMany: mocks.update, findUniqueOrThrow: mocks.findSaved },
           deliveryNoteItem: { createMany: mocks.items }
@@ -32,7 +35,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 import { createDeliveryNote, updateDeliveryNoteStatus } from "../../src/lib/actions";
 
-function packed(id: string, customerId = "customer") {
+function packed(id: string, customerId = "customer", destination = "One destination") {
   return {
     id, status: "Packed", pickingListNumber: "PL-" + id,
     pickerName: "Picker", packerName: "Packer", packageCount: 1,
@@ -41,7 +44,8 @@ function packed(id: string, customerId = "customer") {
     salesOrderId: "SO-" + id,
     items: [{ id: "pick-item-" + id, salesOrderItemId: "item-" + id, itemName: "Same product", orderedQuantity: 5, availableQuantity: 5, packedQuantity: 5, availabilityStatus: "Available", notes: null as string | null }],
     salesOrder: {
-      id: "SO-" + id, customerId, orderNumber: "SO-" + id, customerPoNumber: id === "b" ? "PO-b" : null,
+      id: "SO-" + id, customerId, deliveryDestinationSnapshot: destination,
+      orderNumber: "SO-" + id, customerPoNumber: id === "b" ? "PO-b" : null,
       source: id === "b" ? "CUSTOMER_PO" : "DIRECT", status: "Invoiced", approvalStatus: "Approved",
       customer: { id: customerId },
       items: [{ id: "item-" + id, itemName: "Same product", quantity: 5 }],
@@ -80,6 +84,7 @@ describe("combined delivery server actions", () => {
     mocks.lists.mockResolvedValue([packed("a"), packed("b")]);
     mocks.lock.mockResolvedValue([]);
     mocks.items.mockResolvedValue({ count: 2 });
+    mocks.sequence.mockResolvedValue({ lastValue: 1 });
     mocks.create.mockImplementation(async ({ data }) => ({
       ...data, id: "sj", sources: data.sources.create.map((source: object, index: number) => ({ ...source, id: "source-" + index }))
     }));
@@ -194,8 +199,18 @@ describe("combined delivery server actions", () => {
     expect(mocks.create).not.toHaveBeenCalled();
   });
   it("requires a shared destination", async () => {
-    const data = form(); data.set("recipientAddress", " ");
-    await expect(createDeliveryNote(data)).rejects.toThrow("address");
+    mocks.lists.mockResolvedValue([packed("a", "customer", "Jakarta"), packed("b", "customer", "Surabaya")]);
+    await expect(createDeliveryNote(form())).rejects.toThrow("same%20customer%20and%20delivery%20destination");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("rejects a recipient address that does not match the canonical source destination", async () => {
+    const data = form(); data.set("recipientAddress", "Tampered destination");
+    await expect(createDeliveryNote(data)).rejects.toThrow("must%20match");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it.each(["2026-02-30", "2026-09-13T00:00:00Z", "2026-09-13+14:00"])("rejects non-canonical delivery date %s", async deliveryDate => {
+    const data = form(); data.set("deliveryDate", deliveryDate);
+    await expect(createDeliveryNote(data)).rejects.toThrow("date");
     expect(mocks.create).not.toHaveBeenCalled();
   });
   it("denies Sales users", async () => {

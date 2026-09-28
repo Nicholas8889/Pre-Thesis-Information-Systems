@@ -15,13 +15,14 @@ const initialItems = [
 ];
 
 describe("SalesOrderForm product pricing insight", () => {
-  it("shows only the latest base price reference when the product has no eligible sales", () => {
+  it("shows an explicit unavailable state when the product has no eligible sales", () => {
     const html = renderForm(null, 0);
 
     expect(html).toContain("Latest Base Price");
     expect(html).toContain(formatCurrency(1_800_000));
     expect(html).toContain("No eligible sales in September 2026");
-    expect(html).not.toContain("Average Sold Price - This Month");
+    expect(html).toContain("Average Sold Price - This Month");
+    expect(html).toContain("Average sold price unavailable");
     expect(html).not.toContain("Selisih Nominal");
   });
 

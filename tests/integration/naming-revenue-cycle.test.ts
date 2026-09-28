@@ -57,6 +57,8 @@ async function createOrder(
         options.source === "CUSTOMER_PO" ? `qa/customer-po-${marker}.pdf` : null,
       customerPoDocumentMimeType:
         options.source === "CUSTOMER_PO" ? "application/pdf" : null,
+      requiredDate:
+        options.source === "CUSTOMER_PO" ? new Date("2026-08-20T00:00:00.000Z") : null,
       customerId: customer.id,
       orderDate: new Date("2026-08-13T00:00:00.000Z"),
       status: "Invoiced",
@@ -161,7 +163,6 @@ describe("canonical naming revenue cycle integration", () => {
           },
           collectionTasks: {
             create: {
-              customerId: customer.id,
               scheduledDate: dueDate,
               status: "Planned",
               notes: "Confirm remaining payment"

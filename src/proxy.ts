@@ -10,10 +10,6 @@ export async function proxy(request: NextRequest) {
   const isAuthEndpoint = pathname.startsWith("/api/auth/");
   const session = await verifySignedSession(request.cookies.get(AUTH_COOKIE_NAME)?.value);
 
-  if (isPublicPath && session) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
-
   if (!isPublicPath && !isAuthEndpoint && !session) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);

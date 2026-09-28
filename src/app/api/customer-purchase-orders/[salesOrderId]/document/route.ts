@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { downloadCustomerPoDocument } from "@/lib/customer-po-storage";
 import { getCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,14 +16,21 @@ export async function GET(
   if (!currentUser || currentUser.status !== "Active") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const portfolio = buildPortfolioScope(currentUser);
 
   const { salesOrderId } = await params;
   const customerPo = await prisma.salesOrder.findFirst({
-    where: { id: salesOrderId, source: "CUSTOMER_PO" },
+    where: {
+      id: salesOrderId,
+      source: "CUSTOMER_PO",
+      ...portfolio.salesOrderWhere
+    },
     select: {
       customerPoDocumentName: true,
       customerPoDocumentStoredName: true,
-      customerPoDocumentMimeType: true
+      customerPoDocumentMimeType: true,
+      customerPoDocumentSize: true,
+      customerPoDocumentSha256: true
     }
   });
 
@@ -37,6 +46,13 @@ export async function GET(
   if (!file) {
     return NextResponse.json({ error: "Customer PO document file is unavailable" }, { status: 404 });
   }
+  if (
+    (customerPo.customerPoDocumentSize != null && file.byteLength !== customerPo.customerPoDocumentSize) ||
+    (customerPo.customerPoDocumentSha256 != null &&
+      createHash("sha256").update(file).digest("hex") !== customerPo.customerPoDocumentSha256)
+  ) {
+    return NextResponse.json({ error: "Customer PO document integrity check failed" }, { status: 409 });
+  }
 
   const downloadName = (customerPo.customerPoDocumentName ?? "customer-po-document").replace(
     /[\x00-\x1F\x7F"\\]/g,
@@ -48,6 +64,7 @@ export async function GET(
   return new NextResponse(file, {
     headers: {
       "Content-Type": customerPo.customerPoDocumentMimeType ?? "application/octet-stream",
+      "Content-Length": String(file.byteLength),
       "Content-Disposition": `attachment; filename="${asciiDownloadName}"; filename*=UTF-8''${encodedDownloadName}`,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff"
@@ -56,5 +73,5 @@ export async function GET(
 }
 
 function isSafeStoragePath(value: string) {
-  return !value.startsWith("/") && !value.includes("..") && !value.includes("\\");
+  return /^customer-purchase-orders\/[A-Za-z0-9._-]+$/.test(value);
 }

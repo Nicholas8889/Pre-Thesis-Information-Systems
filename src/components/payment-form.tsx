@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/format";
 import { paymentInvoiceSelectionEvent } from "@/components/record-payment-button";
+import { PAYMENT_METHODS } from "@/lib/payment-method";
 
 type InvoiceOption = {
   id: string;
@@ -106,9 +107,11 @@ export function PaymentForm({
       <label className="text-sm font-medium text-ink">
         Payment Method
         <select name="paymentMethod" className={`${inputClass} mt-1`} defaultValue="BankTransfer">
-          <option value="Cash">Cash</option>
-          <option value="BankTransfer">Bank Transfer</option>
-          <option value="Other">Other</option>
+          {PAYMENT_METHODS.map(method => (
+            <option key={method} value={method}>
+              {method === "BankTransfer" ? "Bank Transfer" : method}
+            </option>
+          ))}
         </select>
       </label>
 

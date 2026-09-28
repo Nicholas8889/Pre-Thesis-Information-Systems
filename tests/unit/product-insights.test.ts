@@ -98,23 +98,36 @@ describe("buildPopularProducts", () => {
 
   it("compares the proposed final unit price with the current-month average", () => {
     expect(getProductPriceComparison(120, 100)).toEqual({
+      available: true,
+      averageSoldPrice: 100,
       absoluteDifference: 20,
-      percentageDifference: 20
+      percentageDifference: 20,
+      comparison: "above"
     });
     expect(getProductPriceComparison(75, 100)).toEqual({
+      available: true,
+      averageSoldPrice: 100,
       absoluteDifference: -25,
-      percentageDifference: -25
+      percentageDifference: -25,
+      comparison: "below"
     });
+    expect(getProductPriceComparison(100, 100).comparison).toBe("equal");
   });
 
   it("does not invent a price comparison without a usable average", () => {
     expect(getProductPriceComparison(120, null)).toEqual({
+      available: false,
+      averageSoldPrice: null,
       absoluteDifference: null,
-      percentageDifference: null
+      percentageDifference: null,
+      comparison: "unavailable"
     });
     expect(getProductPriceComparison(120, 0)).toEqual({
+      available: true,
+      averageSoldPrice: 0,
       absoluteDifference: 120,
-      percentageDifference: null
+      percentageDifference: null,
+      comparison: "above"
     });
   });
 });

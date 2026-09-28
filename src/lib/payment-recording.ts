@@ -17,6 +17,9 @@ export class PaymentRecordingError extends Error {
   }
 }
 
+export const COLLECTION_AUTO_CLOSE_REASON =
+  "Automatically completed because the linked invoice was paid in full.";
+
 export async function recordInvoicePayment(
   tx: Prisma.TransactionClient,
   {
@@ -97,10 +100,32 @@ export async function recordInvoicePayment(
       status
     }
   });
+  const plannedCollectionTasks =
+    remainingAmount <= 0
+      ? await tx.collectionTask.findMany({
+          where: { invoiceId, status: "Planned" },
+        })
+      : [];
+  const closedCollectionTasks = await Promise.all(
+    plannedCollectionTasks.map(async (task) => ({
+      previous: task,
+      current: await tx.collectionTask.update({
+        where: { id: task.id },
+        data: {
+          status: "Done",
+          version: { increment: 1 },
+          notes: [task.notes?.trim(), COLLECTION_AUTO_CLOSE_REASON]
+            .filter(Boolean)
+            .join("\n"),
+        },
+      }),
+    })),
+  );
 
   return {
     payment,
     invoice,
-    previousInvoice
+    previousInvoice,
+    closedCollectionTasks,
   };
 }

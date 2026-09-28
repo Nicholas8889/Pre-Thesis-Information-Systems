@@ -15,6 +15,7 @@ type ServerPaginationProps = {
   pathname: string;
   searchParams: SearchParams;
   state: CursorPaginationState;
+  preserveParams?: readonly string[];
 };
 
 function createUrl(
@@ -23,10 +24,13 @@ function createUrl(
   state: CursorPaginationState,
   direction: "next" | "previous",
   nextCursor?: string,
+  preserveParams?: readonly string[],
 ) {
   const query = new URLSearchParams();
+  const allowedParams = preserveParams ? new Set(preserveParams) : null;
 
   for (const [key, value] of Object.entries(searchParams)) {
+    if (allowedParams && !allowedParams.has(key)) continue;
     if (Array.isArray(value)) {
       value.forEach((item) => query.append(key, item));
     } else if (value) {
@@ -63,6 +67,7 @@ export function ServerPagination({
   pathname,
   searchParams,
   state,
+  preserveParams,
 }: ServerPaginationProps) {
   if (!state.history.length && !hasNext) return null;
 
@@ -74,7 +79,7 @@ export function ServerPagination({
       {state.history.length ? (
         <Link
           className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 font-semibold text-brand"
-          href={createUrl(pathname, searchParams, state, "previous")}
+          href={createUrl(pathname, searchParams, state, "previous", undefined, preserveParams)}
         >
           Previous
         </Link>
@@ -92,7 +97,7 @@ export function ServerPagination({
       {hasNext && nextCursor ? (
         <Link
           className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 font-semibold text-brand"
-          href={createUrl(pathname, searchParams, state, "next", nextCursor)}
+          href={createUrl(pathname, searchParams, state, "next", nextCursor, preserveParams)}
         >
           Next
         </Link>

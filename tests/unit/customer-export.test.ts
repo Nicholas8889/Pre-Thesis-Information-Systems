@@ -31,14 +31,17 @@ describe("customer Excel export", () => {
   });
 
   it("builds filters for status and the same searchable customer fields as the page", () => {
-    expect(getCustomerExportFilter("", "ALL")).toEqual({});
+    expect(getCustomerExportFilter("", "ALL")).toEqual({ AND: [{}] });
     expect(getCustomerExportFilter("acme", "Active")).toEqual({
-      status: "Active",
-      OR: [
-        { name: { contains: "acme" } },
-        { companyName: { contains: "acme" } },
-        { phone: { contains: "acme" } },
-        { email: { contains: "acme" } }
+      AND: [
+        {},
+        { status: "Active" },
+        { OR: [
+          { name: { contains: "acme", mode: "insensitive" } },
+          { companyName: { contains: "acme", mode: "insensitive" } },
+          { phone: { contains: "acme", mode: "insensitive" } },
+          { email: { contains: "acme", mode: "insensitive" } }
+        ] }
       ]
     });
   });
@@ -97,8 +100,9 @@ describe("customer Excel export", () => {
     expect(sheet?.getCell("J6").value).toBe(250_000);
     expect(sheet?.getCell("K6").value).toBe(1);
     expect(sheet?.getCell("L6").value).toBe("Long-Term Credit");
-    expect(sheet?.getCell("O6").value).toBeInstanceOf(Date);
-    expect(sheet?.autoFilter).toBe("A5:P6");
+    expect(sheet?.getCell("N6").value).toBe("No Payment History");
+    expect(sheet?.getCell("R6").value).toBeInstanceOf(Date);
+    expect(sheet?.autoFilter).toBe("A5:S6");
   });
 
   it("requires an active user and validates the requested status", async () => {
@@ -121,6 +125,8 @@ describe("customer Excel export", () => {
 
   it("downloads filtered customer data as an xlsx attachment", async () => {
     mocks.currentUser.mockResolvedValueOnce({
+      id: "admin-1",
+      role: "ADMIN",
       status: "Active",
       displayName: "QA User"
     });
@@ -146,5 +152,28 @@ describe("customer Excel export", () => {
     );
     const bytes = new Uint8Array(await response.arrayBuffer());
     expect(String.fromCharCode(bytes[0], bytes[1])).toBe("PK");
+  });
+
+  it("applies Sales portfolio scope before generating the workbook", async () => {
+    mocks.currentUser.mockResolvedValueOnce({
+      id: "sales-a",
+      role: "SALES",
+      status: "Active",
+      displayName: "Sales A"
+    });
+    mocks.findCustomers.mockResolvedValueOnce([]);
+
+    const response = await GET(
+      new NextRequest("http://test.local/api/customers/export?status=ALL")
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.findCustomers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: expect.arrayContaining([{ portfolioOwnerUserId: "sales-a" }])
+        }
+      })
+    );
   });
 });

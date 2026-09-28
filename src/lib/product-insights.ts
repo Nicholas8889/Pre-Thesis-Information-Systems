@@ -1,6 +1,7 @@
 export type PopularProduct = {
   name: string;
   quantity: number;
+  productId?: string;
 };
 
 export const PRODUCT_AVERAGE_ELIGIBLE_STATUSES = [
@@ -19,8 +20,11 @@ export type CurrentMonthAverageSoldPrice = {
 };
 
 export type ProductPriceComparison = {
+  available: boolean;
+  averageSoldPrice: number | null;
   absoluteDifference: number | null;
   percentageDifference: number | null;
+  comparison: "below" | "equal" | "above" | "unavailable";
 };
 
 const JAKARTA_TIME_ZONE = "Asia/Jakarta";
@@ -117,24 +121,31 @@ export function getProductPriceComparison(
 ): ProductPriceComparison {
   if (averageSoldPrice === null) {
     return {
+      available: false,
+      averageSoldPrice: null,
       absoluteDifference: null,
-      percentageDifference: null
+      percentageDifference: null,
+      comparison: "unavailable"
     };
   }
 
   const absoluteDifference = proposedUnitPrice - averageSoldPrice;
 
   return {
+    available: true,
+    averageSoldPrice,
     absoluteDifference,
     percentageDifference:
       averageSoldPrice === 0
         ? null
-        : (absoluteDifference / averageSoldPrice) * 100
+        : Math.round((absoluteDifference / averageSoldPrice) * 1000) / 10,
+    comparison:
+      absoluteDifference < 0 ? "below" : absoluteDifference > 0 ? "above" : "equal"
   };
 }
 
 export function buildPopularProducts(
-  items: Array<{ itemName: string; quantity: number }>,
+  items: Array<{ productId?: string | null; itemName: string; quantity: number }>,
   limit = 5
 ): PopularProduct[] {
   const products = new Map<string, PopularProduct>();
@@ -143,16 +154,24 @@ export function buildPopularProducts(
     const name = item.itemName.trim();
     if (!name || item.quantity <= 0) continue;
 
-    const key = name.toLowerCase();
+    const key = item.productId ? `id:${item.productId}` : `name:${name.toLowerCase()}`;
     const existing = products.get(key);
     if (existing) {
       existing.quantity += item.quantity;
     } else {
-      products.set(key, { name, quantity: item.quantity });
+      products.set(key, {
+        name,
+        quantity: item.quantity,
+        ...(item.productId ? { productId: item.productId } : {})
+      });
     }
   }
 
   return [...products.values()]
-    .sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))
+    .sort((a, b) =>
+      b.quantity - a.quantity ||
+      a.name.localeCompare(b.name) ||
+      (a.productId ?? "").localeCompare(b.productId ?? "")
+    )
     .slice(0, Math.max(0, limit));
 }

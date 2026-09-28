@@ -3,105 +3,56 @@ import { prisma } from "../../src/lib/prisma";
 import { deleteSalesOrderProcess } from "../../src/lib/sales-order-deletion";
 
 describe("sales order process deletion integration", () => {
-  it(
-    "removes the order, invoice, payment, collection task, delivery note, and their items atomically",
-    async () => {
-      const marker = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  it("deletes only a disposable Draft and keeps downstream history", async () => {
+    const marker = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await expect(prisma.$transaction(async tx => {
+      const customer = await tx.customer.create({
+        data: { name: marker, companyName: marker, phone: "-", email: "", address: "Test", customerSegment: "SIT" }
+      });
+      const draft = await tx.salesOrder.create({
+        data: {
+          orderNumber: `TEST-DRAFT-${marker}`,
+          customerId: customer.id,
+          orderDate: new Date(),
+          status: "Draft",
+          subtotal: 100,
+          total: 100,
+          netSalesAmount: 100,
+          items: { create: { itemName: "Draft Item", quantity: 1, finalUnitPrice: 100, subtotal: 100 } }
+        }
+      });
+      await deleteSalesOrderProcess(tx, { salesOrderId: draft.id });
+      expect(await tx.salesOrder.count({ where: { id: draft.id } })).toBe(0);
+      expect(await tx.salesOrderItem.count({ where: { salesOrderId: draft.id } })).toBe(0);
 
-      await expect(
-        prisma.$transaction(async (tx) => {
-          const customer = await tx.customer.create({
-            data: {
-              name: "Deletion Test",
-              companyName: `Deletion Test ${marker}`,
-              phone: "-",
-              email: "",
-              address: "Test",
-              customerSegment: "Test"
-            }
-          });
-          const order = await tx.salesOrder.create({
-            data: {
-              orderNumber: `TEST-SO-${marker}`,
-              customerId: customer.id,
-              orderDate: new Date(),
-              status: "Invoiced",
-              subtotal: 100,
-              total: 100,
-              items: {
-                create: { itemName: "Test Item", quantity: 1, finalUnitPrice: 100, subtotal: 100 }
-              }
-            },
-            include: { items: true }
-          });
-          const invoice = await tx.invoice.create({
-            data: {
-              invoiceNumber: `TEST-INV-${marker}`,
-              salesOrderId: order.id,
-              customerId: customer.id,
-              issueDate: new Date(),
-              dueDate: new Date(),
-              totalAmount: 100,
-              paidAmount: 50,
-              remainingAmount: 50,
-              status: "Partial"
-            }
-          });
-          const payment = await tx.payment.create({
-            data: {
-              invoiceId: invoice.id,
-              paymentDate: new Date(),
-              amount: 50,
-              paymentMethod: "Cash"
-            }
-          });
-          const collectionTask = await tx.collectionTask.create({
-            data: {
-              customerId: customer.id,
-              invoiceId: invoice.id,
-              scheduledDate: new Date(),
-              status: "Planned",
-              notes: "Test collection task"
-            }
-          });
-          const deliveryNote = await tx.deliveryNote.create({
-            data: {
-              deliveryNoteNumber: `TEST-SJ-${marker}`,
-              invoiceId: invoice.id,
-              salesOrderId: order.id,
-              customerId: customer.id,
-              recipientName: "Test",
-              recipientPhone: "-",
-              recipientAddress: "Test",
-              deliveryDate: new Date(),
-              status: "Issued",
-              items: {
-                create: { itemName: "Test Item", orderedQuantitySnapshot: 1, packedQuantitySnapshot: 1, quantity: 1, outstandingQuantity: 0, unit: "PCS" }
-              }
-            },
-            include: { items: true }
-          });
-
-          await deleteSalesOrderProcess(tx, {
-            salesOrderId: order.id,
-            invoiceId: invoice.id
-          });
-
-          expect(await tx.salesOrder.count({ where: { id: order.id } })).toBe(0);
-          expect(await tx.salesOrderItem.count({ where: { id: order.items[0].id } })).toBe(0);
-          expect(await tx.invoice.count({ where: { id: invoice.id } })).toBe(0);
-          expect(await tx.payment.count({ where: { id: payment.id } })).toBe(0);
-          expect(await tx.collectionTask.count({ where: { id: collectionTask.id } })).toBe(0);
-          expect(await tx.deliveryNote.count({ where: { id: deliveryNote.id } })).toBe(0);
-          expect(
-            await tx.deliveryNoteItem.count({ where: { id: deliveryNote.items[0].id } })
-          ).toBe(0);
-          expect(await tx.customer.count({ where: { id: customer.id } })).toBe(1);
-
-          throw new Error("ROLLBACK_DELETION_TEST");
-        }, { maxWait: 10_000, timeout: 20_000 })
-      ).rejects.toThrow("ROLLBACK_DELETION_TEST");
-    },
-    15_000
-  );
+      const historical = await tx.salesOrder.create({
+        data: {
+          orderNumber: `TEST-HISTORY-${marker}`,
+          customerId: customer.id,
+          orderDate: new Date(),
+          status: "Invoiced",
+          subtotal: 100,
+          total: 100,
+          netSalesAmount: 100,
+          items: { create: { itemName: "History Item", quantity: 1, finalUnitPrice: 100, subtotal: 100 } }
+        }
+      });
+      await tx.invoice.create({
+        data: {
+          invoiceNumber: `TEST-INV-${marker}`,
+          salesOrderId: historical.id,
+          customerId: customer.id,
+          issueDate: new Date(),
+          dueDate: new Date(),
+          totalAmount: 100,
+          netSalesAmount: 100,
+          remainingAmount: 100
+        }
+      });
+      await expect(deleteSalesOrderProcess(tx, { salesOrderId: historical.id })).rejects.toThrow("unlinked Draft");
+      expect(await tx.salesOrder.count({ where: { id: historical.id } })).toBe(1);
+      expect(await tx.invoice.count({ where: { salesOrderId: historical.id } })).toBe(1);
+      throw new Error("ROLLBACK_DELETION_TEST");
+    }, { maxWait: 10_000, timeout: 20_000 })).rejects.toThrow("ROLLBACK_DELETION_TEST");
+  }, 30_000);
 });

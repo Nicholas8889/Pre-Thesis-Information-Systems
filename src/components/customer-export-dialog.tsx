@@ -5,10 +5,16 @@ import { FileSpreadsheet, Search, X } from "lucide-react";
 
 type CustomerStatusFilter = "ALL" | "Active" | "Inactive";
 
-export function CustomerExportDialog({ initialQuery = "" }: { initialQuery?: string }) {
+export function CustomerExportDialog({
+  initialQuery = "",
+  initialStatus = "ALL",
+}: {
+  initialQuery?: string;
+  initialStatus?: CustomerStatusFilter;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState(initialQuery);
-  const [status, setStatus] = useState<CustomerStatusFilter>("ALL");
+  const [status, setStatus] = useState<CustomerStatusFilter>(initialStatus);
   const [error, setError] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -119,7 +125,7 @@ export function CustomerExportDialog({ initialQuery = "" }: { initialQuery?: str
                   <input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Name, company, phone, or email"
+                    placeholder="Name, company, phone, email, or NPWP"
                     className="h-10 w-full rounded-md border border-line bg-white pl-10 pr-3 text-sm outline-none focus:border-brand"
                   />
                 </span>

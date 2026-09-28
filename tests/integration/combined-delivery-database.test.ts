@@ -64,13 +64,20 @@ describe("combined delivery with the real database", () => {
       for (const [index, source] of (["DIRECT", "CUSTOMER_PO"] as const).entries()) {
         const order = await tx.salesOrder.create({ data: {
           orderNumber: marker + "-" + index, customerPoNumber: source === "CUSTOMER_PO" ? "PO-" + marker : null,
-          source, customerId, orderDate: new Date(), status: "Invoiced", approvalStatus: "Approved",
-          subtotal: 1000, total: 1000,
+          ...(source === "CUSTOMER_PO" ? {
+            requiredDate: new Date("2026-09-20"),
+            customerPoDocumentName: "fixture.pdf",
+            customerPoDocumentStoredName: `customer-purchase-orders/${marker}.pdf`,
+            customerPoDocumentMimeType: "application/pdf"
+          } : {}),
+          source, customerId, deliveryDestinationSnapshot: customer.address,
+          orderDate: new Date(), status: "Invoiced", approvalStatus: "Approved",
+          subtotal: 1000, total: 1000, netSalesAmount: 1000,
           items: { create: { itemName: "Shared product", quantity: 10, finalUnitPrice: 100, subtotal: 1000 } }
         }, include: { items: true } });
         const invoice = await tx.invoice.create({ data: {
           invoiceNumber: "INV-" + marker + "-" + index, salesOrderId: order.id, customerId,
-          issueDate: new Date(), dueDate: new Date(), totalAmount: 1000, paidAmount: index ? 400 : 0,
+          issueDate: new Date(), dueDate: new Date(), totalAmount: 1000, netSalesAmount: 1000, paidAmount: index ? 400 : 0,
           remainingAmount: index ? 600 : 1000, status: index ? "Partial" : "Unpaid",
           payments: index ? { create: { amount: 400, paymentDate: new Date(), paymentMethod: "Cash" } } : undefined
         } });
@@ -102,6 +109,7 @@ describe("combined delivery with the real database", () => {
         where: { customerId }, include: { sources: true, items: true }
       });
       expect(note.status).toBe("Draft");
+      expect(note.deliveryDate.toISOString()).toBe("2026-09-13T00:00:00.000Z");
       expect(note.sources).toHaveLength(2);
       expect(note.items).toHaveLength(2);
       expect(new Set(note.items.map(item => item.sourceId)).size).toBe(2);
@@ -110,6 +118,23 @@ describe("combined delivery with the real database", () => {
         [10, 0],
       ]);
       expect(note.salesOrderId).toBeNull();
+      const tamperedDestination = form({
+        id: note.id,
+        version: note.updatedAt.toISOString(),
+        intent: "save",
+        recipientName: note.recipientName,
+        recipientPhone: note.recipientPhone,
+        recipientAddress: "Different destination",
+        deliveryDate: "2026-09-13",
+        driverName: note.driverName!,
+        vehiclePlateNumber: note.vehiclePlateNumber!,
+      });
+      note.items.forEach(item => tamperedDestination.set("quantity_" + item.id, String(item.quantity)));
+      await expect(saveDeliveryNoteDraft(tamperedDestination)).rejects.toThrow("must%20match");
+      expect(await tx.deliveryNote.findUniqueOrThrow({ where: { id: note.id } })).toMatchObject({
+        recipientAddress: customer.address,
+        updatedAt: note.updatedAt,
+      });
       expect(await summary()).toMatchObject({ outstandingAmount: 0, openInvoiceCount: 0 });
       await expect(createDeliveryNote(data)).rejects.toThrow("Picking%20List%20is%20not%20ready");
       expect(await tx.deliveryNote.count({ where: { customerId } })).toBe(1);
@@ -135,7 +160,7 @@ describe("combined delivery with the real database", () => {
       const statusData = form({ id: note.id, status });
       if (status === "Delivered") {
         statusData.set("receiverName", "Warehouse Recipient");
-        statusData.set("receivedAt", toJakartaDateTimeInputValue(new Date()));
+        statusData.set("receivedAt", toJakartaDateTimeInputValue(new Date(Date.now() + 1_000)));
         statusData.set("receiptNotes", "Received in good condition");
       }
       await expect(updateDeliveryNoteStatus(statusData)).rejects.toThrow("tab=completed");

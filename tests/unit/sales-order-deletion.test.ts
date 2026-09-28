@@ -2,20 +2,14 @@ import { describe, expect, it } from "vitest";
 import { canDeleteOngoingSalesOrder } from "../../src/lib/sales-order-deletion";
 
 describe("ongoing sales order deletion", () => {
-  it("allows draft, unpaid, partial, and overdue processes", () => {
+  it("allows only a disposable Draft without downstream evidence", () => {
     expect(
       canDeleteOngoingSalesOrder({
         salesOrderStatus: "Draft",
         deliveryNoteStatuses: []
       })
     ).toBe(true);
-    expect(
-      canDeleteOngoingSalesOrder({
-        salesOrderStatus: "Invoiced",
-        invoiceStatus: "Partial",
-        deliveryNoteStatuses: ["Issued"]
-      })
-    ).toBe(true);
+    expect(canDeleteOngoingSalesOrder({ salesOrderStatus: "Draft", deliveryNoteStatuses: [], hasInquiry: true })).toBe(false);
   });
 
   it("protects completed or cancelled processes", () => {
@@ -26,6 +20,11 @@ describe("ongoing sales order deletion", () => {
         deliveryNoteStatuses: []
       })
     ).toBe(false);
+    expect(canDeleteOngoingSalesOrder({
+      salesOrderStatus: "Invoiced",
+      invoiceStatus: "Unpaid",
+      deliveryNoteStatuses: []
+    })).toBe(false);
     expect(
       canDeleteOngoingSalesOrder({
         salesOrderStatus: "Shipped",

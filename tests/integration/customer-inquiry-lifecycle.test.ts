@@ -48,11 +48,19 @@ describe("customer inquiry lifecycle integration", () => {
             data: {
               orderNumber: `TEST-${conversion.source}-${marker}`,
               source: conversion.source,
+              ...(conversion.source === "CUSTOMER_PO" ? {
+                customerPoNumber: `TEST-PO-${marker}`,
+                requiredDate: new Date(),
+                customerPoDocumentName: "fixture.pdf",
+                customerPoDocumentStoredName: `customer-purchase-orders/${marker}.pdf`,
+                customerPoDocumentMimeType: "application/pdf"
+              } : {}),
               customerId: customer.id,
               orderDate: new Date(),
               status: "Invoiced",
               subtotal: 150_000,
               total: 150_000,
+              netSalesAmount: 150_000,
               items: {
                 create: [
                   { productId: product.id, itemName: product.productName, quantity: 2, baseUnitPrice: 30_000, finalUnitPrice: 30_000, subtotal: 60_000 },

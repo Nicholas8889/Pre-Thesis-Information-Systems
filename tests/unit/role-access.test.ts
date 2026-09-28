@@ -8,7 +8,7 @@ describe("role capability limitations", () => {
     expect(canRole("MANAGER", "CREATE_INVOICE")).toBe(true);
     expect(canRole("MANAGER", "RECORD_PAYMENT")).toBe(true);
     expect(canRole("MANAGER", "CREATE_SURAT_JALAN")).toBe(true);
-    expect(canRole("MANAGER", "CREATE_ACCOUNT")).toBe(true);
+    expect(canRole("MANAGER", "CREATE_ACCOUNT")).toBe(false);
   });
 
   it("limits Sales financial and administration creation actions", () => {

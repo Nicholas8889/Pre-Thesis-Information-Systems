@@ -10,6 +10,7 @@ import {
   PICKING_AVAILABILITY_STATUSES,
 } from "@/lib/picking-list";
 import { formatDate } from "@/lib/format";
+import { MAX_PACKAGE_COUNT } from "@/lib/package-count";
 
 type PickingListDetail = Prisma.PickingListGetPayload<{
   include: {
@@ -182,6 +183,19 @@ export function PickingListPanel({
                 className={inputClass}
               />
             </label>
+            <label className="text-sm font-medium">
+              Package Count
+              <input
+                name="packageCount"
+                type="number"
+                min={1}
+                max={MAX_PACKAGE_COUNT}
+                step={1}
+                defaultValue={list.packageCount ?? ""}
+                placeholder="Required to complete"
+                className={inputClass}
+              />
+            </label>
           </div>
 
           <div className="overflow-x-auto">
@@ -204,6 +218,9 @@ export function PickingListPanel({
                     item.orderedQuantity - item.availableQuantity;
                   return (
                     <tr key={item.id}>
+                      <td className="hidden">
+                        <input type="hidden" name="itemId" value={item.id} />
+                      </td>
                       <td className="py-3 pr-3 font-medium">
                         {item.itemName}
                       </td>
@@ -316,11 +333,14 @@ export function PickingListPanel({
       </form>
 
       {list.packedAt && (
-        <p className="mt-4 text-sm text-ink/70">
-          Pick & Pack completed {formatDate(list.packedAt)} by{" "}
-          {list.packerName ?? "an unspecified Packing PIC"}. Quantities are
-          locked for delivery.
-        </p>
+        <div className="mt-4 space-y-1 text-sm text-ink/70">
+          <p>
+            Pick & Pack completed {formatDate(list.packedAt)} by{" "}
+            {list.packerName ?? "an unspecified Packing PIC"}. Quantities are
+            locked for delivery.
+          </p>
+          <p>Packages: {list.packageCount ?? "Legacy record — not recorded"}</p>
+        </div>
       )}
     </section>
   );

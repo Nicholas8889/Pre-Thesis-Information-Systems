@@ -7,6 +7,7 @@ import {
   getOpenInvoiceWhere,
   withEffectiveInvoiceStatus
 } from "@/lib/invoice-status";
+import { getBusinessDateWib } from "@/lib/business-clock";
 
 type DashboardUser = { id: string; role: UserRole };
 type DashboardReader = Pick<typeof prisma, "$queryRaw">;
@@ -81,9 +82,8 @@ export async function getDashboardMetrics(
   const customerFilter = ownerId
     ? Prisma.sql`WHERE EXISTS (SELECT 1 FROM visible_orders vo WHERE vo.customer_id = c.id)`
     : Prisma.empty;
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const today = getBusinessDateWib(now);
+  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
   // Every CTE is scoped before any sum or count. No transaction rows leave Postgres.
   const [row] = await db.$queryRaw<MetricsRow[]>(Prisma.sql`
@@ -109,8 +109,13 @@ export async function getDashboardMetrics(
     ), visible_deliveries AS (
       SELECT dn.status FROM delivery_notes dn ${deliveryJoin}
     ), visible_tasks AS (
-      SELECT ct.id, ct.scheduled_date FROM collection_tasks ct ${taskJoin}
+      SELECT ct.id, ct.scheduled_date FROM collection_tasks ct
+      LEFT JOIN invoices task_invoice ON task_invoice.id = ct.invoice_id
+      ${taskJoin}
       WHERE ct.status = 'Planned'
+        AND (ct.invoice_id IS NULL OR (
+          task_invoice.status <> 'Cancelled' AND task_invoice.remaining_amount > 0
+        ))
     ), visible_customers AS (
       SELECT c.id FROM customers c ${customerFilter}
     ), eligible_invoices AS (
@@ -192,13 +197,24 @@ export function getDashboardListFilters(user: DashboardUser, now = new Date()) {
   const invoiceWhere: Prisma.InvoiceWhereInput = ownerId
     ? { salesOrder: { createdByUserId: ownerId } }
     : {};
-  const plannedTaskWhere: Prisma.CollectionTaskWhereInput = {
-    status: "Planned",
-    ...(ownerId ? { invoice: { salesOrder: { createdByUserId: ownerId } } } : {})
-  };
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const upcomingLimit = new Date(today);
-  upcomingLimit.setDate(upcomingLimit.getDate() + 30);
+  const plannedTaskWhere: Prisma.CollectionTaskWhereInput = ownerId
+    ? {
+        status: "Planned",
+        invoice: {
+          status: { not: "Cancelled" },
+          remainingAmount: { gt: 0 },
+          salesOrder: { createdByUserId: ownerId }
+        }
+      }
+    : {
+        status: "Planned",
+        OR: [
+          { invoiceId: null },
+          { invoice: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } } }
+        ]
+      };
+  const today = getBusinessDateWib(now);
+  const upcomingLimit = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
   const openInvoiceWhere: Prisma.InvoiceWhereInput = {
     ...invoiceWhere,
     ...getOpenInvoiceWhere()

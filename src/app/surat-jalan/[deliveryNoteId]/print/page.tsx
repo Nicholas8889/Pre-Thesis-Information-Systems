@@ -7,6 +7,12 @@ import { StatusBadge } from "@/components/status-badge";
 import { formatDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
+import {
+  getDeliveryInvoiceReferences,
+  getDeliveryOrderReferences,
+} from "@/lib/delivery-note-references";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +22,11 @@ export default async function SuratJalanPrintPage({
   params: Promise<{ deliveryNoteId: string }>;
 }) {
   const { deliveryNoteId } = await params;
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
 
-  const deliveryNote = await prisma.deliveryNote.findUnique({
-    where: { id: deliveryNoteId },
+  const deliveryNote = await prisma.deliveryNote.findFirst({
+    where: { id: deliveryNoteId, ...portfolio.deliveryNoteWhere },
     include: {
       customer: true,
       invoice: true,
@@ -32,6 +40,8 @@ export default async function SuratJalanPrintPage({
     notFound();
   }
   const printableItems = deliveryNote.items.filter(item => item.quantity > 0);
+  const orderReferences = getDeliveryOrderReferences(deliveryNote);
+  const invoiceReferences = getDeliveryInvoiceReferences(deliveryNote);
   const combined = (deliveryNote.sources?.length ?? 0) > 1;
   const isCustomerPo = deliveryNote.salesOrder?.source === "CUSTOMER_PO";
   const orderLabel = isCustomerPo ? "Customer PO" : "Sales Order";
@@ -92,11 +102,11 @@ export default async function SuratJalanPrintPage({
             <InfoRow label="Date" value={formatDate(deliveryNote.deliveryDate)} />
             <InfoRow
               label="Invoice"
-              value={deliveryNote.sources?.map(source => source.invoice.invoiceNumber).join(", ") || deliveryNote.invoice?.invoiceNumber || "-"}
+              value={invoiceReferences.map(reference => reference.label).join(", ") || "Historical reference unavailable"}
             />
             <InfoRow
               label="Sales Order"
-              value={deliveryNote.sources?.map(source => orderReference(source.salesOrder)).join(", ") || orderReference(deliveryNote.salesOrder)}
+              value={orderReferences.map(reference => reference.label).join(", ") || "Historical reference unavailable"}
             />
             {isCustomerPo && (
               <InfoRow

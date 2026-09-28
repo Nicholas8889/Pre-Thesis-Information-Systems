@@ -12,6 +12,7 @@
     "test:watch": "vitest --environment node",
     "test:e2e:dashboard": "npm run build && playwright test --config playwright.config.ts",
     "test:dashboard:benchmark": "node scripts/dashboard-benchmark.mjs",
+    "batch4:volume": "node scripts/batch4-volume.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",

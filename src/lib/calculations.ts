@@ -1,3 +1,5 @@
+import { getBusinessDateWib } from "@/lib/business-clock";
+
 export type PaymentStatus = "Unpaid" | "Partial" | "Paid" | "Overdue";
 export type ReceivableStatus = "Unpaid" | "Partial" | "Overdue";
 export type PaymentTermType = "IMMEDIATE" | "CREDIT";
@@ -111,7 +113,7 @@ export function calculateDueDateForPaymentTerm({
   }
 
   if (creditTermWeeks != null) {
-    dueDate.setDate(dueDate.getDate() + creditTermWeeks * 7);
+    return new Date(dueDate.getTime() + creditTermWeeks * 7 * 24 * 60 * 60 * 1000);
   } else {
     dueDate.setMonth(dueDate.getMonth() + getValidCreditTermMonths(creditTermMonths));
   }
@@ -136,7 +138,7 @@ export function isValidSalesOrderPaymentTerm({
   creditTermWeeks?: number | null;
 }) {
   if (paymentTermType === "IMMEDIATE") {
-    return true;
+    return creditTermMonths == null && creditTermWeeks == null;
   }
 
   if (creditTermWeeks != null) {
@@ -291,5 +293,5 @@ export function calculateInvoiceStatus({
 }
 
 export function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return getBusinessDateWib(date);
 }

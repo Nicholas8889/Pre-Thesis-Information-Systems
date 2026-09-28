@@ -14,7 +14,10 @@ type SessionUser = {
   id: string;
   username: string;
   role: UserRole;
+  sessionVersion: number;
 };
+
+type SessionUserReader = Pick<typeof prisma, "user">;
 
 export async function createSession(user: SessionUser) {
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
@@ -22,6 +25,7 @@ export async function createSession(user: SessionUser) {
     userId: user.id,
     username: user.username,
     role: user.role,
+    sessionVersion: user.sessionVersion,
     exp: Math.floor(expiresAt.getTime() / 1000)
   });
   const cookieStore = await cookies();
@@ -50,18 +54,29 @@ export async function deleteSession() {
 
 export const getCurrentUser = cache(async function getCurrentUser() {
   const cookieStore = await cookies();
-  const session = await verifySignedSession(cookieStore.get(AUTH_COOKIE_NAME)?.value);
+  return resolveSessionUser(
+    cookieStore.get(AUTH_COOKIE_NAME)?.value,
+    prisma
+  );
+});
+
+export async function resolveSessionUser(
+  token: string | undefined,
+  db: SessionUserReader = prisma
+) {
+  const session = await verifySignedSession(token);
 
   if (!session) return null;
 
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: session.userId },
     select: {
       id: true,
       username: true,
       displayName: true,
       role: true,
-      status: true
+      status: true,
+      sessionVersion: true
     }
   });
 
@@ -69,13 +84,14 @@ export const getCurrentUser = cache(async function getCurrentUser() {
     !user ||
     user.status !== "Active" ||
     user.username !== session.username ||
-    user.role !== session.role
+    user.role !== session.role ||
+    user.sessionVersion !== session.sessionVersion
   ) {
     return null;
   }
 
   return user;
-});
+}
 
 export async function requireCurrentUser() {
   const user = await getCurrentUser();

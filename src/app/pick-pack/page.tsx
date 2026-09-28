@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { DeliveryNoteStatus, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { Plus } from "lucide-react";
 import { redirect } from "next/navigation";
 import { EmptyState } from "@/components/empty-state";
@@ -15,12 +15,19 @@ import { prisma } from "@/lib/prisma";
 import { getSearchMessage } from "@/lib/workflow";
 import { requireCurrentUser } from "@/lib/session";
 import { canRole } from "@/lib/role-access";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 import { ServerPagination } from "@/components/server-pagination";
 import {
   getCursorArgs,
   getCursorPage,
   getCursorPagination,
 } from "@/lib/pagination";
+import {
+  buildCompletedPickingWhere,
+  completedPickingHref,
+  COMPLETED_PICKING_QUERY_PARAMS,
+  parseCompletedPickingFilters,
+} from "@/lib/pick-pack-query";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 type PickPackTab = "active" | "completed";
@@ -37,6 +44,7 @@ export default async function PickPackPage({
 }) {
   const params = (await searchParams) ?? {};
   const user = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(user);
   const canManage = canRole(user.role, "CREATE_SURAT_JALAN");
   const { success, error } = getSearchMessage(params);
   const mode = getFirst(params.mode);
@@ -46,16 +54,16 @@ export default async function PickPackPage({
 
   if (!sourceOrderId && sourceInvoiceId) {
     sourceOrderId = (
-      await prisma.invoice.findUnique({
-        where: { id: sourceInvoiceId },
+      await prisma.invoice.findFirst({
+        where: { id: sourceInvoiceId, ...portfolio.invoiceWhere },
         select: { salesOrderId: true },
       })
     )?.salesOrderId;
   }
 
   if (sourceOrderId) {
-    const existingList = await prisma.pickingList.findUnique({
-      where: { salesOrderId: sourceOrderId },
+    const existingList = await prisma.pickingList.findFirst({
+      where: { salesOrderId: sourceOrderId, ...portfolio.pickingListWhere },
       include: {
         deliveryNote: true,
         deliverySource: { include: { deliveryNote: true } },
@@ -72,9 +80,9 @@ export default async function PickPackPage({
   }
 
   const selectedPickingRecord = viewId
-    ? await prisma.pickingList.findUnique({
+    ? await prisma.pickingList.findFirst({
         relationLoadStrategy: "join",
-        where: { id: viewId },
+        where: { id: viewId, ...portfolio.pickingListWhere },
         include: {
           items: true,
           deliveryNote: true,
@@ -104,23 +112,12 @@ export default async function PickPackPage({
       ? selectedPickingList
       : null;
 
-  const filters = {
-    query: getFirst(params.q)?.trim() ?? "",
-    picker: getFirst(params.picker)?.trim() ?? "",
-    packer: getFirst(params.packer)?.trim() ?? "",
-    fulfillment: normalizeFulfillmentFilter(getFirst(params.fulfillment)),
-    from: getFirst(params.from)?.trim() ?? "",
-    to: getFirst(params.to)?.trim() ?? "",
-    deliveryStatus: normalizeDeliveryFilter(
-      getFirst(params.deliveryStatus),
-    ),
-  };
-  const fromDate = parseJakartaDate(filters.from, false);
-  const toDate = parseJakartaDate(filters.to, true);
+  const filters = parseCompletedPickingFilters(params);
   const readyPagination = getCursorPagination(params, "ready");
   const activePagination = getCursorPagination(params, "active");
   const completedPagination = getCursorPagination(params);
   const readyOrderWhere: Prisma.SalesOrderWhereInput = {
+    ...portfolio.salesOrderWhere,
     status: { in: ["Confirmed", "Invoiced"] },
     approvalStatus: { in: ["Approved", "NotRequired"] },
     pickingList: { is: null },
@@ -131,91 +128,15 @@ export default async function PickPackPage({
     },
   };
   const activePickingWhere: Prisma.PickingListWhereInput = {
+    ...portfolio.pickingListWhere,
     status: { in: ["Pending", "InProgress"] },
     deliveryNote: { is: null },
     deliverySource: { is: null },
   };
-  const completedConditions: Prisma.PickingListWhereInput[] = [
-    { status: "Packed" },
-  ];
-  if (filters.query) {
-    completedConditions.push({
-      OR: [
-        { pickingListNumber: { contains: filters.query } },
-        { salesOrder: { is: { orderNumber: { contains: filters.query } } } },
-        {
-          salesOrder: {
-            is: { customerPoNumber: { contains: filters.query } },
-          },
-        },
-        {
-          salesOrder: {
-            is: {
-              customer: { is: { companyName: { contains: filters.query } } },
-            },
-          },
-        },
-      ],
-    });
-  }
-  if (filters.picker) {
-    completedConditions.push({
-      pickerName: { contains: filters.picker },
-    });
-  }
-  if (filters.packer) {
-    completedConditions.push({
-      packerName: { contains: filters.packer },
-    });
-  }
-  if (filters.fulfillment === "full") {
-    completedConditions.push({
-      items: {
-        none: { availabilityStatus: { in: ["Partial", "Unavailable"] } },
-      },
-    });
-  }
-  if (filters.fulfillment === "shortage") {
-    completedConditions.push({
-      items: {
-        some: { availabilityStatus: { in: ["Partial", "Unavailable"] } },
-      },
-    });
-  }
-  if (fromDate || toDate) {
-    completedConditions.push({
-      packedAt: {
-        ...(fromDate ? { gte: fromDate } : {}),
-        ...(toDate ? { lte: toDate } : {}),
-      },
-    });
-  }
-  if (filters.deliveryStatus === "not-issued") {
-    completedConditions.push({
-      deliveryNote: { is: null },
-      deliverySource: { is: null },
-    });
-  } else if (filters.deliveryStatus !== "all") {
-    const statuses: DeliveryNoteStatus[] =
-      filters.deliveryStatus === "open"
-        ? ["Draft", "Issued"]
-        : filters.deliveryStatus === "delivered"
-          ? ["Delivered"]
-          : ["Cancelled"];
-    completedConditions.push({
-      OR: [
-        { deliveryNote: { is: { status: { in: statuses } } } },
-        {
-          deliverySource: {
-            is: { deliveryNote: { is: { status: { in: statuses } } } },
-          },
-        },
-      ],
-    });
-  }
-  const completedWhere: Prisma.PickingListWhereInput = {
-    AND: completedConditions,
-  };
+  const completedWhere = buildCompletedPickingWhere(
+    portfolio.pickingListWhere,
+    filters,
+  );
   const pickingListInclude = {
     items: true,
     deliveryNote: true,
@@ -266,7 +187,7 @@ export default async function PickPackPage({
       : Promise.resolve([]),
     prisma.salesOrder.count({ where: readyOrderWhere }),
     prisma.pickingList.count({ where: activePickingWhere }),
-    prisma.pickingList.count({ where: { status: "Packed" } }),
+    prisma.pickingList.count({ where: { status: "Packed", ...portfolio.pickingListWhere } }),
     prisma.pickingList.count({ where: completedWhere }),
     activeTab === "active" && sourceOrderId
       ? prisma.salesOrder.findFirst({
@@ -305,79 +226,10 @@ export default async function PickPackPage({
       (list) =>
         ["Pending", "InProgress"].includes(list.status) && !list.deliveryNote,
     );
-  const visibleCompleted = completedPickingPage.items
-    .map((list) => ({
+  const visibleCompleted = completedPickingPage.items.map((list) => ({
       ...list,
       deliveryNote: list.deliverySource?.deliveryNote ?? list.deliveryNote,
-    }))
-    .filter((list) => {
-      if (list.status !== "Packed") return false;
-      const searchable = [
-        list.pickingListNumber,
-        list.salesOrder.orderNumber,
-        list.salesOrder.customerPoNumber ?? "",
-        list.salesOrder.customer.companyName,
-      ]
-        .join(" ")
-        .toLocaleLowerCase();
-      if (
-        filters.query &&
-        !searchable.includes(filters.query.toLocaleLowerCase())
-      ) {
-        return false;
-      }
-      if (
-        filters.picker &&
-        !(list.pickerName ?? "")
-          .toLocaleLowerCase()
-          .includes(filters.picker.toLocaleLowerCase())
-      ) {
-        return false;
-      }
-      if (
-        filters.packer &&
-        !(list.packerName ?? "")
-          .toLocaleLowerCase()
-          .includes(filters.packer.toLocaleLowerCase())
-      ) {
-        return false;
-      }
-      const hasShortage = list.items.some(
-        (item) => item.availableQuantity < item.orderedQuantity,
-      );
-      if (filters.fulfillment === "full" && hasShortage) return false;
-      if (filters.fulfillment === "shortage" && !hasShortage) return false;
-      if (fromDate && (!list.packedAt || list.packedAt < fromDate)) return false;
-      if (toDate && (!list.packedAt || list.packedAt > toDate)) return false;
-
-      const deliveryStatus = list.deliveryNote?.status;
-      if (
-        filters.deliveryStatus === "not-issued" &&
-        deliveryStatus !== undefined &&
-        deliveryStatus !== null
-      ) {
-        return false;
-      }
-      if (
-        filters.deliveryStatus === "open" &&
-        !["Draft", "Issued"].includes(deliveryStatus ?? "")
-      ) {
-        return false;
-      }
-      if (
-        filters.deliveryStatus === "delivered" &&
-        deliveryStatus !== "Delivered"
-      ) {
-        return false;
-      }
-      if (
-        filters.deliveryStatus === "cancelled" &&
-        deliveryStatus !== "Cancelled"
-      ) {
-        return false;
-      }
-      return true;
-    });
+    }));
 
   const tabs = [
     {
@@ -838,7 +690,7 @@ export default async function PickPackPage({
                             <div className="flex gap-2">
                               <Link
                                 className={actionClass}
-                                href={completedHref(filters, list.id)}
+                                href={completedPickingHref(filters, list.id)}
                               >
                                 View
                               </Link>
@@ -865,71 +717,13 @@ export default async function PickPackPage({
               pathname="/pick-pack"
               searchParams={params}
               state={completedPagination}
+              preserveParams={COMPLETED_PICKING_QUERY_PARAMS}
             />
           </section>
         </>
       )}
     </>
   );
-}
-
-type FulfillmentFilter = "all" | "full" | "shortage";
-
-function normalizeFulfillmentFilter(
-  value: string | undefined,
-): FulfillmentFilter {
-  return ["full", "shortage"].includes(value ?? "")
-    ? (value as FulfillmentFilter)
-    : "all";
-}
-
-type DeliveryFilter =
-  | "all"
-  | "not-issued"
-  | "open"
-  | "delivered"
-  | "cancelled";
-
-function normalizeDeliveryFilter(value: string | undefined): DeliveryFilter {
-  return ["not-issued", "open", "delivered", "cancelled"].includes(value ?? "")
-    ? (value as DeliveryFilter)
-    : "all";
-}
-
-function parseJakartaDate(value: string, endOfDay: boolean) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const date = new Date(
-    `${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}+07:00`,
-  );
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function completedHref(
-  filters: {
-    query: string;
-    picker: string;
-    packer: string;
-    fulfillment: FulfillmentFilter;
-    from: string;
-    to: string;
-    deliveryStatus: DeliveryFilter;
-  },
-  view: string,
-) {
-  const query = new URLSearchParams({ tab: "completed" });
-  if (filters.query) query.set("q", filters.query);
-  if (filters.picker) query.set("picker", filters.picker);
-  if (filters.packer) query.set("packer", filters.packer);
-  if (filters.fulfillment !== "all") {
-    query.set("fulfillment", filters.fulfillment);
-  }
-  if (filters.from) query.set("from", filters.from);
-  if (filters.to) query.set("to", filters.to);
-  if (filters.deliveryStatus !== "all") {
-    query.set("deliveryStatus", filters.deliveryStatus);
-  }
-  query.set("view", view);
-  return `/pick-pack?${query.toString()}`;
 }
 
 function getFirst(value: string | string[] | undefined) {

@@ -9,6 +9,8 @@ import {
   canConvertCustomerInquiryItems,
   formatCustomerInquiryStatus
 } from "@/lib/customer-inquiry";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 
 export default async function CustomerInquiryDetailPage({
   params
@@ -16,8 +18,10 @@ export default async function CustomerInquiryDetailPage({
   params: Promise<{ inquiryId: string }>;
 }) {
   const { inquiryId } = await params;
-  const inquiry = await prisma.customerInquiry.findUnique({
-    where: { id: inquiryId },
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
+  const inquiry = await prisma.customerInquiry.findFirst({
+    where: { id: inquiryId, ...portfolio.inquiryWhere },
     include: {
       customer: true,
       items: { include: { product: true } },

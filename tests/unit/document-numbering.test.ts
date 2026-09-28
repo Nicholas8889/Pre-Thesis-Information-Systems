@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { nextNumberFromExisting } from "../../src/lib/document-numbering";
+import {
+  getJakartaDocumentYear,
+  nextNumberFromExisting
+} from "../../src/lib/document-numbering";
 
 describe("document numbering", () => {
   it("uses the highest existing sequence instead of record count", () => {
@@ -40,5 +43,9 @@ describe("document numbering", () => {
         year: 2026
       })
     ).toBe("INV-2026-097");
+  });
+
+  it("uses the Jakarta calendar year at the UTC year boundary", () => {
+    expect(getJakartaDocumentYear(new Date("2026-12-31T17:00:00.000Z"))).toBe(2027);
   });
 });

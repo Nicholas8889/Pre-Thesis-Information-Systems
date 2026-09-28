@@ -1,13 +1,22 @@
 import "server-only";
 
-import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getApprovalReasonLabel } from "@/lib/sales-order-approval";
 import {
+  CUSTOMER_OUTREACH_ELIGIBLE_ORDER_STATUSES,
+  CUSTOMER_PO_NOTIFICATION_ACTIVE_STATUSES,
   isCollectionDeadlineNotification,
   isCustomerPoProcessingNotification,
   needsCustomerOutreach
 } from "@/lib/notification-rules";
+import { buildPortfolioScope, type PortfolioUser } from "@/lib/portfolio-scope";
+import {
+  addBusinessDaysWib,
+  getBusinessDateWib,
+  subtractBusinessMonthsWib,
+  type Clock,
+  systemClock,
+} from "@/lib/business-clock";
 
 export type AppNotification = {
   id: string;
@@ -17,31 +26,45 @@ export type AppNotification = {
   href: string;
 };
 
-export async function getRoleNotifications(user: { role: UserRole }) {
+export async function getRoleNotifications(
+  user: PortfolioUser,
+  clock: Clock = systemClock,
+) {
+  const now = clock.now();
   const roleNotificationsPromise =
     user.role === "ADMIN"
-      ? getAdminCollectionsNotifications()
+      ? getAdminCollectionsNotifications(user, now)
       : user.role === "SALES"
-        ? getSalesOutreachNotifications()
+        ? getSalesOutreachNotifications(user, now)
         : user.role === "MANAGER"
-          ? getManagerApprovalNotifications()
+          ? getManagerApprovalNotifications(user)
           : Promise.resolve([]);
   const [roleNotifications, customerPoNotifications] = await Promise.all([
     roleNotificationsPromise,
-    getCustomerPoNotifications()
+    getCustomerPoNotifications(user, now)
   ]);
   return [...customerPoNotifications, ...roleNotifications].slice(0, 12);
 }
 
-async function getCustomerPoNotifications(): Promise<AppNotification[]> {
-  const today = startOfDay(new Date());
+async function getCustomerPoNotifications(
+  user: PortfolioUser,
+  now: Date,
+): Promise<AppNotification[]> {
+  const today = getBusinessDateWib(now);
+  const deadlineLimit = addBusinessDaysWib(today, 7);
+  const portfolio = buildPortfolioScope(user);
   const customerPos = await prisma.salesOrder.findMany({
     where: {
+      ...portfolio.salesOrderWhere,
       source: "CUSTOMER_PO",
-      requiredDate: { not: null },
-      status: { not: "Cancelled" }
+      requiredDate: { not: null, lte: deadlineLimit },
+      status: { in: [...CUSTOMER_PO_NOTIFICATION_ACTIVE_STATUSES] },
+      deliveryNotes: { none: { status: "Delivered" } },
+      deliverySources: {
+        none: { deliveryNote: { is: { status: "Delivered" } } },
+      },
     },
-    orderBy: { requiredDate: "asc" },
+    orderBy: [{ requiredDate: "asc" }, { id: "asc" }],
     take: 50,
     include: {
       customer: true,
@@ -68,19 +91,22 @@ async function getCustomerPoNotifications(): Promise<AppNotification[]> {
       const requiredDate = order.requiredDate as Date;
       const isOverdue = requiredDate < today;
       return {
-        id: `customer-po-${order.id}-${requiredDate.toISOString().slice(0, 10)}`,
+        id: `customer-po-processing:${order.id}`,
         title: isOverdue ? "Customer PO processing overdue" : "Customer PO date is approaching",
         description: `${order.orderNumber} · ${order.customer.companyName} · Required ${formatShortDate(requiredDate)}`,
-        sentAt: new Date().toISOString(),
+        sentAt: now.toISOString(),
         href: `/customer-purchase-orders/${order.id}`
       };
     });
 }
 
-async function getManagerApprovalNotifications(): Promise<AppNotification[]> {
+async function getManagerApprovalNotifications(
+  user: PortfolioUser,
+): Promise<AppNotification[]> {
+  const portfolio = buildPortfolioScope(user);
   const pendingOrders = await prisma.salesOrder.findMany({
-    where: { approvalStatus: "Pending" },
-    orderBy: { createdAt: "asc" },
+    where: { ...portfolio.salesOrderWhere, approvalStatus: "Pending" },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: 12,
     include: { customer: true }
   });
@@ -99,13 +125,24 @@ async function getManagerApprovalNotifications(): Promise<AppNotification[]> {
   }));
 }
 
-async function getAdminCollectionsNotifications(): Promise<AppNotification[]> {
-  const today = startOfDay(new Date());
+async function getAdminCollectionsNotifications(
+  user: PortfolioUser,
+  now: Date,
+): Promise<AppNotification[]> {
+  const today = getBusinessDateWib(now);
+  const deadlineLimit = addBusinessDaysWib(today, 7);
+  const portfolio = buildPortfolioScope(user);
   const collectionTasks = await prisma.collectionTask.findMany({
     where: {
-      status: "Planned"
+      ...portfolio.collectionTaskWhere,
+      status: "Planned",
+      scheduledDate: { lte: deadlineLimit },
+      OR: [
+        { invoiceId: null },
+        { invoice: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } } }
+      ]
     },
-    orderBy: { scheduledDate: "asc" },
+    orderBy: [{ scheduledDate: "asc" }, { id: "asc" }],
     take: 12,
     include: { customer: true, invoice: true }
   });
@@ -119,23 +156,39 @@ async function getAdminCollectionsNotifications(): Promise<AppNotification[]> {
     const isOverdue = task.scheduledDate < today;
     const invoiceLabel = task.invoice?.invoiceNumber ?? "customer collection";
     return {
-      id: `collection-task-${task.id}-${task.scheduledDate.toISOString().slice(0, 10)}`,
+      id: `collection-deadline:${task.id}`,
       title: isOverdue ? "Collection task overdue" : "Collection deadline is near",
       description: `${task.customer.companyName} · ${invoiceLabel} · Due ${formatShortDate(task.scheduledDate)}`,
-      sentAt: new Date().toISOString(),
+      sentAt: now.toISOString(),
       href: `/collections?customerId=${task.customerId}${task.invoiceId ? `&invoiceId=${task.invoiceId}` : ""}`
     };
   });
 }
 
-async function getSalesOutreachNotifications(): Promise<AppNotification[]> {
-  const today = new Date();
+async function getSalesOutreachNotifications(
+  user: PortfolioUser,
+  now: Date,
+): Promise<AppNotification[]> {
+  const today = getBusinessDateWib(now);
+  const inactivityThreshold = subtractBusinessMonthsWib(today, 3);
+  const portfolio = buildPortfolioScope(user);
   const customers = await prisma.customer.findMany({
-    where: { status: "Active" },
+    where: {
+      status: "Active",
+      ...portfolio.customerWhere,
+      salesOrders: {
+        none: {
+          status: { in: [...CUSTOMER_OUTREACH_ELIGIBLE_ORDER_STATUSES] },
+          orderDate: { gt: inactivityThreshold },
+        },
+      },
+    },
     orderBy: { companyName: "asc" },
+    take: 12,
     include: {
       salesOrders: {
-        orderBy: { orderDate: "desc" },
+        where: { status: { in: [...CUSTOMER_OUTREACH_ELIGIBLE_ORDER_STATUSES] } },
+        orderBy: [{ orderDate: "desc" }, { id: "desc" }],
         take: 1,
         select: { orderDate: true }
       }
@@ -151,19 +204,15 @@ async function getSalesOutreachNotifications(): Promise<AppNotification[]> {
     .map((customer) => {
       const latestOrder = customer.salesOrders[0]?.orderDate;
       return {
-        id: `customer-outreach-${customer.id}-${latestOrder?.toISOString().slice(0, 10) ?? "never"}`,
+        id: `customer-inactivity:${customer.id}`,
         title: "Customer outreach needed",
         description: latestOrder
           ? `${customer.companyName} has not placed an order since ${formatShortDate(latestOrder)}.`
           : `${customer.companyName} has not placed an order yet.`,
-        sentAt: today.toISOString(),
+        sentAt: now.toISOString(),
         href: `/customer-outreach?customerId=${customer.id}#record-outreach`
       };
     });
-}
-
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function formatShortDate(date: Date) {

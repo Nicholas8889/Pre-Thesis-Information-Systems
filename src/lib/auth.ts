@@ -32,6 +32,15 @@ export function verifyPassword(password: string, passwordHash: string) {
   return verifyLegacyPassword(password, passwordHash);
 }
 
+export function canAuthenticateUser(
+  user: { status: string; passwordHash: string } | null | undefined,
+  password: string
+) {
+  if (!user) return false;
+  const passwordIsValid = verifyPassword(password, user.passwordHash);
+  return passwordIsValid && user.status === "Active";
+}
+
 export function needsPasswordRehash(passwordHash: string) {
   if (!passwordHash.startsWith("$2")) return true;
 

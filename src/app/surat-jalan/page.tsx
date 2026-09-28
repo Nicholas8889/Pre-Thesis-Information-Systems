@@ -31,12 +31,24 @@ import { prisma } from "@/lib/prisma";
 import { getSearchMessage } from "@/lib/workflow";
 import { requireCurrentUser } from "@/lib/session";
 import { canRole } from "@/lib/role-access";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 import { ServerPagination } from "@/components/server-pagination";
 import {
   getCursorArgs,
   getCursorPage,
   getCursorPagination,
 } from "@/lib/pagination";
+import {
+  buildDeliveryNoteOrderBy,
+  buildDeliveryNoteWhere,
+  parseDeliveryNoteListFilters,
+  type DeliveryNoteListFilters,
+} from "@/lib/delivery-note-query";
+import {
+  getDeliveryInvoiceReferences,
+  getDeliveryOrderReferences,
+} from "@/lib/delivery-note-references";
+import { toDateOnlyValue } from "@/lib/date-only";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 export default async function SuratJalanPage({
@@ -49,6 +61,7 @@ export default async function SuratJalanPage({
     redirect("/pick-pack");
   }
   const user = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(user);
   const canCreateSuratJalan = canRole(user.role, "CREATE_SURAT_JALAN");
   const { success, error } = getSearchMessage(params);
   const viewId = getFirst(params.view);
@@ -58,16 +71,16 @@ export default async function SuratJalanPage({
   let sourceOrderId = getFirst(params.salesOrderId);
   if (!sourceOrderId && sourceInvoiceId) {
     sourceOrderId = (
-      await prisma.invoice.findUnique({
-        where: { id: sourceInvoiceId },
+      await prisma.invoice.findFirst({
+        where: { id: sourceInvoiceId, ...portfolio.invoiceWhere },
         select: { salesOrderId: true },
       })
     )?.salesOrderId;
   }
   if (sourceOrderId) {
     const [existingList, existingNote] = await Promise.all([
-      prisma.pickingList.findUnique({
-        where: { salesOrderId: sourceOrderId },
+      prisma.pickingList.findFirst({
+        where: { salesOrderId: sourceOrderId, ...portfolio.pickingListWhere },
         include: {
           deliveryNote: true,
           deliverySource: { include: { deliveryNote: true } },
@@ -75,11 +88,16 @@ export default async function SuratJalanPage({
       }),
       prisma.deliveryNote.findFirst({
         where: {
+          AND: [
+            portfolio.deliveryNoteWhere,
+            {
           OR: [
             { salesOrderId: sourceOrderId },
             { invoice: { is: { salesOrderId: sourceOrderId } } },
             { sources: { some: { salesOrderId: sourceOrderId } } },
           ],
+            }
+          ]
         },
         select: { id: true, status: true },
       }),
@@ -97,8 +115,8 @@ export default async function SuratJalanPage({
   }
 
   const requestedNote = viewId
-    ? await prisma.deliveryNote.findUnique({
-        where: { id: viewId },
+    ? await prisma.deliveryNote.findFirst({
+        where: { id: viewId, ...portfolio.deliveryNoteWhere },
         select: { id: true, status: true },
       })
     : null;
@@ -119,18 +137,37 @@ export default async function SuratJalanPage({
       : showCancelled
         ? ["Cancelled"]
         : ["Delivered"];
+  const filters = parseDeliveryNoteListFilters({
+    query: getFirst(params.q),
+    customerId: getFirst(params.customerId),
+    status: getFirst(params.status),
+    startDate: getFirst(params.startDate),
+    endDate: getFirst(params.endDate),
+    sort: getFirst(params.sort),
+    direction: getFirst(params.direction),
+  });
+  const visibleWhere = buildDeliveryNoteWhere(
+    filters,
+    visibleStatuses,
+    portfolio.deliveryNoteWhere,
+  );
+  const appliedStatus = filters.status && visibleStatuses.includes(filters.status)
+    ? filters.status
+    : "";
   const pagination = getCursorPagination(params);
 
   const [
     pickingRecords,
     deliveryNoteRecords,
+    filterCustomers,
+    filteredCount,
     openCount,
     completedCount,
     cancelledCount,
   ] = await Promise.all([
     mode === "create" ? prisma.pickingList.findMany({
       relationLoadStrategy: "join",
-      where: { status: "Packed" },
+      where: { status: "Packed", ...portfolio.pickingListWhere },
       include: {
         items: true,
         deliveryNote: true,
@@ -141,20 +178,26 @@ export default async function SuratJalanPage({
     }) : Promise.resolve([]),
     prisma.deliveryNote.findMany({
       relationLoadStrategy: "join",
-      where: { status: { in: visibleStatuses } },
+      where: visibleWhere,
       include: {
         invoice: true,
         sources: deliverySourcesInclude,
       },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: buildDeliveryNoteOrderBy(filters),
       ...getCursorArgs(pagination),
     }),
-    prisma.deliveryNote.count({ where: { status: { in: ["Draft", "Issued"] } } }),
-    prisma.deliveryNote.count({ where: { status: "Delivered" } }),
-    prisma.deliveryNote.count({ where: { status: "Cancelled" } }),
+    prisma.customer.findMany({
+      where: portfolio.customerWhere,
+      orderBy: [{ companyName: "asc" }, { id: "asc" }],
+      select: { id: true, companyName: true },
+    }),
+    prisma.deliveryNote.count({ where: visibleWhere }),
+    prisma.deliveryNote.count({ where: { status: { in: ["Draft", "Issued"] }, ...portfolio.deliveryNoteWhere } }),
+    prisma.deliveryNote.count({ where: { status: "Delivered", ...portfolio.deliveryNoteWhere } }),
+    prisma.deliveryNote.count({ where: { status: "Cancelled", ...portfolio.deliveryNoteWhere } }),
   ]);
   const deliveryNotePage = getCursorPage(deliveryNoteRecords, pagination);
-  const visibleDeliveryNotes = deliveryNotePage.items.filter((note) =>
+  const visibleDeliveryNotes = deliveryNotePage.items.filter(note =>
     visibleStatuses.includes(note.status),
   );
   const pickingLists = pickingRecords.map(list => ({ ...list, deliveryNote: list.deliverySource?.deliveryNote ?? list.deliveryNote }));
@@ -171,9 +214,9 @@ export default async function SuratJalanPage({
       : undefined) ??
     visibleDeliveryNotes[0]?.id;
   const selectedDeliveryNote = selectedId
-    ? await prisma.deliveryNote.findUnique({
+    ? await prisma.deliveryNote.findFirst({
         relationLoadStrategy: "join",
-        where: { id: selectedId },
+        where: { id: selectedId, ...portfolio.deliveryNoteWhere },
         include: {
           customer: true,
           invoice: true,
@@ -184,6 +227,12 @@ export default async function SuratJalanPage({
         },
       })
     : null;
+  const selectedOrderReferences = selectedDeliveryNote
+    ? getDeliveryOrderReferences(selectedDeliveryNote)
+    : [];
+  const selectedInvoiceReferences = selectedDeliveryNote
+    ? getDeliveryInvoiceReferences(selectedDeliveryNote)
+    : [];
   const tabs = [
     { key: "open", label: "Surat Jalan Open", count: openCount },
     { key: "completed", label: "Completed", count: completedCount },
@@ -214,7 +263,7 @@ export default async function SuratJalanPage({
           <Link
             key={tab.key}
             aria-current={activeTab === tab.key ? "page" : undefined}
-            href={`/surat-jalan?tab=${tab.key}`}
+            href={buildDeliveryNoteListHref(tab.key, filters)}
             className={`inline-flex h-9 shrink-0 items-center rounded-md px-3 text-sm font-semibold ${activeTab === tab.key ? "bg-brand text-white" : "text-ink/80 hover:bg-soft"}`}
           >
             {tab.label}
@@ -236,18 +285,47 @@ export default async function SuratJalanPage({
         <div className="mb-4 flex gap-4 text-sm font-semibold">
           <Link
             className={!showCancelled ? "text-brand" : "text-ink/60"}
-            href="/surat-jalan?tab=completed"
+            href={buildDeliveryNoteListHref("completed", filters)}
           >
             Diterima ({completedCount})
           </Link>
           <Link
             className={showCancelled ? "text-brand" : "text-ink/60"}
-            href="/surat-jalan?tab=completed&archive=cancelled"
+            href={buildDeliveryNoteListHref("completed", filters, true)}
           >
             Cancelled archive ({cancelledCount})
           </Link>
         </div>
       )}
+      <form className="mb-4 grid gap-3 rounded-md border border-line bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_190px_150px_150px_140px_130px_auto]">
+        <input type="hidden" name="tab" value={activeTab} />
+        {showCancelled && <input type="hidden" name="archive" value="cancelled" />}
+        <input name="q" defaultValue={filters.query} placeholder="SJ, invoice, order, recipient, or address" className="h-10 rounded-md border border-line px-3 text-sm" />
+        <select name="customerId" defaultValue={filters.customerId ?? ""} className="h-10 rounded-md border border-line px-3 text-sm" aria-label="Customer">
+          <option value="">All customers</option>
+          {filterCustomers.map(customer => (
+            <option key={customer.id} value={customer.id}>{customer.companyName}</option>
+          ))}
+        </select>
+        <input name="startDate" type="date" defaultValue={filters.startDate ? toDateOnlyValue(filters.startDate) : ""} className="h-10 rounded-md border border-line px-3 text-sm" aria-label="Start date" />
+        <input name="endDate" type="date" defaultValue={filters.endDate ? toDateOnlyValue(filters.endDate) : ""} className="h-10 rounded-md border border-line px-3 text-sm" aria-label="End date" />
+        <select name="status" defaultValue={appliedStatus} className="h-10 rounded-md border border-line px-3 text-sm" aria-label="Status">
+          <option value="">All statuses in this tab</option>
+          {visibleStatuses.map(status => <option key={status} value={status}>{getDeliveryNoteStatusLabel(status)}</option>)}
+        </select>
+        <div className="grid grid-cols-2 gap-2">
+          <select name="sort" defaultValue={filters.sort} className="h-10 rounded-md border border-line px-2 text-sm" aria-label="Sort">
+            <option value="createdAt">Created</option>
+            <option value="date">Date</option>
+            <option value="number">Number</option>
+          </select>
+          <select name="direction" defaultValue={filters.direction} className="h-10 rounded-md border border-line px-2 text-sm" aria-label="Direction">
+            <option value="asc">Asc</option>
+            <option value="desc">Desc</option>
+          </select>
+        </div>
+        <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
+      </form>
       {selectedDeliveryNote && (
         <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <div className="mb-5 flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-start sm:justify-between">
@@ -258,9 +336,7 @@ export default async function SuratJalanPage({
               <h2 className="mt-1 text-2xl font-semibold">
                 {selectedDeliveryNote.deliveryNoteNumber}
               </h2>
-              <p className="mt-1 text-sm text-ink/80">
-                {selectedDeliveryNote.sources?.length ? selectedDeliveryNote.sources.map(source => orderReference(source.salesOrder)).join(", ") : orderReference(selectedDeliveryNote.salesOrder)}
-              </p>
+              <ReferenceList references={selectedOrderReferences} className="mt-1" />
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <StatusBadge
@@ -360,9 +436,9 @@ export default async function SuratJalanPage({
               label="Delivery Date"
               value={formatDate(selectedDeliveryNote.deliveryDate)}
             />
-            <Detail
+            <ReferenceDetail
               label="Invoice"
-              value={selectedDeliveryNote.sources?.map(source => source.invoice.invoiceNumber).join(", ") || selectedDeliveryNote.invoice?.invoiceNumber || "-"}
+              references={selectedInvoiceReferences}
             />
             <Detail
               label="Payment Terms"
@@ -379,9 +455,9 @@ export default async function SuratJalanPage({
                   : "-"
               }
             />
-            <Detail
+            <ReferenceDetail
               label="Sales Order"
-              value={selectedDeliveryNote.sources?.map(source => orderReference(source.salesOrder)).join(", ") || orderReference(selectedDeliveryNote.salesOrder)}
+              references={selectedOrderReferences}
             />
             {selectedDeliveryNote.salesOrder?.source === "CUSTOMER_PO" && (
               <Detail
@@ -472,6 +548,10 @@ export default async function SuratJalanPage({
       )}
 
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Surat Jalan Records</h2>
+            <span className="text-sm font-medium text-ink/60">{filteredCount} matching records</span>
+          </div>
           {visibleDeliveryNotes.length === 0 ? (
             <EmptyState
               message={
@@ -527,7 +607,7 @@ export default async function SuratJalanPage({
                         <TableActionGroup>
                           {
                             <TableActionLink
-                              href={`/surat-jalan?tab=${activeTab}&view=${deliveryNote.id}${deliveryNote.status === "Cancelled" ? "&archive=cancelled" : ""}`}
+                              href={`${buildDeliveryNoteListHref(activeTab, filters, deliveryNote.status === "Cancelled")}&view=${encodeURIComponent(deliveryNote.id)}`}
                               label="View Surat Jalan"
                             >
                               <Eye aria-hidden="true" />
@@ -535,7 +615,7 @@ export default async function SuratJalanPage({
                           }
                           {activeTab === "open" && canCreateSuratJalan && (
                             <TableActionLink
-                              href={deliveryNote.status === "Draft" ? `/surat-jalan?tab=${activeTab}&view=${deliveryNote.id}` : `/surat-jalan?tab=${activeTab}&view=${deliveryNote.id}&receive=${deliveryNote.id}`}
+                              href={`${buildDeliveryNoteListHref(activeTab, filters)}&view=${encodeURIComponent(deliveryNote.id)}${deliveryNote.status === "Draft" ? "" : `&receive=${encodeURIComponent(deliveryNote.id)}`}`}
                               label={deliveryNote.status === "Draft" ? "Edit Draft" : "Tandai Sudah Diterima"}
                             >
                               {deliveryNote.status === "Draft" ? (
@@ -570,6 +650,7 @@ export default async function SuratJalanPage({
             pathname="/surat-jalan"
             searchParams={params}
             state={pagination}
+            preserveParams={["tab", "archive", "q", "customerId", "startDate", "endDate", "status", "sort", "direction"]}
           />
       </section>
     </>
@@ -583,6 +664,70 @@ function Detail({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-sm font-medium text-ink">{value || "-"}</p>
     </div>
   );
+}
+
+function ReferenceDetail({
+  label,
+  references,
+}: {
+  label: string;
+  references: Array<{ label: string; href: string | null }>;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase text-ink/50">{label}</p>
+      <ReferenceList references={references} className="mt-1" />
+    </div>
+  );
+}
+
+function ReferenceList({
+  references,
+  className = "",
+}: {
+  references: Array<{ label: string; href: string | null }>;
+  className?: string;
+}) {
+  if (!references.length) {
+    return <p className={`${className} text-sm font-medium text-ink`}>Historical reference unavailable</p>;
+  }
+  return (
+    <p className={`${className} text-sm font-medium text-ink`}>
+      {references.map((reference, index) => (
+        <span key={`${reference.label}-${index}`}>
+          {index > 0 && ", "}
+          {reference.href ? (
+            <Link className="text-brand hover:underline" href={reference.href}>{reference.label}</Link>
+          ) : (
+            <span>{reference.label} (historical snapshot)</span>
+          )}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function buildDeliveryNoteListHref(
+  tab: string,
+  filters: DeliveryNoteListFilters,
+  cancelledArchive = false,
+) {
+  const params = new URLSearchParams();
+  params.set("tab", tab);
+  if (cancelledArchive) params.set("archive", "cancelled");
+  if (filters.query) params.set("q", filters.query);
+  if (filters.customerId) params.set("customerId", filters.customerId);
+  if (filters.startDate) params.set("startDate", toDateOnlyValue(filters.startDate));
+  if (filters.endDate) params.set("endDate", toDateOnlyValue(filters.endDate));
+  const targetStatuses = tab === "open"
+    ? ["Draft", "Issued"]
+    : cancelledArchive ? ["Cancelled"] : ["Delivered"];
+  if (filters.status && targetStatuses.includes(filters.status)) {
+    params.set("status", filters.status);
+  }
+  params.set("sort", filters.sort);
+  params.set("direction", filters.direction);
+  return `/surat-jalan?${params.toString()}`;
 }
 
 function DeliveryProgress({

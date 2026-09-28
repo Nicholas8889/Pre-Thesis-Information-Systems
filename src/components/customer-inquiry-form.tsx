@@ -63,10 +63,10 @@ export function CustomerInquiryForm({
               <input required min={1} type="number" value={item.quantity} onChange={(event) => updateItem(index, { quantity: Number(event.target.value) })} className={inputClass} />
             </label>
             <label className="text-sm font-medium text-ink">Requested Unit Price
-              <input min={0} type="number" value={item.requestedUnitPrice} onChange={(event) => updateItem(index, { requestedUnitPrice: event.target.value === "" ? "" : Number(event.target.value) })} className={inputClass} />
+              <input min={1} step={1} type="number" value={item.requestedUnitPrice} onChange={(event) => updateItem(index, { requestedUnitPrice: event.target.value === "" ? "" : Number(event.target.value) })} className={inputClass} />
             </label>
             <label className="text-sm font-medium text-ink">Agreed Unit Price
-              <input min={0} type="number" value={item.agreedUnitPrice} onChange={(event) => updateItem(index, { agreedUnitPrice: event.target.value === "" ? "" : Number(event.target.value) })} className={inputClass} />
+              <input min={1} step={1} type="number" value={item.agreedUnitPrice} onChange={(event) => updateItem(index, { agreedUnitPrice: event.target.value === "" ? "" : Number(event.target.value) })} className={inputClass} />
             </label>
             <label className="text-sm font-medium text-ink">Item Note
               <input value={item.notes} onChange={(event) => updateItem(index, { notes: event.target.value })} className={inputClass} />

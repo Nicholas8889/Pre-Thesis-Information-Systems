@@ -1,19 +1,40 @@
+import {
+  addBusinessDaysWib,
+  getBusinessDateKeyWib,
+  subtractBusinessMonthsWib,
+} from "@/lib/business-clock";
+
+export const CUSTOMER_PO_NOTIFICATION_ACTIVE_STATUSES = [
+  "Draft",
+  "Confirmed",
+  "Invoiced",
+  "Shipped",
+] as const;
+
+export const CUSTOMER_OUTREACH_ELIGIBLE_ORDER_STATUSES = [
+  "Confirmed",
+  "Invoiced",
+  "Shipped",
+] as const;
+
 export function isCollectionDeadlineNotification(
   input: { status: string; deadline: Date },
   now = new Date(),
   daysAhead = 7
 ) {
   if (input.status !== "Planned") return false;
-  const deadlineLimit = startOfDay(now);
-  deadlineLimit.setDate(deadlineLimit.getDate() + daysAhead);
-  return input.deadline <= deadlineLimit;
+  return (
+    getBusinessDateKeyWib(input.deadline) <=
+    getBusinessDateKeyWib(addBusinessDaysWib(now, daysAhead))
+  );
 }
 
 export function needsCustomerOutreach(latestOrderDate: Date | null, now = new Date()) {
   if (!latestOrderDate) return true;
-  const threeMonthsAgo = new Date(now);
-  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-  return latestOrderDate < threeMonthsAgo;
+  return (
+    getBusinessDateKeyWib(latestOrderDate) <=
+    getBusinessDateKeyWib(subtractBusinessMonthsWib(now, 3))
+  );
 }
 
 export function isCustomerPoProcessingNotification(
@@ -25,14 +46,17 @@ export function isCustomerPoProcessingNotification(
   now = new Date(),
   daysAhead = 7
 ) {
-  if (!input.requiredDate || input.status === "Cancelled" || input.hasDeliveredDocument) {
+  if (
+    !input.requiredDate ||
+    !CUSTOMER_PO_NOTIFICATION_ACTIVE_STATUSES.includes(
+      input.status as (typeof CUSTOMER_PO_NOTIFICATION_ACTIVE_STATUSES)[number],
+    ) ||
+    input.hasDeliveredDocument
+  ) {
     return false;
   }
-  const deadlineLimit = startOfDay(now);
-  deadlineLimit.setDate(deadlineLimit.getDate() + daysAhead);
-  return input.requiredDate <= deadlineLimit;
-}
-
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return (
+    getBusinessDateKeyWib(input.requiredDate) <=
+    getBusinessDateKeyWib(addBusinessDaysWib(now, daysAhead))
+  );
 }

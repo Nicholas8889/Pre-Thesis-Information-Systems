@@ -14,3 +14,15 @@ export function withSearchParams(pathname: string, params: LegacySearchParams = 
   const query = search.toString();
   return query ? `${pathname}?${query}` : pathname;
 }
+
+export function withAllowedSearchParams(
+  pathname: string,
+  params: LegacySearchParams = {},
+  allowedParams: readonly string[],
+) {
+  const allowed = new Set(allowedParams);
+  return withSearchParams(
+    pathname,
+    Object.fromEntries(Object.entries(params).filter(([key]) => allowed.has(key))),
+  );
+}

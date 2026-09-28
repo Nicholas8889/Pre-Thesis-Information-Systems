@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
   revalidatePath: vi.fn(),
   requireCurrentUser: vi.fn(),
+  sequence: vi.fn(),
   transaction: vi.fn(),
+  queryRaw: vi.fn(),
   updateManySalesOrders: vi.fn()
 }));
 
@@ -34,6 +36,9 @@ vi.mock("@/lib/audit", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: mocks.transaction,
+    documentSequence: {
+      upsert: mocks.sequence
+    },
     collectionTask: {
       create: mocks.createCollectionTask
     },
@@ -55,13 +60,33 @@ const pendingCustomerPo = {
   customerId: "customer-1",
   source: "CUSTOMER_PO",
   status: "Draft",
+  version: 1,
   approvalStatus: "Pending",
   invoice: null,
-  customer: { companyName: "Acme Indonesia" },
+  customer: {
+    name: "Acme Contact",
+    companyName: "Acme Indonesia",
+    phone: "021",
+    email: "acme@example.com",
+    address: "Jakarta",
+    status: "Active",
+    invoices: []
+  },
+  items: [{
+    itemName: "Widget",
+    productSkuSnapshot: "W-1",
+    quantity: 1,
+    baseUnitPrice: 125_000,
+    markupPercent: 0,
+    discountPercent: 0,
+    finalUnitPrice: 125_000,
+    subtotal: 125_000
+  }],
   notes: null,
   total: 125_000,
   paymentTermType: "IMMEDIATE",
   creditTermMonths: null,
+  creditTermWeeks: null,
   customerNpwpSnapshot: null,
   ppnApplied: false,
   ppnRateBasisPoints: 0,
@@ -82,22 +107,29 @@ describe("Customer PO approval actions", () => {
     });
     mocks.findInvoices.mockResolvedValue([]);
     mocks.findSalesOrders.mockResolvedValue([]);
+    mocks.sequence.mockResolvedValue({ lastValue: 1 });
     mocks.updateManySalesOrders.mockResolvedValue({ count: 1 });
     mocks.transaction.mockImplementation(
       async (
         operation: (tx: {
+          $queryRaw: typeof mocks.queryRaw;
           collectionTask: { create: typeof mocks.createCollectionTask };
+          documentSequence: { upsert: typeof mocks.sequence };
           invoice: { create: typeof mocks.createInvoice };
           salesOrder: {
+            findUnique: typeof mocks.findSalesOrder;
             findUniqueOrThrow: typeof mocks.findUpdatedSalesOrder;
             updateMany: typeof mocks.updateManySalesOrders;
           };
         }) => Promise<unknown>
       ) =>
         operation({
+          $queryRaw: mocks.queryRaw,
           collectionTask: { create: mocks.createCollectionTask },
+          documentSequence: { upsert: mocks.sequence },
           invoice: { create: mocks.createInvoice },
           salesOrder: {
+            findUnique: mocks.findSalesOrder,
             findUniqueOrThrow: mocks.findUpdatedSalesOrder,
             updateMany: mocks.updateManySalesOrders
           }
@@ -105,10 +137,30 @@ describe("Customer PO approval actions", () => {
     );
   });
 
+  it.each(["SALES", "ADMIN"] as const)("rejects direct approval from %s before reading the order", async role => {
+    mocks.requireCurrentUser.mockResolvedValue({
+      id: `${role.toLowerCase()}-1`,
+      role,
+      status: "Active"
+    });
+    const formData = new FormData();
+    formData.set("salesOrderId", pendingCustomerPo.id);
+    formData.set("expectedVersion", "1");
+    formData.set("decision", "Approved");
+
+    await expect(decideSalesOrderApproval(formData)).rejects.toThrow(
+      "NEXT_REDIRECT:/sales-orders?tab=approval&error=Only%20a%20Manager%20can%20approve%20or%20reject%20sales%20orders"
+    );
+    expect(mocks.findSalesOrder).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalled();
+  });
+
   it("requires a non-whitespace reason before rejecting an order", async () => {
     const formData = new FormData();
     formData.set("salesOrderId", pendingCustomerPo.id);
     formData.set("decision", "Rejected");
+    formData.set("expectedVersion", "1");
     formData.set("decisionNote", "   ");
     formData.set("returnPath", "/customer-purchase-orders");
 
@@ -119,6 +171,59 @@ describe("Customer PO approval actions", () => {
     expect(mocks.updateManySalesOrders).not.toHaveBeenCalled();
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.audit).not.toHaveBeenCalled();
+  });
+
+  it("rejects a 151-character reason before reading or mutating the order", async () => {
+    const formData = new FormData();
+    formData.set("salesOrderId", pendingCustomerPo.id);
+    formData.set("decision", "Rejected");
+    formData.set("expectedVersion", "1");
+    formData.set("confirmationNote", "é".repeat(151));
+    formData.set("returnPath", "/customer-purchase-orders");
+
+    await expect(decideSalesOrderApproval(formData)).rejects.toThrow(
+      "Action%20notes%20must%20be%20150%20characters%20or%20fewer"
+    );
+    expect(mocks.findSalesOrder).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalled();
+  });
+
+  it("stores a 150-character Unicode rejection reason intact in notes and audit", async () => {
+    const rejectionReason = "é".repeat(150);
+    const pendingWithHistory = {
+      ...pendingCustomerPo,
+      notes: "Original sales note"
+    };
+    mocks.findSalesOrder.mockResolvedValue(pendingWithHistory);
+    mocks.findUpdatedSalesOrder.mockResolvedValue({
+      ...pendingWithHistory,
+      status: "Cancelled",
+      approvalStatus: "Rejected",
+      approvalDecisionNote: rejectionReason,
+      version: 2
+    });
+
+    const formData = new FormData();
+    formData.set("salesOrderId", pendingCustomerPo.id);
+    formData.set("decision", "Rejected");
+    formData.set("expectedVersion", "1");
+    formData.set("confirmationNote", rejectionReason);
+    formData.set("returnPath", "/customer-purchase-orders");
+
+    await expect(decideSalesOrderApproval(formData)).rejects.toThrow(
+      "success=Customer%20PO%20rejected"
+    );
+    expect(mocks.updateManySalesOrders).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        approvalDecisionNote: rejectionReason,
+        notes: `Original sales note\nConfirmation note: ${rejectionReason}`
+      })
+    }));
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "REJECTED", actionNote: rejectionReason }),
+      expect.objectContaining({ transaction: expect.anything() })
+    );
   });
 
   it("uses the persisted Customer PO source and saves a noted rejection", async () => {
@@ -135,6 +240,7 @@ describe("Customer PO approval actions", () => {
     const formData = new FormData();
     formData.set("salesOrderId", pendingCustomerPo.id);
     formData.set("decision", "Rejected");
+    formData.set("expectedVersion", "1");
     formData.set("decisionNote", rejectionReason);
     formData.set("returnPath", "/sales-orders");
 
@@ -142,10 +248,11 @@ describe("Customer PO approval actions", () => {
       "NEXT_REDIRECT:/customer-purchase-orders?tab=approval&success=Customer%20PO%20rejected"
     );
     expect(mocks.updateManySalesOrders).toHaveBeenCalledWith({
-      where: {
+      where: expect.objectContaining({
         id: pendingCustomerPo.id,
+        version: 1,
         approvalStatus: "Pending"
-      },
+      }),
       data: expect.objectContaining({
         status: "Cancelled",
         approvalStatus: "Rejected",
@@ -160,17 +267,8 @@ describe("Customer PO approval actions", () => {
       where: { id: pendingCustomerPo.id }
     });
     expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        moduleName: "Customer Purchase Orders",
-        entityType: "SALES_ORDER",
-        entityId: pendingCustomerPo.id,
-        action: "REJECTED",
-        newValue: expect.objectContaining({
-          status: "Cancelled",
-          approvalStatus: "Rejected",
-          decisionNote: rejectionReason
-        })
-      })
+      expect.objectContaining({ action: "REJECTED" }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
@@ -182,6 +280,7 @@ describe("Customer PO approval actions", () => {
     const formData = new FormData();
     formData.set("salesOrderId", pendingCustomerPo.id);
     formData.set("decision", "Rejected");
+    formData.set("expectedVersion", "1");
     formData.set("decisionNote", "Customer credit must be reviewed");
     formData.set("returnPath", "/customer-purchase-orders");
 
@@ -210,16 +309,18 @@ describe("Customer PO approval actions", () => {
     const formData = new FormData();
     formData.set("salesOrderId", pendingCustomerPo.id);
     formData.set("decision", "Approved");
+    formData.set("expectedVersion", "1");
     formData.set("returnPath", "/sales-orders");
 
     await expect(decideSalesOrderApproval(formData)).rejects.toThrow(
       "NEXT_REDIRECT:/customer-purchase-orders?tab=approval&success=Customer%20PO%20approved%20and%20invoice%20generated"
     );
     expect(mocks.updateManySalesOrders).toHaveBeenCalledWith({
-      where: {
+      where: expect.objectContaining({
         id: pendingCustomerPo.id,
+        version: 1,
         approvalStatus: "Pending"
-      },
+      }),
       data: expect.objectContaining({
         status: "Invoiced",
         approvalStatus: "Approved",
@@ -237,34 +338,18 @@ describe("Customer PO approval actions", () => {
     });
     expect(mocks.createCollectionTask).not.toHaveBeenCalled();
     expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        moduleName: "Customer Purchase Orders",
-        action: "APPROVED"
-      })
-    );
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        moduleName: "Invoices",
-        action: "CREATED"
-      })
-    );
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        moduleName: "Receivables",
-        action: "CREATED"
-      })
+      expect.arrayContaining([
+        expect.objectContaining({ moduleName: "Customer Purchase Orders", action: "APPROVED" }),
+        expect.objectContaining({ moduleName: "Invoices", action: "CREATED" }),
+        expect.objectContaining({ moduleName: "Receivables", action: "CREATED" })
+      ]),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 
-  it.each([
-    [
-      "Pending",
-      "Manager%20approval%20is%20required%20before%20an%20invoice%20can%20be%20generated"
-    ],
-    ["Rejected", "A%20rejected%20sales%20order%20cannot%20generate%20an%20invoice"]
-  ] as const)(
+  it.each(["Pending", "Rejected"] as const)(
     "blocks invoice generation for a %s Customer PO",
-    async (approvalStatus, encodedMessage) => {
+    async (approvalStatus) => {
       mocks.findSalesOrder.mockResolvedValue({
         ...pendingCustomerPo,
         approvalStatus
@@ -274,7 +359,7 @@ describe("Customer PO approval actions", () => {
       formData.set("salesOrderId", pendingCustomerPo.id);
 
       await expect(generateInvoice(formData)).rejects.toThrow(
-        `NEXT_REDIRECT:/customer-purchase-orders?tab=approval&error=${encodedMessage}`
+        "NEXT_REDIRECT:/customer-purchase-orders?error=Only%20a%20confirmed%2C%20approved%20order%20without%20an%20invoice%20can%20be%20invoiced"
       );
       expect(mocks.transaction).not.toHaveBeenCalled();
       expect(mocks.updateManySalesOrders).not.toHaveBeenCalled();

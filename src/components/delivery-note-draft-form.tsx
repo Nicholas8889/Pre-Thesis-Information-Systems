@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { saveDeliveryNoteDraft } from "@/lib/actions";
-import { DELIVERY_DRIVER_OPTIONS, DELIVERY_VEHICLE_PLATE_OPTIONS } from "@/lib/delivery-options";
+import {
+  ACTIVE_DELIVERY_ASSIGNMENTS,
+  getDeliveryAssignmentId
+} from "@/lib/delivery-options";
 
 type DraftItem = {
   id: string;
@@ -35,6 +38,10 @@ type DraftNote = {
 const inputClass = "mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm";
 
 export function DeliveryNoteDraftForm({ note }: { note: DraftNote }) {
+  const currentAssignmentId = getDeliveryAssignmentId(
+    note.driverName,
+    note.vehiclePlateNumber
+  );
   const [quantities, setQuantities] = useState<Record<string, number>>(
     Object.fromEntries(note.items.map(item => [item.id, item.quantity]))
   );
@@ -74,18 +81,15 @@ export function DeliveryNoteDraftForm({ note }: { note: DraftNote }) {
           Recipient address
           <textarea name="recipientAddress" required defaultValue={note.recipientAddress} className={inputClass} />
         </label>
-        <label className="text-sm font-medium">
-          Driver
-          <select name="driverName" required defaultValue={note.driverName ?? ""} className={inputClass}>
-            <option value="" disabled>Select driver</option>
-            {DELIVERY_DRIVER_OPTIONS.map(value => <option key={value}>{value}</option>)}
-          </select>
-        </label>
-        <label className="text-sm font-medium">
-          Vehicle plate
-          <select name="vehiclePlateNumber" required defaultValue={note.vehiclePlateNumber ?? ""} className={inputClass}>
-            <option value="" disabled>Select vehicle plate</option>
-            {DELIVERY_VEHICLE_PLATE_OPTIONS.map(value => <option key={value}>{value}</option>)}
+        <label className="text-sm font-medium md:col-span-2">
+          Driver and vehicle assignment
+          <select name="deliveryAssignmentId" required defaultValue={currentAssignmentId ?? ""} className={inputClass}>
+            <option value="" disabled>Select driver and vehicle</option>
+            {ACTIVE_DELIVERY_ASSIGNMENTS.map(assignment => (
+              <option key={assignment.id} value={assignment.id}>
+                {assignment.driverName} — {assignment.vehiclePlateNumber}
+              </option>
+            ))}
           </select>
         </label>
         <label className="text-sm font-medium">

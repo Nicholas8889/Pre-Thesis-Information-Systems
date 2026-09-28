@@ -135,14 +135,17 @@ enum UserStatus {
 }
 
 model User {
-  id           String     @id(map: "users_pkey") @default(cuid()) @map("id")
-  username     String     @unique(map: "users_username_key")
-  passwordHash String     @map("password_hash")
-  displayName  String     @map("display_name")
-  role         UserRole   @default(SALES)
-  status       UserStatus @default(Active)
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  id             String     @id(map: "users_pkey") @default(cuid()) @map("id")
+  username       String     @unique(map: "users_username_key")
+  passwordHash   String     @map("password_hash")
+  displayName    String     @map("display_name")
+  role           UserRole   @default(SALES)
+  status         UserStatus @default(Active)
+  sessionVersion Int        @default(1) @map("session_version")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  portfolioCustomers Customer[] @relation("CustomerPortfolioOwner")
 
   @@map("users")
 }
@@ -200,18 +203,19 @@ model AuditTrail {
 }
 
 model Customer {
-  id              String         @id(map: "customers_pkey") @default(cuid()) @map("id")
-  name            String
-  companyName     String         @map("company_name")
-  npwp            String?        @unique(map: "customers_npwp_key")
-  phone           String
-  email           String
-  address         String
-  customerSegment String         @map("customer_segment")
-  status          CustomerStatus @default(Active)
-  notes           String?
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
+  id                   String         @id(map: "customers_pkey") @default(cuid()) @map("id")
+  name                 String
+  companyName          String         @map("company_name")
+  npwp                 String?        @unique(map: "customers_npwp_key")
+  phone                String
+  email                String
+  address              String
+  customerSegment      String         @map("customer_segment")
+  status               CustomerStatus @default(Active)
+  portfolioOwnerUserId String?        @map("portfolio_owner_user_id")
+  notes                String?
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
 
   salesOrders        SalesOrder[]
   invoices           Invoice[]
@@ -219,12 +223,16 @@ model Customer {
   outreachActivities CustomerOutreach[]
   deliveryNotes      DeliveryNote[]
   inquiries          CustomerInquiry[]
+  portfolioOwner     User?              @relation("CustomerPortfolioOwner", fields: [portfolioOwnerUserId], references: [id], onDelete: SetNull, map: "customers_portfolio_owner_user_id_fkey")
 
+  @@index([portfolioOwnerUserId], map: "customers_portfolio_owner_user_id_idx")
+  @@index([status, portfolioOwnerUserId, companyName], map: "customers_status_portfolio_company_idx")
   @@map("customers")
 }
 
 model Product {
   id          String        @id(map: "products_pkey") @default(cuid()) @map("id")
+  sku         String?       @unique(map: "products_sku_key")
   productName String        @map("product_name")
   notes       String?
   listPrice   Int           @map("list_price")
@@ -249,7 +257,12 @@ model SalesOrder {
   customerPoDocumentName       String?                  @map("customer_po_document_name")
   customerPoDocumentStoredName String?                  @map("customer_po_document_stored_name")
   customerPoDocumentMimeType   String?                  @map("customer_po_document_mime_type")
+  customerPoDocumentSize       Int?                     @map("customer_po_document_size")
+  customerPoDocumentSha256     String?                  @map("customer_po_document_sha256")
+  idempotencyKey               String?                  @unique(map: "sales_orders_idempotency_key_key") @map("idempotency_key")
+  version                      Int                      @default(1)
   customerId                   String                   @map("customer_id")
+  deliveryDestinationSnapshot  String                   @default("") @map("delivery_destination_snapshot")
   orderDate                    DateTime                 @map("order_date")
   status                       SalesOrderStatus         @default(Draft)
   subtotal                     Int
@@ -285,6 +298,7 @@ model SalesOrder {
   @@index([requiredDate], map: "sales_orders_required_date_idx")
   @@index([createdByUserId, orderDate], map: "sales_orders_created_by_user_id_order_date_idx")
   @@index([customerId, orderDate], map: "sales_orders_customer_id_order_date_idx")
+  @@index([source, status, requiredDate, id], map: "sales_orders_source_status_required_id_idx")
   @@map("sales_orders")
 }
 
@@ -316,6 +330,7 @@ model CustomerInquiryItem {
   customerInquiryId  String  @map("customer_inquiry_id")
   productId          String? @map("product_id")
   itemName           String  @map("item_name")
+  productSkuSnapshot String? @map("product_sku_snapshot")
   quantity           Int
   requestedUnitPrice Int?    @map("requested_unit_price")
   agreedUnitPrice    Int?    @map("agreed_unit_price")
@@ -325,26 +340,39 @@ model CustomerInquiryItem {
   product         Product?        @relation(fields: [productId], references: [id], onDelete: SetNull, map: "customer_inquiry_items_product_id_fkey")
 
   @@index([productId], map: "customer_inquiry_items_product_id_idx")
+  @@index([customerInquiryId], map: "customer_inquiry_items_inquiry_id_idx")
   @@map("customer_inquiry_items")
 }
 
 model SalesOrderItem {
-  id              String  @id(map: "sales_order_items_pkey") @default(cuid()) @map("id")
-  salesOrderId    String  @map("sales_order_id")
-  productId       String? @map("product_id")
-  itemName        String  @map("item_name")
-  quantity        Int
-  baseUnitPrice   Int     @default(0) @map("base_unit_price")
-  markupPercent   Int     @default(0) @map("markup_percent")
-  discountPercent Int     @default(0) @map("discount_percent")
-  finalUnitPrice  Int     @map("final_unit_price")
-  subtotal        Int
+  id                 String  @id(map: "sales_order_items_pkey") @default(cuid()) @map("id")
+  salesOrderId       String  @map("sales_order_id")
+  productId          String? @map("product_id")
+  itemName           String  @map("item_name")
+  productSkuSnapshot String? @map("product_sku_snapshot")
+  quantity           Int
+  baseUnitPrice      Int     @default(0) @map("base_unit_price")
+  markupPercent      Int     @default(0) @map("markup_percent")
+  discountPercent    Int     @default(0) @map("discount_percent")
+  finalUnitPrice     Int     @map("final_unit_price")
+  subtotal           Int
 
   salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade, map: "sales_order_items_sales_order_id_fkey")
   product    Product?   @relation(fields: [productId], references: [id], onDelete: SetNull, map: "sales_order_items_product_id_fkey")
 
   @@index([productId], map: "sales_order_items_product_id_idx")
+  @@index([salesOrderId], map: "sales_order_items_order_id_idx")
   @@map("sales_order_items")
+}
+
+model DocumentSequence {
+  documentType String   @map("document_type")
+  year         Int
+  lastValue    Int      @default(0) @map("last_value")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@id([documentType, year], map: "document_sequences_pkey")
+  @@map("document_sequences")
 }
 
 model PickingList {
@@ -366,6 +394,7 @@ model PickingList {
   deliverySource DeliveryNoteSource?
 
   @@index([status, createdAt], map: "picking_lists_status_created_at_idx")
+  @@index([status, packedAt, id], map: "picking_lists_status_packed_at_id_idx")
   @@map("picking_lists")
 }
 
@@ -389,27 +418,40 @@ model PickingListItem {
 }
 
 model Invoice {
-  id                   String          @id(map: "invoices_pkey") @default(cuid()) @map("id")
-  invoiceNumber        String          @unique(map: "invoices_invoice_number_key") @map("invoice_number")
-  salesOrderId         String          @unique(map: "invoices_sales_order_id_key") @map("sales_order_id")
-  customerId           String          @map("customer_id")
-  issueDate            DateTime        @map("issue_date")
-  dueDate              DateTime        @map("due_date")
-  totalAmount          Int             @map("total_amount")
-  paidAmount           Int             @default(0) @map("paid_amount")
-  remainingAmount      Int             @map("remaining_amount")
-  customerNpwpSnapshot String?         @map("customer_npwp_snapshot")
-  ppnApplied           Boolean         @default(false) @map("ppn_applied")
-  ppnRateBasisPoints   Int             @default(0) @map("ppn_rate_basis_points")
-  ppnAmount            Int             @default(0) @map("ppn_amount")
-  netSalesAmount       Int             @default(0) @map("net_sales_amount")
-  paymentTermType      PaymentTermType @default(IMMEDIATE) @map("payment_term_type")
-  creditTermMonths     Int?            @map("credit_term_months")
-  creditTermWeeks      Int?            @map("credit_term_weeks")
-  status               InvoiceStatus   @default(Unpaid)
-  notes                String?
-  createdAt            DateTime        @default(now()) @map("created_at")
-  updatedAt            DateTime        @updatedAt @map("updated_at")
+  id                       String           @id(map: "invoices_pkey") @default(cuid()) @map("id")
+  invoiceNumber            String           @unique(map: "invoices_invoice_number_key") @map("invoice_number")
+  salesOrderId             String           @unique(map: "invoices_sales_order_id_key") @map("sales_order_id")
+  customerId               String           @map("customer_id")
+  issueDate                DateTime         @map("issue_date")
+  dueDate                  DateTime         @map("due_date")
+  totalAmount              Int              @map("total_amount")
+  paidAmount               Int              @default(0) @map("paid_amount")
+  remainingAmount          Int              @map("remaining_amount")
+  customerNpwpSnapshot     String?          @map("customer_npwp_snapshot")
+  ppnApplied               Boolean          @default(false) @map("ppn_applied")
+  ppnRateBasisPoints       Int              @default(0) @map("ppn_rate_basis_points")
+  ppnAmount                Int              @default(0) @map("ppn_amount")
+  netSalesAmount           Int              @default(0) @map("net_sales_amount")
+  orderNumberSnapshot      String           @default("") @map("order_number_snapshot")
+  orderSourceSnapshot      SalesOrderSource @default(DIRECT) @map("order_source_snapshot")
+  customerPoNumberSnapshot String?          @map("customer_po_number_snapshot")
+  customerNameSnapshot     String           @default("") @map("customer_name_snapshot")
+  customerCompanySnapshot  String           @default("") @map("customer_company_snapshot")
+  customerPhoneSnapshot    String           @default("") @map("customer_phone_snapshot")
+  customerEmailSnapshot    String           @default("") @map("customer_email_snapshot")
+  customerAddressSnapshot  String           @default("") @map("customer_address_snapshot")
+  itemsSnapshot            Json             @default("[]") @map("items_snapshot")
+  paymentTermType          PaymentTermType  @default(IMMEDIATE) @map("payment_term_type")
+  creditTermMonths         Int?             @map("credit_term_months")
+  creditTermWeeks          Int?             @map("credit_term_weeks")
+  status                   InvoiceStatus    @default(Unpaid)
+  version                  Int              @default(1)
+  cancellationReason       String?          @map("cancellation_reason")
+  cancelledAt              DateTime?        @map("cancelled_at")
+  cancelledByUserId        String?          @map("cancelled_by_user_id")
+  notes                    String?
+  createdAt                DateTime         @default(now()) @map("created_at")
+  updatedAt                DateTime         @updatedAt @map("updated_at")
 
   salesOrder      SalesOrder           @relation(fields: [salesOrderId], references: [id], map: "invoices_sales_order_id_fkey")
   customer        Customer             @relation(fields: [customerId], references: [id], map: "invoices_customer_id_fkey")
@@ -418,7 +460,10 @@ model Invoice {
   deliveryNotes   DeliveryNote[]
   deliverySources DeliveryNoteSource[]
 
+  @@unique([id, customerId], map: "invoices_id_customer_id_key")
   @@index([customerId], map: "invoices_customer_id_idx")
+  @@index([status, dueDate, id], map: "invoices_status_due_date_id_idx")
+  @@index([status, remainingAmount, id], map: "invoices_status_remaining_amount_id_idx")
   @@map("invoices")
 }
 
@@ -444,15 +489,17 @@ model CollectionTask {
   invoiceId     String?              @map("invoice_id")
   scheduledDate DateTime             @map("scheduled_date")
   status        CollectionTaskStatus @default(Planned)
+  version       Int                  @default(1)
   notes         String
   createdAt     DateTime             @default(now()) @map("created_at")
   updatedAt     DateTime             @updatedAt @map("updated_at")
 
   customer Customer @relation(fields: [customerId], references: [id], map: "collection_tasks_customer_id_fkey")
-  invoice  Invoice? @relation(fields: [invoiceId], references: [id], map: "collection_tasks_invoice_id_fkey")
+  invoice  Invoice? @relation(fields: [invoiceId, customerId], references: [id, customerId], map: "collection_tasks_invoice_customer_id_fkey")
 
   @@index([customerId], map: "collection_tasks_customer_id_idx")
   @@index([invoiceId], map: "collection_tasks_invoice_id_idx")
+  @@index([status, scheduledDate, id], map: "collection_tasks_status_scheduled_id_idx")
   @@map("collection_tasks")
 }
 
@@ -480,7 +527,7 @@ model DeliveryNote {
   recipientName      String             @map("recipient_name")
   recipientPhone     String             @map("recipient_phone")
   recipientAddress   String             @map("recipient_address")
-  deliveryDate       DateTime           @map("delivery_date")
+  deliveryDate       DateTime           @map("delivery_date") @db.Date
   status             DeliveryNoteStatus @default(Draft)
   notes              String?
   receiverName       String?            @map("receiver_name")
@@ -494,6 +541,8 @@ model DeliveryNote {
   receivedAt         DateTime?          @map("received_at") @db.Timestamptz(3)
   receivedBy         String?            @map("received_by")
   receiptNotes       String?            @map("receipt_notes")
+  orderReferencesSnapshot   String      @default("[]") @map("order_references_snapshot")
+  invoiceReferencesSnapshot String      @default("[]") @map("invoice_references_snapshot")
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
@@ -507,6 +556,7 @@ model DeliveryNote {
   @@index([invoiceId], map: "delivery_notes_invoice_id_idx")
   @@index([salesOrderId], map: "delivery_notes_sales_order_id_idx")
   @@index([customerId], map: "delivery_notes_customer_id_idx")
+  @@index([status, deliveryDate, id], map: "delivery_notes_status_date_id_idx")
   @@map("delivery_notes")
 }
 

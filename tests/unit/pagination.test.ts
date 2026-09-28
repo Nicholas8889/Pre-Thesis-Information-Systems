@@ -74,4 +74,26 @@ describe("server cursor pagination", () => {
     expect(getNextHistory(state)).toHaveLength(100);
     expect(getNextHistory(state).at(-1)).toBe("record-100");
   });
+
+  it("walks more than two tied pages without missing or duplicating an id", () => {
+    const orderedIds = Array.from({ length: 47 }, (_, index) =>
+      `tied-${String(47 - index).padStart(3, "0")}`
+    );
+    const visited: string[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const start = cursor ? orderedIds.indexOf(cursor) + 1 : 0;
+      const records = orderedIds
+        .slice(start, start + DEFAULT_PAGE_SIZE + 1)
+        .map((id) => ({ id }));
+      const state = getCursorPagination(cursor ? { cursor } : {});
+      const page = getCursorPage(records, state);
+      visited.push(...page.items.map((item) => item.id));
+      cursor = page.hasNext ? page.nextCursor : undefined;
+    } while (cursor);
+
+    expect(visited).toEqual(orderedIds);
+    expect(new Set(visited).size).toBe(orderedIds.length);
+  });
 });

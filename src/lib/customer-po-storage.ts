@@ -1,22 +1,26 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import {
+  CUSTOMER_PO_DOCUMENT_MAX_BYTES,
+  CUSTOMER_PO_DOCUMENT_TYPES,
+  type ValidatedCustomerPoDocument
+} from "@/lib/customer-po-document";
 
-export const CUSTOMER_PO_DOCUMENT_MAX_BYTES = 8 * 1024 * 1024;
-
-export const CUSTOMER_PO_DOCUMENT_TYPES: Record<string, readonly string[]> = {
-  ".pdf": ["application/pdf"],
-  ".jpg": ["image/jpeg"],
-  ".jpeg": ["image/jpeg"],
-  ".png": ["image/png"],
-  ".doc": ["application/msword"],
-  ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
-};
+export {
+  CUSTOMER_PO_DOCUMENT_MAX_BYTES,
+  CUSTOMER_PO_DOCUMENT_TYPES,
+  sanitizeCustomerPoDisplayName,
+  validateCustomerPoDocument
+} from "@/lib/customer-po-document";
 
 type StoredCustomerPoDocument = {
   originalName: string;
   storedName: string;
   mimeType: string;
+  size: number;
+  sha256: string;
 };
 
 // Keep the deployed bucket fallback so existing customer PO documents remain readable.
@@ -73,15 +77,15 @@ async function ensureCustomerPoBucket() {
 }
 
 export async function uploadCustomerPoDocument(
-  file: File,
-  storedName: string
+  document: ValidatedCustomerPoDocument,
+  storedName = `customer-purchase-orders/${randomUUID()}.pdf`
 ): Promise<StoredCustomerPoDocument> {
   await ensureCustomerPoBucket();
   const supabase = getSupabaseAdminClient();
   const { error } = await supabase.storage
     .from(getCustomerPoBucketName())
-    .upload(storedName, Buffer.from(await file.arrayBuffer()), {
-      contentType: file.type,
+    .upload(storedName, Buffer.from(document.bytes), {
+      contentType: document.mimeType,
       upsert: false
     });
 
@@ -90,9 +94,11 @@ export async function uploadCustomerPoDocument(
   }
 
   return {
-    originalName: file.name.slice(0, 255),
+    originalName: document.originalName,
     storedName,
-    mimeType: file.type
+    mimeType: document.mimeType,
+    size: document.size,
+    sha256: document.sha256
   };
 }
 

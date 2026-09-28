@@ -4,6 +4,7 @@ export type SessionPayload = {
   userId: string;
   username: string;
   role: UserRole;
+  sessionVersion: number;
   exp: number;
 };
 
@@ -38,6 +39,8 @@ export async function verifySignedSession(token: string | undefined) {
     if (
       typeof payload.userId !== "string" ||
       typeof payload.username !== "string" ||
+      !Number.isInteger(payload.sessionVersion) ||
+      (payload.sessionVersion ?? 0) <= 0 ||
       typeof payload.exp !== "number" ||
       !validRoles.has(payload.role as UserRole) ||
       payload.exp <= Math.floor(Date.now() / 1000)

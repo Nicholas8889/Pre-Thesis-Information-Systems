@@ -1,9 +1,12 @@
 "use server";
 
-import { PickingItemAvailability, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { normalizeActionNote } from "@/lib/action-notes";
+import {
+  ActionNoteValidationError,
+  normalizeActionNote
+} from "@/lib/action-notes";
 import { createAuditTrailLog } from "@/lib/audit";
 import {
   canCreatePickingList,
@@ -12,8 +15,10 @@ import {
   validatePickingQuantities,
 } from "@/lib/picking-list";
 import { prisma } from "@/lib/prisma";
+import { parseExactPickingItems } from "@/lib/picking-item-payload";
 import { canRole } from "@/lib/role-access";
 import { requireCurrentUser } from "@/lib/session";
+import { parsePackageCount } from "@/lib/package-count";
 
 function getText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -87,22 +92,40 @@ export async function createPickingList(formData: FormData) {
 
   let pickingList;
   try {
-    pickingList = await prisma.pickingList.create({
-      data: {
-        pickingListNumber: `PL-${order.orderNumber}`,
-        salesOrderId: order.id,
-        pickerName,
-        items: {
-          create: order.items.map((item) => ({
-            salesOrderItemId: item.id,
-            itemName: item.itemName,
-            orderedQuantity: item.quantity,
-            availableQuantity: 0,
-            packedQuantity: 0,
-            availabilityStatus: "Unchecked",
-          })),
+    pickingList = await prisma.$transaction(async tx => {
+      const created = await tx.pickingList.create({
+        data: {
+          pickingListNumber: `PL-${order.orderNumber}`,
+          salesOrderId: order.id,
+          pickerName,
+          items: {
+            create: order.items.map((item) => ({
+              salesOrderItemId: item.id,
+              itemName: item.itemName,
+              orderedQuantity: item.quantity,
+              availableQuantity: 0,
+              packedQuantity: 0,
+              availabilityStatus: "Unchecked",
+            })),
+          },
         },
-      },
+      });
+      await createAuditTrailLog({
+        actor: user,
+        moduleName: "Pick & Pack",
+        entityType: "PICKING_LIST",
+        actionNote: getText(formData, "confirmationNote"),
+        entityId: created.id,
+        recordReference: created.pickingListNumber,
+        action: "CREATED",
+        changeSummary: `Picking List created from ${order.orderNumber}`,
+        newValue: {
+          salesOrderId: order.id,
+          pickerName,
+          itemCount: order.items.length,
+        },
+      }, { transaction: tx });
+      return created;
     });
   } catch (error) {
     if (
@@ -116,20 +139,6 @@ export async function createPickingList(formData: FormData) {
     throw error;
   }
 
-  await createAuditTrailLog({
-    moduleName: "Pick & Pack",
-    entityType: "PICKING_LIST",
-    actionNote: getText(formData, "confirmationNote"),
-    entityId: pickingList.id,
-    recordReference: pickingList.pickingListNumber,
-    action: "CREATED",
-    changeSummary: `Picking List created from ${order.orderNumber}`,
-    newValue: {
-      salesOrderId: order.id,
-      pickerName,
-      itemCount: order.items.length,
-    },
-  });
   refreshPickingViews();
   redirect(
     `/pick-pack?tab=active&view=${pickingList.id}&success=${encodeURIComponent("Picking List created")}`,
@@ -145,6 +154,17 @@ export async function savePickingList(formData: FormData) {
   const intent = getText(formData, "intent");
   if (!id || !["save", "complete"].includes(intent))
     fail("Invalid Picking List action");
+  const packageCountResult = parsePackageCount(formData.get("packageCount"), {
+    required: intent === "complete"
+  });
+  if (!packageCountResult.valid) {
+    fail(
+      intent === "complete"
+        ? "Package count is required and must be a positive whole number"
+        : "Package count must be blank or a positive whole number",
+      id
+    );
+  }
 
   const pickingList = await prisma.pickingList.findUnique({
     where: { id },
@@ -165,28 +185,10 @@ export async function savePickingList(formData: FormData) {
     );
   }
 
-  const items = pickingList.items.map((item) => ({
-    id: item.id,
-    orderedQuantity: item.orderedQuantity,
-    availabilityStatus: getText(
-      formData,
-      `availability_${item.id}`,
-    ) as PickingItemAvailability,
-    availableQuantity: /^\d+$/.test(
-      getText(formData, `available_${item.id}`),
-    )
-      ? Number(getText(formData, `available_${item.id}`))
-      : NaN,
-    packedQuantity: /^\d+$/.test(
-      getText(formData, `packed_${item.id}`),
-    )
-      ? Number(getText(formData, `packed_${item.id}`))
-      : NaN,
-    notes: getText(formData, `notes_${item.id}`) || null,
-  }));
-  if (!validatePickingQuantities(items)) {
+  const items = parseExactPickingItems(formData, pickingList.items);
+  if (!items || !validatePickingQuantities(items)) {
     fail(
-      "Availability, available quantity, and packed quantity are inconsistent",
+      "Submit every Picking List item exactly once with consistent availability and quantities",
       id,
     );
   }
@@ -216,7 +218,7 @@ export async function savePickingList(formData: FormData) {
           status,
           pickerName,
           packerName,
-          packageCount: null,
+          packageCount: intent === "complete" ? packageCountResult.value : null,
           notes: getText(formData, "notes") || null,
           packedAt: intent === "complete" ? new Date() : null,
         },
@@ -233,6 +235,38 @@ export async function savePickingList(formData: FormData) {
           },
         });
       }
+      await createAuditTrailLog({
+        actor: user,
+        moduleName: "Pick & Pack",
+        entityType: "PICKING_LIST",
+        actionNote: getText(formData, "confirmationNote"),
+        entityId: id,
+        recordReference: pickingList.pickingListNumber,
+        action: intent === "complete" ? "PACKED" : "UPDATED",
+        changeSummary:
+          intent === "complete"
+            ? `Pick & Pack completed with ${totals.shortage} shortage unit(s)`
+            : "Pick & Pack progress saved",
+        oldValue: {
+          status: pickingList.status,
+          items: pickingList.items.map(
+            ({ id, availableQuantity, packedQuantity, availabilityStatus }) => ({
+              id,
+              availableQuantity,
+              packedQuantity,
+              availabilityStatus,
+            }),
+          ),
+        },
+        newValue: {
+          status,
+          pickerName,
+          packerName,
+          packageCount: intent === "complete" ? packageCountResult.value : null,
+          shortageQuantity: totals.shortage,
+          items,
+        },
+      }, { transaction: tx });
     });
   } catch (error) {
     if (error instanceof Error && error.message === "PICKING_SAVE_CONFLICT") {
@@ -244,36 +278,6 @@ export async function savePickingList(formData: FormData) {
     throw error;
   }
 
-  await createAuditTrailLog({
-    moduleName: "Pick & Pack",
-    entityType: "PICKING_LIST",
-    actionNote: getText(formData, "confirmationNote"),
-    entityId: id,
-    recordReference: pickingList.pickingListNumber,
-    action: intent === "complete" ? "PACKED" : "UPDATED",
-    changeSummary:
-      intent === "complete"
-        ? `Pick & Pack completed with ${totals.shortage} shortage unit(s)`
-        : "Pick & Pack progress saved",
-    oldValue: {
-      status: pickingList.status,
-      items: pickingList.items.map(
-        ({ id, availableQuantity, packedQuantity, availabilityStatus }) => ({
-          id,
-          availableQuantity,
-          packedQuantity,
-          availabilityStatus,
-        }),
-      ),
-    },
-    newValue: {
-      status,
-      pickerName,
-      packerName,
-      shortageQuantity: totals.shortage,
-      items,
-    },
-  });
   refreshPickingViews();
   redirect(
     `/pick-pack?tab=${intent === "complete" ? "completed" : "active"}&view=${id}&success=${encodeURIComponent(intent === "complete" ? "Pick & Pack completed" : "Pick & Pack progress saved")}`,
@@ -288,9 +292,17 @@ export async function reopenPickingList(formData: FormData) {
 
   const id = getText(formData, "id");
   if (!id) fail("Invalid Picking List action", undefined, "completed");
-  const actionNote = normalizeActionNote(getText(formData, "confirmationNote"));
-  if (!actionNote) {
-    fail("A reason is required to reopen a Picking List", id, "completed");
+  let actionNote: string;
+  try {
+    actionNote = normalizeActionNote(
+      getText(formData, "confirmationNote"),
+      "required"
+    );
+  } catch (error) {
+    if (error instanceof ActionNoteValidationError) {
+      fail(error.message, id, "completed");
+    }
+    throw error;
   }
 
   const pickingList = await prisma.pickingList.findUnique({
@@ -318,34 +330,48 @@ export async function reopenPickingList(formData: FormData) {
     );
   }
 
-  const updated = await prisma.pickingList.updateMany({
-    where: {
-      id,
-      updatedAt: pickingList.updatedAt,
-      status: "Packed",
-      deliveryNote: { is: null },
-      deliverySource: { is: null },
-    },
-    data: { status: "InProgress", packerName: null, packedAt: null },
-  });
-  if (updated.count !== 1) {
-    fail(
-      "This Picking List changed. Review the latest status and try again.",
-      id,
-      "completed",
-    );
-  }
-
-  await createAuditTrailLog({
-    moduleName: "Pick & Pack",
-    entityType: "PICKING_LIST",
-    actionNote,
-    entityId: id,
-    recordReference: pickingList.pickingListNumber,
-    action: "REOPENED",
-    changeSummary: "Completed Picking List reopened for correction",
-    oldValue: { status: pickingList.status, packedAt: pickingList.packedAt },
-    newValue: { status: "InProgress", packedAt: null },
+  await prisma.$transaction(async tx => {
+    const updated = await tx.pickingList.updateMany({
+      where: {
+        id,
+        updatedAt: pickingList.updatedAt,
+        status: "Packed",
+        deliveryNote: { is: null },
+        deliverySource: { is: null },
+      },
+      data: {
+        status: "InProgress",
+        packerName: null,
+        packageCount: null,
+        packedAt: null
+      },
+    });
+    if (updated.count !== 1) throw new Error("PICKING_REOPEN_CONFLICT");
+    await createAuditTrailLog({
+      actor: user,
+      moduleName: "Pick & Pack",
+      entityType: "PICKING_LIST",
+      actionNote,
+      entityId: id,
+      recordReference: pickingList.pickingListNumber,
+      action: "REOPENED",
+      changeSummary: "Completed Picking List reopened for correction",
+      oldValue: {
+        status: pickingList.status,
+        packageCount: pickingList.packageCount,
+        packedAt: pickingList.packedAt
+      },
+      newValue: { status: "InProgress", packageCount: null, packedAt: null },
+    }, { transaction: tx });
+  }).catch(error => {
+    if (error instanceof Error && error.message === "PICKING_REOPEN_CONFLICT") {
+      fail(
+        "This Picking List changed. Review the latest status and try again.",
+        id,
+        "completed",
+      );
+    }
+    throw error;
   });
   refreshPickingViews();
   redirect(

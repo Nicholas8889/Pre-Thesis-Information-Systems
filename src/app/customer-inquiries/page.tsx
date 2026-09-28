@@ -17,6 +17,8 @@ import {
   getCursorPage,
   getCursorPagination
 } from "@/lib/pagination";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -29,9 +31,11 @@ export default async function CustomerInquiriesPage({
   const mode = Array.isArray(params.mode) ? params.mode[0] : params.mode;
   const { success, error } = getSearchMessage(params);
   const pagination = getCursorPagination(params);
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
   const [customers, products, inquiryRecords] = await Promise.all([
     mode === "create" ? prisma.customer.findMany({
-      where: { status: "Active" },
+      where: { status: "Active", ...portfolio.customerWhere },
       orderBy: { companyName: "asc" },
       select: { id: true, companyName: true, name: true }
     }) : Promise.resolve([]),
@@ -41,6 +45,7 @@ export default async function CustomerInquiriesPage({
       select: { id: true, productName: true, listPrice: true }
     }) : Promise.resolve([]),
     prisma.customerInquiry.findMany({
+      where: portfolio.inquiryWhere,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       ...getCursorArgs(pagination),
       include: { customer: true, items: true, salesOrder: true }

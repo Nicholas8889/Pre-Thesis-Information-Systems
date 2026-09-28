@@ -4,13 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { getPaymentTermLabel } from "@/lib/calculations";
 import { prisma } from "@/lib/prisma";
-import {
-  DONE_SALES_ORDER_STATUSES,
-  ONGOING_SALES_ORDER_STATUSES
-} from "@/lib/process-status";
+import { buildSalesOrderWhere, getSalesOrderBucketFilter } from "@/lib/sales-order-query";
 import { getCurrentUser } from "@/lib/session";
 import type { ProcessTabWithApproval } from "@/components/process-tabs";
 import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +33,7 @@ export async function GET(request: NextRequest) {
   if (!currentUser || currentUser.status !== "Active") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const portfolio = buildPortfolioScope(currentUser);
 
   const startDateValue = request.nextUrl.searchParams.get("startDate");
   const endDateValue = request.nextUrl.searchParams.get("endDate");
@@ -68,15 +67,16 @@ export async function GET(request: NextRequest) {
   }
 
   const records = await prisma.salesOrder.findMany({
-    where: {
+    where: buildSalesOrderWhere({
       source,
-      orderDate: {
-        gte: startDate,
-        lte: endDate
-      },
-      ...getSalesOrderExportTabFilter(tab)
-    },
-    orderBy: [{ orderDate: "asc" }, { orderNumber: "asc" }],
+      tab,
+      search: request.nextUrl.searchParams.get("q"),
+      paymentTermType: request.nextUrl.searchParams.get("paymentTermType"),
+      startDate,
+      endDate,
+      portfolioWhere: portfolio.salesOrderWhere
+    }),
+    orderBy: [{ orderDate: "asc" }, { orderNumber: "asc" }, { id: "asc" }],
     include: {
       customer: true,
       items: true,
@@ -116,26 +116,7 @@ export async function GET(request: NextRequest) {
 export function getSalesOrderExportTabFilter(
   tab: ProcessTabWithApproval
 ): Prisma.SalesOrderWhereInput {
-  if (tab === "approval") {
-    return { approvalStatus: "Pending" };
-  }
-
-  if (tab === "done") {
-    return {
-      OR: [
-        { status: { in: [...DONE_SALES_ORDER_STATUSES] } },
-        { deliveryNotes: { some: {} } },
-        { deliverySources: { some: {} } }
-      ]
-    };
-  }
-
-  return {
-    approvalStatus: { not: "Pending" },
-    status: { in: [...ONGOING_SALES_ORDER_STATUSES] },
-    deliveryNotes: { none: {} },
-    deliverySources: { none: {} }
-  };
+  return getSalesOrderBucketFilter(tab);
 }
 
 export function createSalesOrderWorkbook({

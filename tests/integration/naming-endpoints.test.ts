@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { createHash } from "node:crypto";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -121,8 +122,10 @@ describe("canonical download endpoints", () => {
     const fileBytes = new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55]);
     mocks.findCustomerPo.mockResolvedValue({
       customerPoDocumentName: "purchase-order.pdf",
-      customerPoDocumentStoredName: "2026/08/purchase-order.pdf",
-      customerPoDocumentMimeType: "application/pdf"
+      customerPoDocumentStoredName: "customer-purchase-orders/purchase-order.pdf",
+      customerPoDocumentMimeType: "application/pdf",
+      customerPoDocumentSize: fileBytes.byteLength,
+      customerPoDocumentSha256: createHash("sha256").update(fileBytes).digest("hex")
     });
     mocks.download.mockResolvedValue(fileBytes);
 
@@ -139,6 +142,7 @@ describe("canonical download endpoints", () => {
     expect(canonical.headers.get("content-disposition")).toContain("attachment;");
     expect(canonical.headers.get("content-disposition")).toContain("purchase-order.pdf");
     expect(canonical.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(canonical.headers.get("content-length")).toBe(String(fileBytes.byteLength));
     expect(legacy.headers.get("content-disposition")).toBe(
       canonical.headers.get("content-disposition")
     );

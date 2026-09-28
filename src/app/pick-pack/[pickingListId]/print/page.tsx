@@ -5,6 +5,8 @@ import { PrintButton } from "@/components/print-button";
 import { formatDate } from "@/lib/format";
 import { getPickingTotals } from "@/lib/picking-list";
 import { prisma } from "@/lib/prisma";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 
 function availabilityLabel(status: string) {
   switch (status) {
@@ -25,8 +27,10 @@ export default async function PickingListPrintPage({
   params: Promise<{ pickingListId: string }>;
 }) {
   const { pickingListId } = await params;
-  const list = await prisma.pickingList.findUnique({
-    where: { id: pickingListId },
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
+  const list = await prisma.pickingList.findFirst({
+    where: { id: pickingListId, ...portfolio.pickingListWhere },
     include: {
       items: true,
       salesOrder: { include: { customer: true, invoice: true } },
@@ -99,6 +103,10 @@ export default async function PickingListPrintPage({
           </p>
           <p>
             <strong>Packing PIC:</strong> {list.packerName ?? "-"}
+          </p>
+          <p>
+            <strong>Package count:</strong>{" "}
+            {list.packageCount ?? "Legacy record — not recorded"}
           </p>
         </section>
 

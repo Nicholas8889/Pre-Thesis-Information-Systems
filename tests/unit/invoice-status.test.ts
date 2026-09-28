@@ -53,15 +53,15 @@ describe("effective invoice status", () => {
   it("builds read filters from balances, cancellation, and due dates", () => {
     expect(getOpenInvoiceWhere()).toEqual({
       remainingAmount: { gt: 0 },
-      status: { not: "Cancelled" }
+      status: { notIn: ["Paid", "Cancelled"] }
     });
     expect(getClosedInvoiceWhere()).toEqual({
-      OR: [{ remainingAmount: { lte: 0 } }, { status: "Cancelled" }]
+      OR: [{ remainingAmount: { lte: 0 } }, { status: { in: ["Paid", "Cancelled"] } }]
     });
     expect(getEffectiveInvoiceStatusWhere("Overdue", now)).toMatchObject({
       dueDate: { lt: expect.any(Date) },
       remainingAmount: { gt: 0 },
-      status: { not: "Cancelled" }
+      status: { notIn: ["Paid", "Cancelled"] }
     });
   });
 });

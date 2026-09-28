@@ -16,7 +16,8 @@ export function formatDate(value: string | Date) {
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
-    year: "numeric"
+    year: "numeric",
+    timeZone: "Asia/Jakarta"
   }).format(new Date(value));
 }
 

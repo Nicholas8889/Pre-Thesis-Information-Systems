@@ -22,7 +22,34 @@ describe("action confirmation notes", () => {
     expect(mergeActionNotes("Existing note", "  ")).toBe("Existing note");
   });
 
-  it("limits confirmation notes to 150 characters", () => {
-    expect(normalizeActionNote("x".repeat(200))).toHaveLength(MAX_ACTION_NOTE_LENGTH);
+  it("accepts 150 characters without truncation", () => {
+    expect(normalizeActionNote("x".repeat(MAX_ACTION_NOTE_LENGTH))).toHaveLength(
+      MAX_ACTION_NOTE_LENGTH
+    );
+  });
+
+  it("counts Unicode input by JavaScript characters without byte truncation", () => {
+    const unicodeReason = "é".repeat(MAX_ACTION_NOTE_LENGTH);
+    expect(normalizeActionNote(` ${unicodeReason} `, "required")).toBe(unicodeReason);
+    expect(() => normalizeActionNote(`${unicodeReason}é`, "required")).toThrow(
+      "150 characters or fewer"
+    );
+  });
+
+  it("accepts the one-character lower boundary", () => {
+    expect(normalizeActionNote("x", "required")).toBe("x");
+  });
+
+  it("rejects 151 characters instead of truncating", () => {
+    expect(() => normalizeActionNote("x".repeat(MAX_ACTION_NOTE_LENGTH + 1))).toThrow(
+      "150 characters or fewer"
+    );
+  });
+
+  it("requires a non-whitespace note for sensitive actions", () => {
+    expect(() => normalizeActionNote("   ", "required")).toThrow(
+      "A reason is required"
+    );
+    expect(normalizeActionNote(" approved ", "required")).toBe("approved");
   });
 });

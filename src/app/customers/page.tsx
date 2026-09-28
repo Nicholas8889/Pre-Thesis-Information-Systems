@@ -41,6 +41,14 @@ import {
   getCursorPage,
   getCursorPagination
 } from "@/lib/pagination";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
+import { getCustomerPaymentReliability } from "@/lib/customer-payment-reliability";
+import {
+  buildCustomerOrderBy,
+  buildCustomerWhere,
+  parseCustomerListFilters,
+} from "@/lib/customer-query";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -53,40 +61,43 @@ export default async function CustomersPage({
   searchParams?: Promise<SearchParams>;
 }) {
   const params = (await searchParams) ?? {};
-  const query = getFirst(params.q);
+  const filters = parseCustomerListFilters({
+    query: getFirst(params.q),
+    status: getFirst(params.status),
+    sort: getFirst(params.sort),
+    direction: getFirst(params.direction),
+  });
+  const query = filters.query;
   const mode = getFirst(params.mode);
   const viewId = getFirst(params.view);
   const editId = getFirst(params.edit);
   const { success, error } = getSearchMessage(params);
   const pagination = getCursorPagination(params);
   const now = new Date();
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
+  const customerWhere = buildCustomerWhere(filters, portfolio.customerWhere);
 
-  const customerRecords = await prisma.customer.findMany({
-    where: query
-      ? {
-          OR: [
-            { name: { contains: query } },
-            { companyName: { contains: query } },
-            { phone: { contains: query } },
-            { email: { contains: query } }
-          ]
+  const [customerRecords, matchingCustomerCount] = await Promise.all([
+    prisma.customer.findMany({
+      where: customerWhere,
+      orderBy: buildCustomerOrderBy(filters),
+      ...getCursorArgs(pagination),
+      include: {
+        invoices: {
+          where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
+          select: customerInvoiceBalanceSelect
         }
-      : undefined,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    ...getCursorArgs(pagination),
-    include: {
-      invoices: {
-        where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
-        select: customerInvoiceBalanceSelect
       }
-    }
-  });
+    }),
+    prisma.customer.count({ where: customerWhere }),
+  ]);
   const customerPage = getCursorPage(customerRecords, pagination);
   const customers = customerPage.items;
 
   const selectedCustomer = viewId
-    ? await prisma.customer.findUnique({
-        where: { id: viewId },
+    ? await prisma.customer.findFirst({
+        where: { id: viewId, ...portfolio.customerWhere },
         include: {
           salesOrders: {
             orderBy: { orderDate: "desc" },
@@ -118,13 +129,18 @@ export default async function CustomersPage({
     : null;
 
   const customerToEdit = editId
-    ? await prisma.customer.findUnique({ where: { id: editId } })
+    ? await prisma.customer.findFirst({
+        where: { id: editId, ...portfolio.customerWhere }
+      })
     : null;
   const selectedPaymentSummary = selectedCustomer
     ? getCustomerPaymentSummary(selectedCustomer)
     : null;
   const selectedPaymentBehaviour = selectedCustomer
     ? getCustomerPaymentBehaviour(selectedCustomer)
+    : null;
+  const selectedPaymentReliability = selectedCustomer
+    ? getCustomerPaymentReliability(selectedCustomer, now)
     : null;
 
   return (
@@ -134,7 +150,7 @@ export default async function CustomersPage({
         description="Manage customer master data used across the revenue cycle."
         action={
           <div className="flex flex-wrap justify-end gap-2">
-            <CustomerExportDialog initialQuery={query} />
+            <CustomerExportDialog initialQuery={query} initialStatus={filters.status} />
             <Link
               href="/customers?mode=add"
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white"
@@ -203,7 +219,7 @@ export default async function CustomersPage({
               {selectedCustomer.notes}
             </p>
           )}
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <CustomerIntelligenceCard
               title="Payment Status"
               value={selectedPaymentSummary?.paymentStatus ?? "Clean"}
@@ -221,11 +237,21 @@ export default async function CustomersPage({
               tone={selectedPaymentSummary?.openInvoiceCount ? "outstanding" : "clean"}
             />
             <CustomerIntelligenceCard
-              title="Customer Payment Behaviour"
+              title="Order Term Preference"
               value={selectedPaymentBehaviour?.behaviour ?? "No Payment History"}
               description={
                 selectedPaymentBehaviour?.evidence ??
                 "No eligible orders were found in the last 12 months."
+              }
+              icon={CreditCard}
+              tone="behaviour"
+            />
+            <CustomerIntelligenceCard
+              title="Payment Reliability"
+              value={selectedPaymentReliability?.label ?? "No Payment History"}
+              description={
+                selectedPaymentReliability?.evidence ??
+                "No settled, delivered invoices were eligible in the last 12 months."
               }
               icon={CreditCard}
               tone="behaviour"
@@ -346,17 +372,37 @@ export default async function CustomersPage({
       )}
 
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
-        <div className="mb-5 flex items-center gap-2 border-b border-line pb-4">
+        <div className="mb-5 flex items-center justify-between gap-2 border-b border-line pb-4">
           <h2 className="text-lg font-semibold">Customer Records</h2>
+          <span className="text-sm font-medium text-ink/60">
+            {matchingCustomerCount} matching customers
+          </span>
         </div>
-        <form className="mb-4 flex max-w-md items-center gap-2 rounded-md border border-line bg-white px-3 py-2">
-          <Search aria-hidden="true" className="h-4 w-4 text-ink/50" />
-          <input
-            name="q"
-            className="w-full outline-none"
-            placeholder="Search customer"
-            defaultValue={query}
-          />
+        <form className="mb-4 grid gap-3 rounded-md border border-line bg-soft/40 p-3 md:grid-cols-[minmax(220px,1fr)_160px_170px_130px_auto]">
+          <label className="relative">
+            <span className="sr-only">Search customers</span>
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink/50" />
+            <input
+              name="q"
+              className="h-10 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-brand"
+              placeholder="Name, company, phone, email, or NPWP"
+              defaultValue={query}
+            />
+          </label>
+          <select name="status" defaultValue={filters.status} className={inputClass} aria-label="Customer status">
+            <option value="ALL">All statuses</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+          <select name="sort" defaultValue={filters.sort} className={inputClass} aria-label="Customer sort">
+            <option value="company">Company</option>
+            <option value="createdAt">Created date</option>
+          </select>
+          <select name="direction" defaultValue={filters.direction} className={inputClass} aria-label="Sort direction">
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+          <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
         </form>
 
         {customers.length === 0 ? (
@@ -424,6 +470,7 @@ export default async function CustomersPage({
           pathname="/customers"
           searchParams={params}
           state={pagination}
+          preserveParams={["q", "status", "sort", "direction"]}
         />
       </section>
     </>

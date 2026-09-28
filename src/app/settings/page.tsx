@@ -1,4 +1,9 @@
-import { createAccount } from "@/lib/auth-actions";
+import {
+  createAccount,
+  resetAccountPassword,
+  updateAccountRole,
+  updateAccountStatus
+} from "@/lib/auth-actions";
 import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
@@ -9,14 +14,16 @@ import { roleLabel } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { getSearchMessage } from "@/lib/workflow";
-import { getCurrentUser } from "@/lib/session";
+import { requireCurrentUser } from "@/lib/session";
 import { canRole, getRestrictionMessage } from "@/lib/role-access";
+import { MAX_ACTION_NOTE_LENGTH } from "@/lib/action-notes";
 import { ServerPagination } from "@/components/server-pagination";
 import {
   getCursorArgs,
   getCursorPage,
   getCursorPagination
 } from "@/lib/pagination";
+import { redirect } from "next/navigation";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -30,7 +37,8 @@ export default async function SettingsPage({
 }) {
   const params = (await searchParams) ?? {};
   const { success, error } = getSearchMessage(params);
-  const currentUser = await getCurrentUser();
+  const currentUser = await requireCurrentUser();
+  if (currentUser.role !== "ADMIN") redirect("/");
   const canCreateAccount = canRole(currentUser?.role, "CREATE_ACCOUNT");
   const accountRestriction = getRestrictionMessage("CREATE_ACCOUNT");
   const pagination = getCursorPagination(params);
@@ -43,7 +51,8 @@ export default async function SettingsPage({
       displayName: true,
       role: true,
       status: true,
-      createdAt: true
+      createdAt: true,
+      updatedAt: true
     }
   });
   const userPage = getCursorPage(userRecords, pagination);
@@ -53,7 +62,7 @@ export default async function SettingsPage({
     <>
       <PageHeader
         title="Settings"
-        description="Manage local demo accounts. Roles control dashboard views, reminders, and Manager approval actions while operational pages remain shared."
+        description="Manage local accounts. Only Admin can create accounts or change role, status, and password. Sensitive changes revoke existing sessions."
       />
 
       <FlashMessage success={success} error={error} />
@@ -94,6 +103,16 @@ export default async function SettingsPage({
             </select>
           </label>
 
+          <label className="text-sm font-medium text-ink md:col-span-2">
+            Creation Note (optional)
+            <input
+              name="confirmationNote"
+              maxLength={MAX_ACTION_NOTE_LENGTH}
+              className={`${inputClass} mt-1`}
+              placeholder="Optional context for the audit trail"
+            />
+          </label>
+
           <div className="flex items-end">
             {canCreateAccount ? (
               <button className="inline-flex h-10 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
@@ -124,7 +143,8 @@ export default async function SettingsPage({
                   <th className="py-3 pr-4">Display Name</th>
                   <th className="py-3 pr-4">Role</th>
                   <th className="py-3 pr-4">Status</th>
-                  <th className="py-3">Created</th>
+                  <th className="py-3 pr-4">Created</th>
+                  <th className="py-3">Admin Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-sm">
@@ -138,7 +158,83 @@ export default async function SettingsPage({
                         <StatusBadge status={user.status} />
                       </StatusStack>
                     </td>
-                    <td className="py-3 text-ink/80">{formatDate(user.createdAt)}</td>
+                    <td className="py-3 pr-4 text-ink/80">{formatDate(user.createdAt)}</td>
+                    <td className="min-w-72 py-3">
+                      {canCreateAccount ? (
+                        <details>
+                          <summary className="cursor-pointer text-sm font-semibold text-brand">
+                            Manage
+                          </summary>
+                          <div className="mt-3 space-y-3 rounded-md border border-line bg-soft p-3">
+                            <form action={updateAccountStatus} className="grid gap-2">
+                              <input type="hidden" name="userId" value={user.id} />
+                              <input type="hidden" name="expectedUpdatedAt" value={user.updatedAt.toISOString()} />
+                              <select name="status" defaultValue={user.status} className={inputClass}>
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                              </select>
+                              <input
+                                name="confirmationNote"
+                                required
+                                maxLength={MAX_ACTION_NOTE_LENGTH}
+                                className={inputClass}
+                                placeholder="Required reason"
+                              />
+                              <button className="rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white">
+                                Update Status
+                              </button>
+                            </form>
+
+                            <form action={updateAccountRole} className="grid gap-2 border-t border-line pt-3">
+                              <input type="hidden" name="userId" value={user.id} />
+                              <input type="hidden" name="expectedUpdatedAt" value={user.updatedAt.toISOString()} />
+                              <select name="role" defaultValue={user.role} className={inputClass}>
+                                <option value="ADMIN">Admin</option>
+                                <option value="SALES">Sales</option>
+                                <option value="MANAGER">Manager</option>
+                              </select>
+                              <input
+                                name="confirmationNote"
+                                required
+                                maxLength={MAX_ACTION_NOTE_LENGTH}
+                                className={inputClass}
+                                placeholder="Required reason"
+                              />
+                              <button className="rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white">
+                                Update Role
+                              </button>
+                            </form>
+
+                            <form action={resetAccountPassword} className="grid gap-2 border-t border-line pt-3">
+                              <input type="hidden" name="userId" value={user.id} />
+                              <input type="hidden" name="expectedUpdatedAt" value={user.updatedAt.toISOString()} />
+                              <input
+                                name="password"
+                                type="password"
+                                required
+                                minLength={8}
+                                maxLength={128}
+                                autoComplete="new-password"
+                                className={inputClass}
+                                placeholder="New password"
+                              />
+                              <input
+                                name="confirmationNote"
+                                required
+                                maxLength={MAX_ACTION_NOTE_LENGTH}
+                                className={inputClass}
+                                placeholder="Required reason"
+                              />
+                              <button className="rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white">
+                                Reset Password
+                              </button>
+                            </form>
+                          </div>
+                        </details>
+                      ) : (
+                        <span className="text-xs text-ink/60">Admin only</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

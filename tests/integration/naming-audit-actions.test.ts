@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   createCollectionTask: vi.fn(),
   createOutreach: vi.fn(),
   findCustomer: vi.fn(),
+  findInvoice: vi.fn(),
   redirect: vi.fn(),
   revalidatePath: vi.fn(),
   requireCurrentUser: vi.fn()
@@ -28,8 +29,16 @@ vi.mock("@/lib/audit", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: async (work: (transaction: unknown) => Promise<unknown>) =>
+      work({
+        collectionTask: { create: mocks.createCollectionTask },
+        customer: { findFirst: mocks.findCustomer },
+        invoice: { findFirst: mocks.findInvoice },
+        customerOutreach: { create: mocks.createOutreach }
+      }),
     collectionTask: { create: mocks.createCollectionTask },
-    customer: { findUnique: mocks.findCustomer },
+    customer: { findFirst: mocks.findCustomer },
+    invoice: { findFirst: mocks.findInvoice },
     customerOutreach: { create: mocks.createOutreach }
   }
 }));
@@ -41,6 +50,8 @@ describe("renamed action audit records", () => {
     vi.clearAllMocks();
     mocks.requireCurrentUser.mockResolvedValue({
       id: "user-1",
+      username: "sales-a",
+      displayName: "Sales A",
       role: "SALES",
       status: "Active"
     });
@@ -50,6 +61,8 @@ describe("renamed action audit records", () => {
   });
 
   it("records a Collection Task with the invoice number as Record Reference", async () => {
+    mocks.findCustomer.mockResolvedValue({ id: "customer-1" });
+    mocks.findInvoice.mockResolvedValue({ id: "invoice-1" });
     mocks.createCollectionTask.mockResolvedValue({
       id: "collection-1",
       customerId: "customer-1",
@@ -71,11 +84,13 @@ describe("renamed action audit records", () => {
     await expect(createCollectionTask(formData)).rejects.toThrow("NEXT_REDIRECT:/collections");
     expect(mocks.audit).toHaveBeenCalledWith(
       expect.objectContaining({
+        actor: expect.objectContaining({ id: "user-1" }),
         moduleName: "Collections",
         entityType: "COLLECTION_TASK",
         entityId: "collection-1",
         recordReference: "INV-2026-001"
-      })
+      }),
+      expect.objectContaining({ transaction: expect.any(Object) })
     );
   });
 
@@ -101,11 +116,13 @@ describe("renamed action audit records", () => {
     );
     expect(mocks.audit).toHaveBeenCalledWith(
       expect.objectContaining({
+        actor: expect.objectContaining({ id: "user-1" }),
         moduleName: "Customer Outreach",
         entityType: "CUSTOMER_OUTREACH",
         entityId: "outreach-1",
         recordReference: "Acme Indonesia"
-      })
+      }),
+      expect.objectContaining({ transaction: expect.any(Object) })
     );
   });
 });

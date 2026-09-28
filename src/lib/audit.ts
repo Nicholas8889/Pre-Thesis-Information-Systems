@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { cookies } from "next/headers";
 import type { Prisma } from "@prisma/client";
@@ -50,16 +50,19 @@ export async function createAuditTrailLog(
     return;
   }
 
-  try {
-    const entry = inputs[0];
-    const actor = entry.actor ? actorFromInput(entry.actor) : await getAuditActor();
-
-    await prisma.auditTrail.create({
-      data: buildAuditTrailData(entry, actor)
-    });
-  } catch (error) {
-    console.error("Failed to create audit trail log", error);
+  if (inputs.length !== 1) {
+    throw new Error("Multiple audit entries require a transaction");
   }
+
+  const entry = inputs[0];
+  if (entry.actor) {
+    throw new Error("Audit actor must come from the authenticated session");
+  }
+  const actor = await getAuditActor();
+
+  await prisma.auditTrail.create({
+    data: buildAuditTrailData(entry, actor)
+  });
 }
 
 function actorFromInput(actor: AuditTrailActor) {
@@ -97,12 +100,7 @@ async function getAuditActor() {
   const session = await verifySignedSession(cookieStore.get(AUTH_COOKIE_NAME)?.value);
 
   if (!session) {
-    return {
-      userId: null,
-      username: "System",
-      displayName: "System",
-      role: "SYSTEM"
-    };
+    throw new Error("Authenticated audit actor is required");
   }
 
   const user = await prisma.user.findUnique({
@@ -111,17 +109,20 @@ async function getAuditActor() {
       id: true,
       username: true,
       displayName: true,
-      role: true
+      role: true,
+      status: true,
+      sessionVersion: true
     }
   });
 
-  if (!user) {
-    return {
-      userId: null,
-      username: "System",
-      displayName: "System",
-      role: "SYSTEM"
-    };
+  if (
+    !user ||
+    user.status !== "Active" ||
+    user.username !== session.username ||
+    user.role !== session.role ||
+    user.sessionVersion !== session.sessionVersion
+  ) {
+    throw new Error("Authenticated audit actor is no longer valid");
   }
 
   return {

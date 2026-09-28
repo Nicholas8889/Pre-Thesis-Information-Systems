@@ -1,7 +1,7 @@
 "use client";
 
 import { FileUp, Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { calculateAdjustedUnitPrice, CREDIT_TERM_OPTIONS } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/format";
 import { getProductPriceComparison } from "@/lib/product-insights";
@@ -13,6 +13,8 @@ type CustomerOption = CustomerPaymentSummary & {
   companyName: string;
   name: string;
   overdueInvoiceCount: number;
+  paymentReliability: string;
+  paymentReliabilityEvidence: string;
   npwp: string | null;
   ppnApplied: boolean;
 };
@@ -62,6 +64,7 @@ export function SalesOrderForm({
   restrictionMessage?: string;
 }) {
   const isCustomerPo = source === "CUSTOMER_PO";
+  const idempotencyKey = useId();
   const [paymentTermType, setPaymentTermType] = useState("IMMEDIATE");
   const [selectedCustomerId, setSelectedCustomerId] = useState(initialCustomerId);
   const [items, setItems] = useState<DraftItem[]>(initialItems?.length ? initialItems : [createEmptyItem()]);
@@ -138,6 +141,7 @@ export function SalesOrderForm({
       <input type="hidden" name="items" value={JSON.stringify(serializedItems)} />
       <input type="hidden" name="inquiryId" value={inquiryId} />
       <input type="hidden" name="source" value={source} />
+      <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
 
       {isCustomerPo && (
         <div className="grid gap-4 rounded-md border border-line bg-accent/10 p-4 md:grid-cols-2">
@@ -172,12 +176,12 @@ export function SalesOrderForm({
                 name="customerPoDocument"
                 type="file"
                 required
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                accept=".pdf,application/pdf"
                 className="w-full text-sm text-ink/80 file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
               />
             </span>
             <span className="mt-1 block text-xs font-normal text-ink/70">
-              PDF, JPG, PNG, DOC, or DOCX. Maximum file size 8 MB.
+              PDF only. Maximum file size 8 MB; the server also verifies the PDF signature.
             </span>
           </label>
         </div>
@@ -253,7 +257,7 @@ export function SalesOrderForm({
             </span>
           </div>
 
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <InsightMetric label="Payment Status" value={selectedCustomer.paymentStatus} />
             <InsightMetric
               label="Outstanding Payment"
@@ -263,6 +267,11 @@ export function SalesOrderForm({
             <InsightMetric
               label="Overdue Invoices"
               value={String(selectedCustomer.overdueInvoiceCount)}
+            />
+            <InsightMetric
+              label="Payment Reliability"
+              value={selectedCustomer.paymentReliability}
+              help={selectedCustomer.paymentReliabilityEvidence}
             />
             <InsightMetric
               label="NPWP"
@@ -420,13 +429,19 @@ export function SalesOrderForm({
                         : "Current base price from the product master."
                     }
                   />
-                  {selectedProduct.averageSoldPrice !== null && (
-                    <InsightMetric
-                      label="Average Sold Price - This Month"
-                      value={formatCurrency(selectedProduct.averageSoldPrice)}
-                      help={`${selectedProduct.averageEligibleQuantity} eligible unit(s) in ${selectedProduct.averageMonthLabel}, cumulative through today.`}
-                    />
-                  )}
+                  <InsightMetric
+                    label="Average Sold Price - This Month"
+                    value={
+                      selectedProduct.averageSoldPrice === null
+                        ? "Average sold price unavailable"
+                        : formatCurrency(selectedProduct.averageSoldPrice)
+                    }
+                    help={
+                      selectedProduct.averageSoldPrice === null
+                        ? `No eligible sales in ${selectedProduct.averageMonthLabel}.`
+                        : `${selectedProduct.averageEligibleQuantity} eligible unit(s) in ${selectedProduct.averageMonthLabel}, cumulative through today.`
+                    }
+                  />
                   <InsightMetric
                     label="Proposed Final Unit Price"
                     value={formatCurrency(proposedUnitPrice)}
@@ -440,6 +455,10 @@ export function SalesOrderForm({
                       <InsightMetric
                         label="Selisih Persentase"
                         value={formatSignedPercentage(comparison.percentageDifference)}
+                      />
+                      <InsightMetric
+                        label="Comparison"
+                        value={comparison.comparison[0].toUpperCase() + comparison.comparison.slice(1)}
                       />
                     </>
                   )}

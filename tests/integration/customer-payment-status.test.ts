@@ -41,12 +41,12 @@ describe("customer payment balances", () => {
       const createInvoice = async (suffix: string, total: number) => {
         const order = await tx.salesOrder.create({ data: {
           orderNumber: `TEST-STATUS-SO-${marker}-${suffix}`, customerId: customer.id,
-          orderDate: new Date(), status: "Invoiced", subtotal: total, total
+          orderDate: new Date(), status: "Invoiced", subtotal: total, total, netSalesAmount: total
         } });
         return tx.invoice.create({ data: {
           invoiceNumber: `TEST-STATUS-INV-${marker}-${suffix}`, salesOrderId: order.id,
           customerId: customer.id, issueDate: new Date(), dueDate,
-          totalAmount: total, paidAmount: 0, remainingAmount: total, status: "Unpaid"
+          totalAmount: total, netSalesAmount: total, paidAmount: 0, remainingAmount: total, status: "Unpaid"
         } });
       };
 

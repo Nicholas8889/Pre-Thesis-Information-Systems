@@ -1,9 +1,11 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   getCustomerPaymentSummaryFromAggregate
 } from "@/lib/customer-intelligence";
 import { getEffectiveInvoiceStatusWhere } from "@/lib/invoice-status";
 import { formatNpwp } from "@/lib/npwp";
+import { customerInvoiceBalanceSelect } from "@/lib/customer-payment-query";
+import { getCustomerPaymentReliability } from "@/lib/customer-payment-reliability";
 import {
   getCurrentMonthAverageSoldPriceFromAggregate,
   getJakartaCurrentMonthWindow,
@@ -17,7 +19,8 @@ type OrderFormInsightsClient = Pick<
 
 export async function loadOrderFormInsights(
   db: OrderFormInsightsClient,
-  now = new Date()
+  now = new Date(),
+  customerWhere: Prisma.CustomerWhereInput = {}
 ) {
   const currentMonth = getJakartaCurrentMonthWindow(now);
 
@@ -29,19 +32,20 @@ export async function loadOrderFormInsights(
     productPriceAggregates
   ] = await Promise.all([
     db.customer.findMany({
-      where: { status: "Active" },
+      where: { status: "Active", ...customerWhere },
       orderBy: { companyName: "asc" },
       select: {
         id: true,
         companyName: true,
         name: true,
-        npwp: true
+        npwp: true,
+        invoices: { select: customerInvoiceBalanceSelect }
       }
     }),
     db.invoice.groupBy({
       by: ["customerId"],
       where: {
-        customer: { status: "Active" },
+        customer: { status: "Active", ...customerWhere },
         status: { not: "Cancelled" },
         remainingAmount: { gt: 0 },
         OR: [
@@ -66,7 +70,7 @@ export async function loadOrderFormInsights(
     db.invoice.groupBy({
       by: ["customerId"],
       where: {
-        customer: { status: "Active" },
+        customer: { status: "Active", ...customerWhere },
         ...getEffectiveInvoiceStatusWhere("Overdue", now)
       },
       _count: { _all: true }
@@ -136,7 +140,9 @@ export async function loadOrderFormInsights(
   );
 
   return {
-    customers: customerRecords.map((customer) => ({
+    customers: customerRecords.map((customer) => {
+      const reliability = getCustomerPaymentReliability(customer, now);
+      return {
         id: customer.id,
         companyName: customer.companyName,
         name: customer.name,
@@ -146,9 +152,12 @@ export async function loadOrderFormInsights(
             openInvoiceCount: 0
           })),
         overdueInvoiceCount: overdueInvoiceCountsByCustomer.get(customer.id) ?? 0,
+        paymentReliability: reliability.label,
+        paymentReliabilityEvidence: reliability.evidence,
         npwp: formatNpwp(customer.npwp),
         ppnApplied: Boolean(customer.npwp)
-      })),
+      };
+    }),
     products: productRecords.map((product) => {
       const average =
         pricesByProduct.get(product.id) ??

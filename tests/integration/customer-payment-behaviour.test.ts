@@ -54,6 +54,10 @@ describe("customer payment behaviour integration", () => {
               orderNumber: `SO-BEH-${marker}-3`,
               customerPoNumber: `PO-BEH-${marker}-3`,
               source: "CUSTOMER_PO",
+              requiredDate: new Date("2026-06-15T05:00:00.000Z"),
+              customerPoDocumentName: "fixture.pdf",
+              customerPoDocumentStoredName: `customer-purchase-orders/${marker}.pdf`,
+              customerPoDocumentMimeType: "application/pdf",
               orderDate: new Date("2026-06-01T05:00:00.000Z"),
               status: "Shipped",
               paymentTermType: "IMMEDIATE"

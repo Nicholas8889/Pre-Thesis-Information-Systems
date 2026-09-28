@@ -3,8 +3,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
-  DELIVERY_DRIVER_OPTIONS,
-  DELIVERY_VEHICLE_PLATE_OPTIONS
+  ACTIVE_DELIVERY_ASSIGNMENTS
 } from "@/lib/delivery-options";
 
 type CustomerOption = {
@@ -296,39 +295,20 @@ export function DeliveryNoteForm({
           />
         </label>
 
-        <label className="text-sm font-medium text-ink">
-          Driver Name
+        <label className="text-sm font-medium text-ink md:col-span-2">
+          Driver and Vehicle Assignment
           <select
-            name="driverName"
+            name="deliveryAssignmentId"
             required
             defaultValue=""
             className={`${inputClass} mt-1`}
           >
             <option value="" disabled>
-              Select driver
+              Select driver and vehicle
             </option>
-            {DELIVERY_DRIVER_OPTIONS.map((driverName) => (
-              <option key={driverName} value={driverName}>
-                {driverName}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="text-sm font-medium text-ink">
-          Vehicle Plate Number
-          <select
-            name="vehiclePlateNumber"
-            required
-            defaultValue=""
-            className={`${inputClass} mt-1`}
-          >
-            <option value="" disabled>
-              Select vehicle plate
-            </option>
-            {DELIVERY_VEHICLE_PLATE_OPTIONS.map((vehiclePlateNumber) => (
-              <option key={vehiclePlateNumber} value={vehiclePlateNumber}>
-                {vehiclePlateNumber}
+            {ACTIVE_DELIVERY_ASSIGNMENTS.map(assignment => (
+              <option key={assignment.id} value={assignment.id}>
+                {assignment.driverName} — {assignment.vehiclePlateNumber}
               </option>
             ))}
           </select>

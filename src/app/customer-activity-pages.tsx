@@ -1,4 +1,9 @@
-import { createCollectionTask, recordCustomerOutreach } from "@/lib/actions";
+import {
+  createCollectionTask,
+  recordCustomerOutreach,
+  transitionCollectionTask,
+  updateCollectionTask
+} from "@/lib/actions";
 import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
@@ -21,6 +26,14 @@ import {
   getCursorPage,
   getCursorPagination
 } from "@/lib/pagination";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
+import { MAX_ACTION_NOTE_LENGTH } from "@/lib/action-notes";
+import {
+  buildOutreachCustomerWhere,
+  OUTREACH_CUSTOMER_ORDER,
+  OUTREACH_LATEST_ORDER,
+} from "@/lib/outreach-query";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -38,6 +51,8 @@ export async function CollectionsPage({
   const activeTab = normalizeProcessTab(params.tab);
   const { success, error } = getSearchMessage(params);
   const pagination = getCursorPagination(params);
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
   const visibleStatuses =
     activeTab === "done"
       ? [...DONE_COLLECTION_TASK_STATUSES]
@@ -46,16 +61,16 @@ export async function CollectionsPage({
   const [customers, openInvoices, collectionTaskRecords, ongoingCount, doneCount] =
     await Promise.all([
     activeTab === "ongoing" ? prisma.customer.findMany({
-      where: { status: "Active" },
+      where: { status: "Active", ...portfolio.customerWhere },
       orderBy: [{ companyName: "asc" }, { id: "asc" }]
     }) : Promise.resolve([]),
     activeTab === "ongoing" ? prisma.invoice.findMany({
-      where: getOpenInvoiceWhere(),
+      where: { ...getOpenInvoiceWhere(), ...portfolio.invoiceWhere },
       include: { customer: true },
       orderBy: { dueDate: "asc" }
     }) : Promise.resolve([]),
     prisma.collectionTask.findMany({
-      where: { status: { in: visibleStatuses } },
+      where: { status: { in: visibleStatuses }, ...portfolio.collectionTaskWhere },
       orderBy: [{ scheduledDate: "asc" }, { id: "asc" }],
       ...getCursorArgs(pagination),
       include: {
@@ -73,10 +88,10 @@ export async function CollectionsPage({
       }
     }),
     prisma.collectionTask.count({
-      where: { status: { in: [...ONGOING_COLLECTION_TASK_STATUSES] } }
+      where: { status: { in: [...ONGOING_COLLECTION_TASK_STATUSES] }, ...portfolio.collectionTaskWhere }
     }),
     prisma.collectionTask.count({
-      where: { status: { in: [...DONE_COLLECTION_TASK_STATUSES] } }
+      where: { status: { in: [...DONE_COLLECTION_TASK_STATUSES] }, ...portfolio.collectionTaskWhere }
     })
   ]);
 
@@ -154,11 +169,8 @@ export async function CollectionsPage({
 
               <label className="text-sm font-medium text-ink">
                 Status
-                <select name="status" defaultValue="Planned" className={`${inputClass} mt-1`}>
-                  <option value="Planned">Planned</option>
-                  <option value="Done">Done</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
+                <input type="hidden" name="status" value="Planned" />
+                <span className={`${inputClass} mt-1 block bg-soft`}>Planned</span>
               </label>
 
               <label className="text-sm font-medium text-ink xl:col-span-3">
@@ -232,19 +244,84 @@ export async function CollectionsPage({
                       </StatusStack>
                     </td>
                     <td className="py-3 pr-4 text-ink/80">{collectionTask.notes}</td>
-                    <td className="py-3">
-                      <TableActionGroup>
-                        {collectionTask.invoice ? (
-                          <TableActionLink
-                            href={`/sales-orders/${collectionTask.invoice.salesOrderId}`}
-                            label="View Sales Order"
-                          >
-                            <Eye aria-hidden="true" />
-                          </TableActionLink>
-                        ) : (
-                          <span className="text-sm text-ink/70">—</span>
+                    <td className="min-w-72 py-3">
+                      <div className="space-y-2">
+                        <TableActionGroup>
+                          {collectionTask.invoice ? (
+                            <TableActionLink
+                              href={`/sales-orders/${collectionTask.invoice.salesOrderId}`}
+                              label="View Sales Order"
+                            >
+                              <Eye aria-hidden="true" />
+                            </TableActionLink>
+                          ) : (
+                            <span className="text-sm text-ink/70">—</span>
+                          )}
+                        </TableActionGroup>
+                        {collectionTask.status === "Planned" && (
+                          <details>
+                            <summary className="cursor-pointer text-xs font-semibold text-brand">
+                              Manage task
+                            </summary>
+                            <div className="mt-2 space-y-3 rounded-md border border-line bg-soft p-3">
+                              <form action={updateCollectionTask} className="grid gap-2">
+                                <input type="hidden" name="taskId" value={collectionTask.id} />
+                                <input type="hidden" name="expectedVersion" value={collectionTask.version} />
+                                <label className="text-xs font-medium text-ink">
+                                  Scheduled date
+                                  <input
+                                    name="scheduledDate"
+                                    type="date"
+                                    required
+                                    defaultValue={toDateInputValue(collectionTask.scheduledDate)}
+                                    className={`${inputClass} mt-1`}
+                                  />
+                                </label>
+                                <label className="text-xs font-medium text-ink">
+                                  Notes
+                                  <input
+                                    name="notes"
+                                    required
+                                    defaultValue={collectionTask.notes}
+                                    className={`${inputClass} mt-1`}
+                                  />
+                                </label>
+                                <input
+                                  name="confirmationNote"
+                                  maxLength={MAX_ACTION_NOTE_LENGTH}
+                                  placeholder="Optional edit reason"
+                                  className={inputClass}
+                                />
+                                <button className="rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white">
+                                  Save schedule
+                                </button>
+                              </form>
+
+                              {(["Done", "Cancelled"] as const).map(status => (
+                                <form
+                                  key={status}
+                                  action={transitionCollectionTask}
+                                  className="grid gap-2 border-t border-line pt-3"
+                                >
+                                  <input type="hidden" name="taskId" value={collectionTask.id} />
+                                  <input type="hidden" name="expectedVersion" value={collectionTask.version} />
+                                  <input type="hidden" name="status" value={status} />
+                                  <input
+                                    name="confirmationNote"
+                                    required
+                                    maxLength={MAX_ACTION_NOTE_LENGTH}
+                                    placeholder={`Required reason to mark ${status.toLowerCase()}`}
+                                    className={inputClass}
+                                  />
+                                  <button className="rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-brand">
+                                    Mark {status}
+                                  </button>
+                                </form>
+                              ))}
+                            </div>
+                          </details>
                         )}
-                      </TableActionGroup>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -272,30 +349,25 @@ export async function CustomerOutreachPage({
 }) {
   const params = (await searchParams) ?? {};
   const selectedCustomerId = getFirst(params.customerId);
-  const query = getFirst(params.q);
+  const query = getFirst(params.q)?.trim() ?? "";
   const { success, error } = getSearchMessage(params);
   const pagination = getCursorPagination(params);
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
 
   const [allCustomers, customerRecords] = await Promise.all([
     prisma.customer.findMany({
+      where: portfolio.customerWhere,
       orderBy: [{ companyName: "asc" }, { id: "asc" }],
       select: { id: true, companyName: true, name: true }
     }),
     prisma.customer.findMany({
-      where: query
-        ? {
-            OR: [
-              { companyName: { contains: query } },
-              { name: { contains: query } },
-              { phone: { contains: query } }
-            ]
-          }
-        : undefined,
-      orderBy: [{ companyName: "asc" }, { id: "asc" }],
+      where: buildOutreachCustomerWhere(query, portfolio.customerWhere),
+      orderBy: OUTREACH_CUSTOMER_ORDER,
       ...getCursorArgs(pagination),
       include: {
         outreachActivities: {
-          orderBy: [{ contactDate: "desc" }, { createdAt: "desc" }],
+          orderBy: OUTREACH_LATEST_ORDER,
           take: 1
         }
       }
@@ -385,7 +457,7 @@ export async function CustomerOutreachPage({
           </div>
           <form className="flex w-full max-w-sm items-center gap-2 rounded-md border border-line px-3 py-2">
             <Search aria-hidden="true" className="h-4 w-4 text-ink/50" />
-            <input name="q" defaultValue={query} placeholder="Search customer" className="w-full text-sm outline-none" />
+            <input name="q" defaultValue={query} placeholder="Search customer or outreach note" className="w-full text-sm outline-none" />
           </form>
         </div>
 
@@ -446,6 +518,7 @@ export async function CustomerOutreachPage({
           pathname="/customer-outreach"
           searchParams={params}
           state={pagination}
+          preserveParams={["q"]}
         />
       </section>
     </>

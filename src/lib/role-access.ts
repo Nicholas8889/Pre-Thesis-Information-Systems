@@ -2,18 +2,22 @@ export type RoleCapability =
   | "CREATE_SALES_ORDER"
   | "DELETE_SALES_ORDER"
   | "CREATE_INVOICE"
+  | "CANCEL_INVOICE"
   | "RECORD_PAYMENT"
   | "CREATE_SURAT_JALAN"
   | "CREATE_ACCOUNT"
   | "CREATE_AUDIT_TRAIL";
 
 export function canRole(role: string | null | undefined, capability: RoleCapability) {
+  if (capability === "CREATE_ACCOUNT") return role === "ADMIN";
+
   if (role === "MANAGER") return true;
 
   if (role === "SALES") {
     return ![
       "DELETE_SALES_ORDER",
       "CREATE_INVOICE",
+      "CANCEL_INVOICE",
       "RECORD_PAYMENT",
       "CREATE_SURAT_JALAN",
       "CREATE_ACCOUNT"
@@ -32,9 +36,10 @@ export function getRestrictionMessage(capability: RoleCapability) {
     CREATE_SALES_ORDER: "You cannot create Sales Orders. Only Sales and Manager roles can do this.",
     DELETE_SALES_ORDER: "You cannot delete Sales Orders. Only Admin and Manager roles can do this.",
     CREATE_INVOICE: "You cannot create Invoices. Only Admin and Manager roles can do this.",
+    CANCEL_INVOICE: "You cannot cancel Invoices. Only Admin and Manager roles can do this.",
     RECORD_PAYMENT: "You cannot record Payments. Only Admin and Manager roles can do this.",
     CREATE_SURAT_JALAN: "You cannot create Surat Jalan. Only Admin and Manager roles can do this.",
-    CREATE_ACCOUNT: "You cannot create accounts. Only Admin and Manager roles can do this.",
+    CREATE_ACCOUNT: "You cannot manage accounts. Only the Admin role can do this.",
     CREATE_AUDIT_TRAIL: "You cannot create Audit Trail records. They are system-generated and Manager-controlled."
   }[capability];
 }

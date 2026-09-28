@@ -9,6 +9,9 @@ import { amountToWords, formatDate, formatInvoiceCurrency } from "@/lib/format";
 import { withEffectiveInvoiceStatus } from "@/lib/invoice-status";
 import { formatNpwp } from "@/lib/npwp";
 import { formatPpnRate } from "@/lib/tax";
+import { parseInvoiceItemSnapshots } from "@/lib/invoice-snapshot";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +21,11 @@ export default async function InvoicePrintPage({
   params: Promise<{ invoiceId: string }>;
 }) {
   const { invoiceId } = await params;
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
 
-  const invoiceRecord = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
+  const invoiceRecord = await prisma.invoice.findFirst({
+    where: { id: invoiceId, ...portfolio.invoiceWhere },
     include: {
       customer: true,
       payments: { orderBy: { paymentDate: "desc" } },
@@ -36,13 +41,14 @@ export default async function InvoicePrintPage({
     notFound();
   }
   const invoice = withEffectiveInvoiceStatus(invoiceRecord);
+  const invoiceItems = parseInvoiceItemSnapshots(invoice.itemsSnapshot);
 
   const paymentTerm = getPaymentTermLabel({
     paymentTermType: invoice.paymentTermType,
     creditTermMonths: invoice.creditTermMonths,
     creditTermWeeks: invoice.creditTermWeeks
   });
-  const isCustomerPo = invoice.salesOrder.source === "CUSTOMER_PO";
+  const isCustomerPo = invoice.orderSourceSnapshot === "CUSTOMER_PO";
   const orderLabel = isCustomerPo ? "Customer PO" : "Sales Order";
 
   return (
@@ -83,11 +89,11 @@ export default async function InvoicePrintPage({
         <section className="grid gap-6 border-b border-line py-5 md:grid-cols-2">
           <div>
             <p className="text-xs font-bold uppercase text-ink/70">Bill To</p>
-            <p className="mt-2 text-base font-semibold">{invoice.customer.name}</p>
-            <p className="text-sm text-ink">{invoice.customer.companyName}</p>
-            <p className="mt-2 text-sm text-ink">{invoice.customer.phone}</p>
+            <p className="mt-2 text-base font-semibold">{invoice.customerNameSnapshot}</p>
+            <p className="text-sm text-ink">{invoice.customerCompanySnapshot}</p>
+            <p className="mt-2 text-sm text-ink">{invoice.customerPhoneSnapshot}</p>
             <p className="mt-1 max-w-md text-sm leading-6 text-ink">
-              {invoice.customer.address}
+              {invoice.customerAddressSnapshot}
             </p>
             {invoice.customerNpwpSnapshot && (
               <p className="mt-2 text-sm font-semibold text-strong">
@@ -102,15 +108,9 @@ export default async function InvoicePrintPage({
             <InfoRow label="Due Date" value={formatDate(invoice.dueDate)} />
             <InfoRow label="Payment Terms" value={paymentTerm} />
             <InfoRow label="Order Source" value={orderLabel} />
-            <InfoRow label="Sales Order" value={invoice.salesOrder.orderNumber} />
+            <InfoRow label="Sales Order" value={invoice.orderNumberSnapshot} />
             {isCustomerPo && (
-              <InfoRow label="Customer PO Number" value={invoice.salesOrder.customerPoNumber ?? "-"} />
-            )}
-            {isCustomerPo && invoice.salesOrder.requiredDate && (
-              <InfoRow label="Required Date" value={formatDate(invoice.salesOrder.requiredDate)} />
-            )}
-            {isCustomerPo && (
-              <InfoRow label="Customer PO Document" value={invoice.salesOrder.customerPoDocumentName ?? "-"} />
+              <InfoRow label="Customer PO Number" value={invoice.customerPoNumberSnapshot ?? "-"} />
             )}
           </div>
         </section>
@@ -129,8 +129,8 @@ export default async function InvoicePrintPage({
                 </tr>
               </thead>
               <tbody>
-                {invoice.salesOrder.items.map((item, index) => (
-                  <tr key={item.id}>
+                {invoiceItems.map((item, index) => (
+                  <tr key={`${item.productSku ?? item.itemName}-${index}`}>
                     <td className="border border-ink/50 px-3 py-2">{index + 1}</td>
                     <td className="border border-ink/50 px-3 py-2">{item.itemName}</td>
                     <td className="border border-ink/50 px-3 py-2 text-right">

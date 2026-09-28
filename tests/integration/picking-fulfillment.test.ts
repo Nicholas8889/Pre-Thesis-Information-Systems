@@ -6,6 +6,7 @@ import { toJakartaDateTimeInputValue } from "../../src/lib/delivery-note-status"
 
 const context = vi.hoisted(() => ({
   tx: null as Prisma.TransactionClient | null,
+  audit: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -16,7 +17,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/session", () => ({
   requireCurrentUser: async () => ({ id: "test-admin", username: "admin", displayName: "Test Admin", role: "ADMIN" }),
 }));
-vi.mock("@/lib/audit", () => ({ createAuditTrailLog: vi.fn() }));
+vi.mock("@/lib/audit", () => ({ createAuditTrailLog: context.audit }));
 vi.mock("@/lib/customer-inquiry-lifecycle", () => ({
   completeCustomerInquiriesForDeliveredOrders: vi.fn().mockResolvedValue([]),
 }));
@@ -74,6 +75,7 @@ describe("Picking List to Delivered with the real database", () => {
         prisma.$transaction(
           async (tx) => {
             context.tx = tx;
+            context.audit.mockClear();
             const customer = await tx.customer.create({
               data: {
                 name: marker,
@@ -91,12 +93,20 @@ describe("Picking List to Delivered with the real database", () => {
                 source,
                 customerPoNumber:
                   source === "CUSTOMER_PO" ? `PO-${marker}` : null,
+                ...(source === "CUSTOMER_PO" ? {
+                  requiredDate: new Date("2099-12-31"),
+                  customerPoDocumentName: "fixture.pdf",
+                  customerPoDocumentStoredName: `customer-purchase-orders/${marker}.pdf`,
+                  customerPoDocumentMimeType: "application/pdf"
+                } : {}),
                 customerId,
+                deliveryDestinationSnapshot: customer.address,
                 orderDate: new Date(),
                 status: "Invoiced",
                 approvalStatus: "Approved",
                 subtotal: 1000,
                 total: 1000,
+                netSalesAmount: 1000,
                 paymentTermType,
                 creditTermMonths: paymentTermType === "CREDIT" ? 1 : null,
                 items: {
@@ -125,6 +135,7 @@ describe("Picking List to Delivered with the real database", () => {
                 issueDate: new Date(),
                 dueDate: paymentTermType === "IMMEDIATE" ? new Date() : new Date("2099-12-31"),
                 totalAmount: 1000,
+                netSalesAmount: 1000,
                 paidAmount,
                 remainingAmount: 1000 - paidAmount,
                 paymentTermType,
@@ -170,13 +181,14 @@ describe("Picking List to Delivered with the real database", () => {
               complete: boolean,
               full: boolean,
               withShortage = false,
-            ) =>
-              form({
+            ) => {
+              const data = form({
                 id: list.id,
                 version: list.updatedAt.toISOString(),
                 intent: complete ? "complete" : "save",
                 pickerName: "Picking PIC Test",
                 packerName: complete ? "Packing PIC Test" : "",
+                packageCount: complete ? "3" : "",
                 ...Object.fromEntries(
                   list.items.flatMap((item) => {
                     const available =
@@ -204,6 +216,22 @@ describe("Picking List to Delivered with the real database", () => {
                   }),
                 ),
               });
+              for (const item of list.items) data.append("itemId", item.id);
+              return data;
+            };
+            const tamperedPickingPayload = progressForm(false, false);
+            tamperedPickingPayload.append("itemId", "foreign-item");
+            tamperedPickingPayload.set("availability_foreign-item", "Available");
+            tamperedPickingPayload.set("available_foreign-item", "1");
+            tamperedPickingPayload.set("packed_foreign-item", "1");
+            tamperedPickingPayload.set("notes_foreign-item", "tampered");
+            await expect(savePickingList(tamperedPickingPayload)).rejects.toThrow(
+              "Submit+every+Picking+List+item+exactly+once",
+            );
+            expect(await tx.pickingList.findUniqueOrThrow({ where: { id: list.id } })).toMatchObject({
+              status: "Pending",
+              packedAt: null,
+            });
             await expect(
               savePickingList(progressForm(true, false)),
             ).rejects.toThrow("Review+every+item");
@@ -219,6 +247,24 @@ describe("Picking List to Delivered with the real database", () => {
               include: { items: true },
             });
             expect(list.status).toBe("InProgress");
+            const auditCountBeforeInvalidPackage = await tx.auditTrail.count({
+              where: { entityId: list.id }
+            });
+            for (const invalidPackageCount of ["", "0", "-1", "1.5", "text", " 1 ", "2147483648"]) {
+              const invalidPackageForm = progressForm(true, true);
+              invalidPackageForm.set("packageCount", invalidPackageCount);
+              await expect(savePickingList(invalidPackageForm)).rejects.toThrow(
+                "Package+count+is+required+and+must+be+a+positive+whole+number"
+              );
+              expect(await tx.pickingList.findUniqueOrThrow({ where: { id: list.id } })).toMatchObject({
+                status: "InProgress",
+                packageCount: null,
+                packedAt: null
+              });
+            }
+            expect(await tx.auditTrail.count({ where: { entityId: list.id } })).toBe(
+              auditCountBeforeInvalidPackage
+            );
             const missingPackingPic = progressForm(true, true);
             missingPackingPic.set("packerName", "");
             await expect(savePickingList(missingPackingPic)).rejects.toThrow(
@@ -235,6 +281,7 @@ describe("Picking List to Delivered with the real database", () => {
               status: "Packed",
               pickerName: "Picking PIC Test",
               packerName: "Packing PIC Test",
+              packageCount: 3,
             });
             expect(list.packedAt).not.toBeNull();
             expect(await summary()).toMatchObject({
@@ -248,13 +295,34 @@ describe("Picking List to Delivered with the real database", () => {
                   version: list.updatedAt.toISOString(),
                 }),
               ),
-            ).rejects.toThrow("A+reason+is+required+to+reopen");
+            ).rejects.toThrow("A+reason+is+required+for+this+action");
             await expect(
               reopenPickingList(
                 form({
                   id: list.id,
                   version: list.updatedAt.toISOString(),
-                  confirmationNote: "Correct completed quantities",
+                  confirmationNote: " ".repeat(3),
+                }),
+              ),
+            ).rejects.toThrow("A+reason+is+required+for+this+action");
+            const auditCountBeforeLongReason = context.audit.mock.calls.length;
+            await expect(
+              reopenPickingList(
+                form({
+                  id: list.id,
+                  version: list.updatedAt.toISOString(),
+                  confirmationNote: "é".repeat(151),
+                }),
+              ),
+            ).rejects.toThrow("150+characters+or+fewer");
+            expect(context.audit).toHaveBeenCalledTimes(auditCountBeforeLongReason);
+            const reopenReason = "é".repeat(150);
+            await expect(
+              reopenPickingList(
+                form({
+                  id: list.id,
+                  version: list.updatedAt.toISOString(),
+                  confirmationNote: reopenReason,
                 }),
               ),
             ).rejects.toThrow("success=Picking%20List%20reopened");
@@ -263,9 +331,21 @@ describe("Picking List to Delivered with the real database", () => {
               include: { items: true },
             });
             expect(list.status).toBe("InProgress");
+            expect(list.packageCount).toBeNull();
             expect(list.packedAt).toBeNull();
+            expect(context.audit).toHaveBeenCalledTimes(auditCountBeforeLongReason + 1);
+            expect(context.audit).toHaveBeenLastCalledWith(
+              expect.objectContaining({
+                entityId: list.id,
+                action: "REOPENED",
+                actionNote: reopenReason,
+              }),
+              expect.objectContaining({ transaction: tx }),
+            );
+            const repackForm = progressForm(true, true, true);
+            repackForm.set("packageCount", "2147483647");
             await expect(
-              savePickingList(progressForm(true, true, true)),
+              savePickingList(repackForm),
             ).rejects.toThrow("success=Pick%20%26%20Pack%20completed");
             list = await tx.pickingList.findUniqueOrThrow({
               where: { id: list.id },
@@ -275,6 +355,7 @@ describe("Picking List to Delivered with the real database", () => {
               status: "Packed",
               pickerName: "Picking PIC Test",
               packerName: "Packing PIC Test",
+              packageCount: 2147483647,
             });
             expect(list.packedAt).not.toBeNull();
             await expect(
@@ -286,12 +367,23 @@ describe("Picking List to Delivered with the real database", () => {
               recipientName: customer.name,
               recipientAddress: customer.address,
               deliveryDate: "2026-09-12",
-              driverName: "Budi Santoso",
-              vehiclePlateNumber: "B 1234 TJK",
+              deliveryAssignmentId: "budi-b1234",
               customerId: "tampered-customer",
               invoiceId: "tampered-invoice",
               items: JSON.stringify([{ itemName: "Tampered", quantity: 999 }]),
             });
+            const crossPairDeliveryForm = form({
+              pickingListId: list.id,
+              recipientName: customer.name,
+              recipientAddress: customer.address,
+              deliveryDate: "2026-09-12",
+              driverName: "Budi Santoso",
+              vehiclePlateNumber: "B 5678 CVT",
+            });
+            await expect(createDeliveryNote(crossPairDeliveryForm)).rejects.toThrow(
+              "driver%2C%20and%20vehicle%20plate%20are%20required"
+            );
+            expect(await tx.deliveryNote.count({ where: { pickingListId: list.id } })).toBe(0);
             await expect(createDeliveryNote(deliveryForm)).rejects.toThrow(
               "REDIRECT:/surat-jalan?tab=open",
             );
@@ -304,6 +396,8 @@ describe("Picking List to Delivered with the real database", () => {
               customerId,
               invoiceId: invoice.id,
               salesOrderId: order.id,
+              driverName: "Budi Santoso",
+              vehiclePlateNumber: "B 1234 TJK",
             });
             await expect(
               reopenPickingList(
@@ -330,12 +424,24 @@ describe("Picking List to Delivered with the real database", () => {
               recipientPhone: note.recipientPhone,
               recipientAddress: note.recipientAddress,
               deliveryDate: "2026-09-12",
-              driverName: note.driverName!,
-              vehiclePlateNumber: note.vehiclePlateNumber!,
+              deliveryAssignmentId: "budi-b1234",
             });
             for (const item of note.items) {
               issueData.set("quantity_" + item.id, item.itemName === "Test product A" ? "6" : "2");
             }
+            const invalidAssignmentIssue = new FormData();
+            for (const [key, value] of issueData.entries()) {
+              invalidAssignmentIssue.append(key, value);
+            }
+            invalidAssignmentIssue.set("deliveryAssignmentId", "retired-driver-b9999");
+            await expect(saveDeliveryNoteDraft(invalidAssignmentIssue)).rejects.toThrow(
+              "driver%2C%20and%20vehicle%20plate%20are%20required"
+            );
+            expect(await tx.deliveryNote.findUniqueOrThrow({ where: { id: note.id } })).toMatchObject({
+              status: "Draft",
+              driverName: "Budi Santoso",
+              vehiclePlateNumber: "B 1234 TJK"
+            });
             await expect(saveDeliveryNoteDraft(issueData)).rejects.toThrow("issued%20and%20locked");
             const issuedNote = await tx.deliveryNote.findUniqueOrThrow({
               where: { id: note.id },
@@ -367,7 +473,7 @@ describe("Picking List to Delivered with the real database", () => {
                   id: note.id,
                   status: "Delivered",
                   receiverName: "Warehouse Recipient",
-                  receivedAt: toJakartaDateTimeInputValue(new Date())
+                  receivedAt: toJakartaDateTimeInputValue(new Date(Date.now() + 1_000))
                 }),
               ),
             ).rejects.toThrow("tab=completed");

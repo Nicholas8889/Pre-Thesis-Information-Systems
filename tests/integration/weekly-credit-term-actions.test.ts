@@ -14,8 +14,8 @@ vi.mock("@/lib/session", () => ({ requireCurrentUser: async () => context.user }
 vi.mock("@/lib/audit", () => ({ createAuditTrailLog: vi.fn() }));
 vi.mock("@/lib/customer-po-storage", async importOriginal => ({
   ...await importOriginal<typeof import("../../src/lib/customer-po-storage")>(),
-  uploadCustomerPoDocument: vi.fn(async (file: File, storedName: string) => ({
-    originalName: file.name, storedName, mimeType: file.type
+  uploadCustomerPoDocument: vi.fn(async (document: { originalName: string; mimeType: string; size: number; sha256: string }) => ({
+    ...document, storedName: "customer-purchase-orders/test.pdf"
   }))
 }));
 vi.mock("@/lib/prisma", () => ({
@@ -44,16 +44,25 @@ function form(values: Record<string, string>) {
 
 async function verifyFlow(source: Source, weeks: number, flow: Flow) {
   const marker = "WEEKLY-QA-" + Date.now() + "-" + source;
+  const username = marker.toLowerCase();
   let customerId = "";
   try {
     await expect(prisma.$transaction(async tx => {
       context.tx = tx;
       const user = await tx.user.create({
-        data: { username: marker, displayName: marker, passwordHash: "test-only", role: "MANAGER" }
+        data: { username, displayName: marker, passwordHash: "test-only", role: "MANAGER" }
       });
       context.user = { id: user.id, role: flow === "automatic" ? "MANAGER" : "SALES" };
       const customer = await tx.customer.create({
-        data: { name: marker, companyName: marker, phone: "", email: "", address: "QA", customerSegment: "Retail" }
+        data: {
+          name: marker,
+          companyName: marker,
+          phone: "",
+          email: "",
+          address: "QA",
+          customerSegment: "Retail",
+          portfolioOwnerUserId: user.id
+        }
       });
       customerId = customer.id;
       const product = await tx.product.create({ data: { productName: marker, listPrice: 100_000 } });
@@ -62,13 +71,13 @@ async function verifyFlow(source: Source, weeks: number, flow: Flow) {
         const debtOrder = await tx.salesOrder.create({
           data: {
             orderNumber: marker + "-DEBT", customerId, orderDate: new Date(),
-            status: "Invoiced", subtotal: 100, total: 100, paymentTermType: "CREDIT", creditTermMonths: 1
+            status: "Invoiced", subtotal: 100, total: 100, netSalesAmount: 100, paymentTermType: "CREDIT", creditTermMonths: 1
           }
         });
         const debtInvoice = await tx.invoice.create({
           data: {
             invoiceNumber: marker + "-DEBT", salesOrderId: debtOrder.id, customerId,
-            issueDate: new Date(), dueDate: new Date("2099-12-31"), totalAmount: 100,
+            issueDate: new Date(), dueDate: new Date("2099-12-31"), totalAmount: 100, netSalesAmount: 100,
             remainingAmount: 100, status: "Unpaid", paymentTermType: "CREDIT", creditTermMonths: 1
           }
         });
@@ -90,7 +99,7 @@ async function verifyFlow(source: Source, weeks: number, flow: Flow) {
         }])
       });
       if (source === "CUSTOMER_PO") {
-        input.set("customerPoDocument", new File(["QA"], "qa.pdf", { type: "application/pdf" }));
+        input.set("customerPoDocument", new File(["%PDF-QA"], "qa.pdf", { type: "application/pdf" }));
       }
       await expect(createSalesOrder(input)).rejects.toThrow(/REDIRECT:.*success=/);
       const order = await tx.salesOrder.findFirstOrThrow({ where: { customerId, notes: marker }, include: { invoice: true } });
@@ -101,7 +110,11 @@ async function verifyFlow(source: Source, weeks: number, flow: Flow) {
         context.user.role = "MANAGER";
         if (flow === "approval") {
           expect(order.approvalStatus).toBe("Pending");
-          await expect(decideSalesOrderApproval(form({ salesOrderId: order.id, decision: "Approved" })))
+          await expect(decideSalesOrderApproval(form({
+            salesOrderId: order.id,
+            decision: "Approved",
+            expectedVersion: String(order.version)
+          })))
             .rejects.toThrow(/REDIRECT:.*success=/);
         } else {
           expect(order.status).toBe("Confirmed");

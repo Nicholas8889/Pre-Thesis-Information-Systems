@@ -172,7 +172,7 @@ export default async function ProductsPage({
               <div>
                 <h2 className="text-lg font-semibold">{selectedProduct.productName}</h2>
                 <p className="mt-1 text-sm text-ink/80">
-                  {formatCurrency(selectedProduct.listPrice)}
+                  {selectedProduct.sku ? `${selectedProduct.sku} · ` : ""}{formatCurrency(selectedProduct.listPrice)}
                 </p>
               </div>
             </div>
@@ -258,6 +258,7 @@ export default async function ProductsPage({
               <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                 <tr>
                   <th className="py-3 pr-4">Product Name</th>
+                  <th className="py-3 pr-4">SKU</th>
                   <th className="py-3 pr-4 text-right">List Price</th>
                   <th className="py-3 pr-4 text-right">
                     <Link
@@ -280,6 +281,7 @@ export default async function ProductsPage({
                 {sortedProducts.map((product) => (
                   <tr key={product.id} className="transition hover:bg-soft">
                     <td className="py-3 pr-4 font-medium">{product.productName}</td>
+                    <td className="py-3 pr-4 text-ink/80">{product.sku ?? "-"}</td>
                     <td className="py-3 pr-4 text-right font-medium">
                       {formatCurrency(product.listPrice)}
                     </td>
@@ -345,6 +347,11 @@ function ProductForm({ product }: { product?: Product }) {
           name="productName"
           defaultValue={product?.productName}
           required
+        />
+        <FormField
+          label="SKU"
+          name="sku"
+          defaultValue={product?.sku ?? ""}
         />
         <FormField
           label="List Price"

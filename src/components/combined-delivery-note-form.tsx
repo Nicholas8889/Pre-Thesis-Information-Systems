@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createDeliveryNote } from "@/lib/actions";
-import { DELIVERY_DRIVER_OPTIONS, DELIVERY_VEHICLE_PLATE_OPTIONS } from "@/lib/delivery-options";
+import { normalizeDeliveryDestination } from "@/lib/delivery-destination";
+import { ACTIVE_DELIVERY_ASSIGNMENTS } from "@/lib/delivery-options";
 import { orderReference } from "@/lib/delivery-note-links";
 
 export type PackedDeliveryOption = {
@@ -20,6 +21,7 @@ export type PackedDeliveryOption = {
     orderNumber: string;
     customerPoNumber: string | null;
     customerId: string;
+    deliveryDestinationSnapshot: string;
     customer: {
       id: string;
       name: string;
@@ -50,7 +52,11 @@ export function CombinedDeliveryNoteForm({
 }) {
   const initial = lists.find(list => list.id === initialPickingListId);
   const initialItems = initial?.items.filter(item => item.packedQuantity > 0) ?? [];
-  const [customerId, setCustomerId] = useState(initial?.salesOrder.customerId ?? "");
+  const destinationKey = (list: PackedDeliveryOption) =>
+    `${list.salesOrder.customerId}\u001f${normalizeDeliveryDestination(list.salesOrder.deliveryDestinationSnapshot)}`;
+  const [selectedDestinationKey, setSelectedDestinationKey] = useState(
+    initial ? destinationKey(initial) : ""
+  );
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>(
     initialItems.map(item => item.id)
   );
@@ -60,10 +66,14 @@ export function CombinedDeliveryNoteForm({
     )
   );
 
-  const customers = Array.from(
-    new Map(lists.map(list => [list.salesOrder.customerId, list.salesOrder.customer])).values()
+  const destinations = Array.from(
+    new Map(lists.map(list => [destinationKey(list), {
+      key: destinationKey(list),
+      customer: list.salesOrder.customer,
+      address: list.salesOrder.deliveryDestinationSnapshot
+    }])).values()
   );
-  const available = lists.filter(list => list.salesOrder.customerId === customerId);
+  const available = lists.filter(list => destinationKey(list) === selectedDestinationKey);
   const selectedItemSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
   const selectedLists = available.filter(list =>
     list.items.some(item => selectedItemSet.has(item.id))
@@ -115,19 +125,21 @@ export function CombinedDeliveryNoteForm({
       </div>
 
       <label className="block text-sm font-medium">
-        Customer
+        Customer / delivery destination
         <select
           className={inputClass}
           required
-          value={customerId}
+          value={selectedDestinationKey}
           onChange={event => {
-            setCustomerId(event.target.value);
+            setSelectedDestinationKey(event.target.value);
             setSelectedItemIds([]);
           }}
         >
-          <option value="">Select customer</option>
-          {customers.map(customer => (
-            <option key={customer.id} value={customer.id}>{customer.companyName}</option>
+          <option value="">Select customer and destination</option>
+          {destinations.map(destination => (
+            <option key={destination.key} value={destination.key}>
+              {destination.customer.companyName} — {destination.address}
+            </option>
           ))}
         </select>
       </label>
@@ -138,7 +150,7 @@ export function CombinedDeliveryNoteForm({
         </p>
       )}
 
-      <fieldset disabled={!customerId} className="space-y-4">
+      <fieldset disabled={!selectedDestinationKey} className="space-y-4">
         <legend className="font-semibold">Packed items ready to ship</legend>
         {!available.length && (
           <p className="text-sm text-ink/70">Select a customer with completed Pick & Pack records.</p>
@@ -240,7 +252,7 @@ export function CombinedDeliveryNoteForm({
         {selectedItemIds.length} item(s) from {selectedLists.length} order(s) selected · {selectedQuantity} PCS final delivery quantity.
       </p>
 
-      <fieldset disabled={!order} key={customerId} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <fieldset disabled={!order} key={selectedDestinationKey} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <label className="text-sm font-medium">
           Recipient
           <input name="recipientName" required defaultValue={order?.customer.name} className={inputClass} />
@@ -255,20 +267,17 @@ export function CombinedDeliveryNoteForm({
         </label>
         <label className="text-sm font-medium md:col-span-2 xl:col-span-3">
           Recipient address
-          <textarea name="recipientAddress" required defaultValue={order?.customer.address} className={inputClass} />
+          <textarea name="recipientAddress" required defaultValue={order?.deliveryDestinationSnapshot} className={inputClass} />
         </label>
-        <label className="text-sm font-medium">
-          Driver
-          <select name="driverName" required defaultValue="" className={inputClass}>
-            <option value="" disabled>Select driver</option>
-            {DELIVERY_DRIVER_OPTIONS.map(value => <option key={value}>{value}</option>)}
-          </select>
-        </label>
-        <label className="text-sm font-medium">
-          Vehicle plate
-          <select name="vehiclePlateNumber" required defaultValue="" className={inputClass}>
-            <option value="" disabled>Select vehicle plate</option>
-            {DELIVERY_VEHICLE_PLATE_OPTIONS.map(value => <option key={value}>{value}</option>)}
+        <label className="text-sm font-medium md:col-span-2">
+          Driver and vehicle assignment
+          <select name="deliveryAssignmentId" required defaultValue="" className={inputClass}>
+            <option value="" disabled>Select driver and vehicle</option>
+            {ACTIVE_DELIVERY_ASSIGNMENTS.map(assignment => (
+              <option key={assignment.id} value={assignment.id}>
+                {assignment.driverName} — {assignment.vehiclePlateNumber}
+              </option>
+            ))}
           </select>
         </label>
         <label className="text-sm font-medium">

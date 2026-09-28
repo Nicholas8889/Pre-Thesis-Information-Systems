@@ -1,15 +1,35 @@
-export const DELIVERY_DRIVER_OPTIONS = [
-  "Budi Santoso",
-  "Andi Pratama"
+export const DELIVERY_ASSIGNMENTS = [
+  {
+    id: "budi-b1234",
+    driverName: "Budi Santoso",
+    vehiclePlateNumber: "B 1234 TJK",
+    active: true
+  },
+  {
+    id: "andi-b5678",
+    driverName: "Andi Pratama",
+    vehiclePlateNumber: "B 5678 CVT",
+    active: true
+  },
+  {
+    id: "retired-driver-b9999",
+    driverName: "Retired Driver",
+    vehiclePlateNumber: "B 9999 OLD",
+    active: false
+  }
 ] as const;
 
-export const DELIVERY_VEHICLE_PLATE_OPTIONS = [
-  "B 1234 TJK",
-  "B 5678 CVT"
-] as const;
+export const ACTIVE_DELIVERY_ASSIGNMENTS = DELIVERY_ASSIGNMENTS.filter(
+  assignment => assignment.active
+);
 
-const allowedDrivers = new Set<string>(DELIVERY_DRIVER_OPTIONS);
-const allowedVehiclePlates = new Set<string>(DELIVERY_VEHICLE_PLATE_OPTIONS);
+export const DELIVERY_DRIVER_OPTIONS = ACTIVE_DELIVERY_ASSIGNMENTS.map(
+  assignment => assignment.driverName
+);
+
+export const DELIVERY_VEHICLE_PLATE_OPTIONS = ACTIVE_DELIVERY_ASSIGNMENTS.map(
+  assignment => assignment.vehiclePlateNumber
+);
 
 export type DeliveryAssignment = {
   driverName: string;
@@ -25,42 +45,60 @@ export type DeliveryAssignmentResult =
     };
 
 export function validateDeliveryAssignment({
+  deliveryAssignmentId,
   driverName,
   vehiclePlateNumber
 }: {
-  driverName: unknown;
-  vehiclePlateNumber: unknown;
+  deliveryAssignmentId?: unknown;
+  driverName?: unknown;
+  vehiclePlateNumber?: unknown;
 }): DeliveryAssignmentResult {
-  const normalizedDriverName = normalizeOption(driverName);
-  const normalizedVehiclePlateNumber = normalizeOption(vehiclePlateNumber);
-  const errors: Partial<Record<keyof DeliveryAssignment, string>> = {};
+  const assignmentId = typeof deliveryAssignmentId === "string"
+    ? deliveryAssignmentId
+    : "";
+  const submittedDriver = typeof driverName === "string" ? driverName : "";
+  const submittedPlate = typeof vehiclePlateNumber === "string"
+    ? vehiclePlateNumber
+    : "";
+  const assignment = assignmentId
+    ? DELIVERY_ASSIGNMENTS.find(candidate => candidate.id === assignmentId)
+    : DELIVERY_ASSIGNMENTS.find(candidate =>
+        candidate.driverName === submittedDriver &&
+        candidate.vehiclePlateNumber === submittedPlate
+      );
 
-  if (!allowedDrivers.has(normalizedDriverName)) {
-    errors.driverName = normalizedDriverName
-      ? "Select a valid driver"
-      : "Select a driver";
-  }
-
-  if (!allowedVehiclePlates.has(normalizedVehiclePlateNumber)) {
-    errors.vehiclePlateNumber = normalizedVehiclePlateNumber
-      ? "Select a valid vehicle plate"
-      : "Select a vehicle plate";
-  }
-
-  if (Object.keys(errors).length > 0) {
-    return { valid: false, value: null, errors };
+  if (
+    !assignment ||
+    !assignment.active ||
+    (assignmentId && submittedDriver && submittedDriver !== assignment.driverName) ||
+    (assignmentId && submittedPlate && submittedPlate !== assignment.vehiclePlateNumber)
+  ) {
+    return {
+      valid: false,
+      value: null,
+      errors: {
+        driverName: "Select an active driver and vehicle assignment",
+        vehiclePlateNumber: "Select an active driver and vehicle assignment"
+      }
+    };
   }
 
   return {
     valid: true,
     value: {
-      driverName: normalizedDriverName,
-      vehiclePlateNumber: normalizedVehiclePlateNumber
+      driverName: assignment.driverName,
+      vehiclePlateNumber: assignment.vehiclePlateNumber
     },
     errors: {}
   };
 }
 
-function normalizeOption(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
+export function getDeliveryAssignmentId(
+  driverName: string | null | undefined,
+  vehiclePlateNumber: string | null | undefined
+) {
+  return DELIVERY_ASSIGNMENTS.find(assignment =>
+    assignment.driverName === driverName &&
+    assignment.vehiclePlateNumber === vehiclePlateNumber
+  )?.id ?? null;
 }

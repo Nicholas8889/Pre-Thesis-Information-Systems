@@ -79,6 +79,10 @@ describe("product average sold price integration", () => {
             orderNumber: `SO-AVG-${marker}-2`,
             customerPoNumber: `PO-AVG-${marker}-2`,
             source: "CUSTOMER_PO",
+            requiredDate: new Date("2026-08-20T05:00:00.000Z"),
+            customerPoDocumentName: "fixture.pdf",
+            customerPoDocumentStoredName: `customer-purchase-orders/${marker}.pdf`,
+            customerPoDocumentMimeType: "application/pdf",
             orderDate: new Date("2026-08-02T05:00:00.000Z"),
             status: "Shipped",
             items: {

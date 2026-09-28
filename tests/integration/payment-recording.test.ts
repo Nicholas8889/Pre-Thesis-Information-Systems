@@ -31,7 +31,7 @@ describe("concurrency-safe payment recording", () => {
         })
       ]);
 
-      const [invoice, payments] = await Promise.all([
+      const [invoice, payments, collectionTask] = await Promise.all([
         prisma.invoice.findUniqueOrThrow({
           where: { id: fixture.invoiceId }
         }),
@@ -39,6 +39,9 @@ describe("concurrency-safe payment recording", () => {
           where: { invoiceId: fixture.invoiceId },
           _sum: { amount: true },
           _count: { _all: true }
+        }),
+        prisma.collectionTask.findFirstOrThrow({
+          where: { invoiceId: fixture.invoiceId }
         })
       ]);
 
@@ -50,6 +53,8 @@ describe("concurrency-safe payment recording", () => {
       });
       expect(payments._sum.amount).toBe(1_000);
       expect(payments._count._all).toBe(2);
+      expect(collectionTask.status).toBe("Done");
+      expect(collectionTask.notes).toContain("paid in full");
     } finally {
       await removeInvoiceFixture(fixture);
     }
@@ -106,6 +111,11 @@ describe("concurrency-safe payment recording", () => {
       });
       expect(payments._sum.amount).toBe(600);
       expect(payments._count._all).toBe(1);
+      expect(
+        await prisma.collectionTask.findFirstOrThrow({
+          where: { invoiceId: fixture.invoiceId }
+        })
+      ).toMatchObject({ status: "Planned", notes: "Initial collection" });
     } finally {
       await removeInvoiceFixture(fixture);
     }
@@ -132,7 +142,8 @@ async function createInvoiceFixture(totalAmount: number) {
       orderDate: new Date(),
       status: "Invoiced",
       subtotal: totalAmount,
-      total: totalAmount
+      total: totalAmount,
+      netSalesAmount: totalAmount
     }
   });
   const invoice = await prisma.invoice.create({
@@ -143,9 +154,19 @@ async function createInvoiceFixture(totalAmount: number) {
       issueDate: new Date(),
       dueDate: new Date("2099-12-31T00:00:00.000Z"),
       totalAmount,
+      netSalesAmount: totalAmount,
       paidAmount: 0,
       remainingAmount: totalAmount,
       status: "Unpaid"
+    }
+  });
+  await prisma.collectionTask.create({
+    data: {
+      customerId: customer.id,
+      invoiceId: invoice.id,
+      scheduledDate: new Date("2099-12-25T00:00:00.000Z"),
+      status: "Planned",
+      notes: "Initial collection"
     }
   });
 
@@ -189,6 +210,9 @@ async function removeInvoiceFixture(fixture: {
   invoiceId: string;
 }) {
   await prisma.$transaction([
+    prisma.collectionTask.deleteMany({
+      where: { invoiceId: fixture.invoiceId }
+    }),
     prisma.invoice.deleteMany({
       where: { id: fixture.invoiceId }
     }),

@@ -15,6 +15,9 @@ export function getEffectiveInvoiceStatus(
   if (invoice.status === "Cancelled") {
     return "Cancelled";
   }
+  if (invoice.status === "Paid") {
+    return "Paid";
+  }
 
   return calculateInvoiceStatus({
     totalAmount: invoice.totalAmount,
@@ -37,13 +40,13 @@ export function withEffectiveInvoiceStatus<T extends InvoiceStatusSource>(
 export function getOpenInvoiceWhere(): Prisma.InvoiceWhereInput {
   return {
     remainingAmount: { gt: 0 },
-    status: { not: "Cancelled" }
+    status: { notIn: ["Paid", "Cancelled"] }
   };
 }
 
 export function getClosedInvoiceWhere(): Prisma.InvoiceWhereInput {
   return {
-    OR: [{ remainingAmount: { lte: 0 } }, { status: "Cancelled" }]
+    OR: [{ remainingAmount: { lte: 0 } }, { status: { in: ["Paid", "Cancelled"] } }]
   };
 }
 
@@ -58,21 +61,21 @@ export function getEffectiveInvoiceStatusWhere(
       return {
         dueDate: { lt: today },
         remainingAmount: { gt: 0 },
-        status: { not: "Cancelled" }
+        status: { notIn: ["Paid", "Cancelled"] }
       };
     case "Partial":
       return {
         dueDate: { gte: today },
         paidAmount: { gt: 0 },
         remainingAmount: { gt: 0 },
-        status: { not: "Cancelled" }
+        status: { notIn: ["Paid", "Cancelled"] }
       };
     case "Unpaid":
       return {
         dueDate: { gte: today },
         paidAmount: { lte: 0 },
         remainingAmount: { gt: 0 },
-        status: { not: "Cancelled" }
+        status: { notIn: ["Paid", "Cancelled"] }
       };
     case "Paid":
       return {

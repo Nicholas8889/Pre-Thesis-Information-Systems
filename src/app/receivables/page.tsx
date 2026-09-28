@@ -1,9 +1,8 @@
 import Link from "next/link";
-import type { InvoiceStatus, Prisma } from "@prisma/client";
-import { Eye, Filter, Handshake } from "lucide-react";
+import { Eye, Filter, Handshake, Search } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import { ProcessTabs, normalizeProcessTab } from "@/components/process-tabs";
+import { ProcessTabs } from "@/components/process-tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusStack } from "@/components/status-stack";
 import { TableActionGroup, TableActionLink } from "@/components/table-actions";
@@ -11,17 +10,20 @@ import { ServerPagination } from "@/components/server-pagination";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getPaymentTermLabel } from "@/lib/calculations";
-import {
-  getClosedInvoiceWhere,
-  getEffectiveInvoiceStatusWhere,
-  getOpenInvoiceWhere,
-  withEffectiveInvoiceStatus
-} from "@/lib/invoice-status";
+import { withEffectiveInvoiceStatus } from "@/lib/invoice-status";
 import {
   getCursorArgs,
   getCursorPage,
   getCursorPagination
 } from "@/lib/pagination";
+import { requireCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
+import {
+  buildReceivableOrderBy,
+  buildReceivableWhere,
+  getReceivableStatusOptions,
+  parseReceivableFilters,
+} from "@/lib/receivable-query";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -31,38 +33,44 @@ export default async function ReceivablesPage({
   searchParams?: Promise<SearchParams>;
 }) {
   const params = (await searchParams) ?? {};
-  const status = getFirst(params.status);
-  const activeTab = normalizeProcessTab(params.tab);
+  const filters = parseReceivableFilters({
+    tab: getFirst(params.tab),
+    status: getFirst(params.status),
+    query: getFirst(params.q),
+    sort: getFirst(params.sort),
+    direction: getFirst(params.direction),
+  });
+  const activeTab = filters.tab;
   const pagination = getCursorPagination(params);
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
   const now = new Date();
-  const statusOptions =
-    activeTab === "done" ? ["All", "Paid", "Cancelled"] : ["All", "Unpaid", "Partial", "Overdue"];
-  const activeStatus = statusOptions.includes(status ?? "") ? status : undefined;
-  const ongoingWhere = getOpenInvoiceWhere();
-  const doneWhere = getClosedInvoiceWhere();
-  const tabWhere = activeTab === "done" ? doneWhere : ongoingWhere;
-  const visibleWhere: Prisma.InvoiceWhereInput =
-    activeStatus && activeStatus !== "All"
-      ? {
-          AND: [
-            tabWhere,
-            getEffectiveInvoiceStatusWhere(activeStatus as InvoiceStatus, now)
-          ]
-        }
-      : tabWhere;
+  const statusOptions = getReceivableStatusOptions(activeTab);
+  const visibleWhere = buildReceivableWhere(filters, now, portfolio.invoiceWhere);
+  const ongoingWhere = buildReceivableWhere(
+    { ...filters, tab: "ongoing", status: null },
+    now,
+    portfolio.invoiceWhere,
+  );
+  const doneWhere = buildReceivableWhere(
+    { ...filters, tab: "done", status: null },
+    now,
+    portfolio.invoiceWhere,
+  );
 
   const [invoiceRecords, ongoingCount, doneCount, filteredCount, remainingAggregate] =
     await Promise.all([
       prisma.invoice.findMany({
         where: visibleWhere,
-        orderBy: [{ status: "asc" }, { dueDate: "asc" }, { id: "asc" }],
+        orderBy: buildReceivableOrderBy(filters),
         ...getCursorArgs(pagination),
         include: {
           customer: true,
           salesOrder: {
             select: {
               id: true,
-              orderNumber: true
+              orderNumber: true,
+              source: true,
             }
           }
         }
@@ -93,6 +101,8 @@ export default async function ReceivablesPage({
         activeTab={activeTab}
         ongoingCount={ongoingCount}
         doneCount={doneCount}
+        searchParams={params}
+        preserveParams={["q", "sort", "direction"]}
       />
 
       {activeTab === "ongoing" && (
@@ -109,26 +119,30 @@ export default async function ReceivablesPage({
       )}
 
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Filter aria-hidden="true" className="h-4 w-4 text-brand" />
-          {statusOptions.map((item) => (
-            <Link
-              key={item}
-              href={
-                item === "All"
-                  ? `/receivables?tab=${activeTab}`
-                  : `/receivables?tab=${activeTab}&status=${item}`
-              }
-              className={`rounded-md border px-3 py-2 text-sm font-semibold ${
-                (activeStatus ?? "All") === item
-                  ? "border-brand bg-brand text-white"
-                  : "border-line text-ink/80"
-              }`}
-            >
-              {item}
-            </Link>
-          ))}
-        </div>
+        <form className="mb-4 grid gap-3 rounded-md border border-line bg-soft/40 p-3 md:grid-cols-[minmax(220px,1fr)_150px_150px_130px_auto]">
+          <input type="hidden" name="tab" value={activeTab} />
+          <label className="relative">
+            <span className="sr-only">Search receivables</span>
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink/50" />
+            <input name="q" defaultValue={filters.query} placeholder="Invoice, customer, or sales order" className="h-10 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-brand" />
+          </label>
+          <label className="relative">
+            <span className="sr-only">Receivable status</span>
+            <Filter aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink/50" />
+            <select name="status" defaultValue={filters.status ?? "All"} className="h-10 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm">
+              {statusOptions.map(item => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <select name="sort" defaultValue={filters.sort} aria-label="Receivable sort" className="h-10 rounded-md border border-line bg-white px-3 text-sm">
+            <option value="dueDate">Due date</option>
+            <option value="amount">Remaining amount</option>
+          </select>
+          <select name="direction" defaultValue={filters.direction} aria-label="Sort direction" className="h-10 rounded-md border border-line bg-white px-3 text-sm">
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+          <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
+        </form>
 
         {receivables.length === 0 ? (
           <EmptyState
@@ -154,12 +168,14 @@ export default async function ReceivablesPage({
               <tbody className="divide-y divide-line text-sm">
                 {receivables.map((invoice) => (
                   <tr key={invoice.id} className="transition hover:bg-soft">
-                    <td className="py-3 pr-4 font-medium">{invoice.invoiceNumber}</td>
-                    <td className="py-3 pr-4 text-ink/80">
-                      {invoice.salesOrder.orderNumber}
+                    <td className="py-3 pr-4 font-medium">
+                      <Link className="text-brand hover:underline" href={`/invoices?view=${invoice.id}`}>{invoice.invoiceNumber}</Link>
                     </td>
                     <td className="py-3 pr-4 text-ink/80">
-                      {invoice.customer.companyName}
+                      <Link className="text-brand hover:underline" href={`${invoice.salesOrder.source === "CUSTOMER_PO" ? "/customer-purchase-orders" : "/sales-orders"}/${invoice.salesOrder.id}`}>{invoice.salesOrder.orderNumber}</Link>
+                    </td>
+                    <td className="py-3 pr-4 text-ink/80">
+                      <Link className="text-brand hover:underline" href={`/customers?view=${invoice.customerId}`}>{invoice.customer.companyName}</Link>
                     </td>
                     <td className="py-3 pr-4 text-ink/80">
                       {getPaymentTermLabel({
@@ -190,9 +206,12 @@ export default async function ReceivablesPage({
                     <td className="py-3">
                       <TableActionGroup>
                         <TableActionLink
-                          href={`/sales-orders/${invoice.salesOrderId}`}
-                          label="View Sales Order"
+                          href={`/invoices?view=${invoice.id}`}
+                          label="View Invoice"
                         >
+                          <Eye aria-hidden="true" />
+                        </TableActionLink>
+                        <TableActionLink href={`/customers?view=${invoice.customerId}`} label="View Customer">
                           <Eye aria-hidden="true" />
                         </TableActionLink>
                         {activeTab === "ongoing" && (
@@ -218,6 +237,7 @@ export default async function ReceivablesPage({
           pathname="/receivables"
           searchParams={params}
           state={pagination}
+          preserveParams={["tab", "status", "q", "sort", "direction"]}
         />
       </section>
     </>

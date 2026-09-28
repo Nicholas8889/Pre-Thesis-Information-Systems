@@ -5,11 +5,15 @@ import { formatCurrency } from "../../src/lib/format";
 
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
-  findUnique: vi.fn()
+  findFirst: vi.fn(),
+  count: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { customer: { findMany: mocks.findMany, findUnique: mocks.findUnique } }
+  prisma: { customer: { findMany: mocks.findMany, findFirst: mocks.findFirst, count: mocks.count } }
+}));
+vi.mock("@/lib/session", () => ({
+  requireCurrentUser: vi.fn(async () => ({ id: "admin", role: "ADMIN" }))
 }));
 vi.mock("@/lib/actions", () => ({
   createCustomer: vi.fn(), updateCustomer: vi.fn(), updateCustomerStatus: vi.fn()
@@ -28,6 +32,7 @@ describe("Customer Records payment display", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("React", React);
+    mocks.count.mockResolvedValue(1);
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -41,7 +46,7 @@ describe("Customer Records payment display", () => {
         remainingAmount: 900_000, status: "Unpaid", deliveryNotes: [{ status: "Issued" }], salesOrder: { deliveryNotes: [] } }
     ] };
     mocks.findMany.mockResolvedValue([record]);
-    mocks.findUnique.mockResolvedValue(record);
+    mocks.findFirst.mockResolvedValue(record);
 
     const html = renderToStaticMarkup(await CustomersPage({
       searchParams: Promise.resolve({ view: customer.id })
@@ -66,7 +71,7 @@ describe("Customer Records payment display", () => {
         remainingAmount: 0, status: "Paid", deliveryNotes: [{ status: "Delivered" }], salesOrder: { deliveryNotes: [] } }
     ] };
     mocks.findMany.mockResolvedValue([record]);
-    mocks.findUnique.mockResolvedValue(record);
+    mocks.findFirst.mockResolvedValue(record);
 
     const html = renderToStaticMarkup(await CustomersPage({
       searchParams: Promise.resolve({ view: customer.id })
@@ -86,7 +91,7 @@ describe("Customer Records payment display", () => {
       remainingAmount: 1_850_000, status: "Unpaid", deliveryNotes: [{ status: "Issued" }], salesOrder: { deliveryNotes: [] }
     }] };
     mocks.findMany.mockResolvedValue([record]);
-    mocks.findUnique.mockResolvedValue(record);
+    mocks.findFirst.mockResolvedValue(record);
 
     const renderPage = async () => renderToStaticMarkup(await CustomersPage({
       searchParams: Promise.resolve({ view: customer.id })

@@ -9,6 +9,9 @@ import {
 import { customerInvoiceBalanceSelect } from "@/lib/customer-payment-query";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { buildPortfolioScope } from "@/lib/portfolio-scope";
+import { getCustomerPaymentReliability } from "@/lib/customer-payment-reliability";
+import { buildCustomerWhere, parseCustomerListFilters } from "@/lib/customer-query";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +38,7 @@ export async function GET(request: NextRequest) {
   if (!currentUser || currentUser.status !== "Active") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const portfolio = buildPortfolioScope(currentUser);
 
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   const status = parseCustomerExportStatus(request.nextUrl.searchParams.get("status"));
@@ -50,11 +54,13 @@ export async function GET(request: NextRequest) {
   const { observationStart, observationEnd } =
     getJakartaTrailingTwelveMonthWindow(exportedAt);
   const customers = await prisma.customer.findMany({
-    where: getCustomerExportFilter(query, status),
-    orderBy: [{ companyName: "asc" }, { name: "asc" }],
+    where: buildCustomerWhere(
+      parseCustomerListFilters({ query, status, sort: "company", direction: "asc" }),
+      portfolio.customerWhere,
+    ),
+    orderBy: [{ companyName: "asc" }, { name: "asc" }, { id: "asc" }],
     include: {
       invoices: {
-        where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
         select: customerInvoiceBalanceSelect
       },
       salesOrders: {
@@ -97,19 +103,9 @@ export function getCustomerExportFilter(
   query: string,
   status: CustomerExportStatus
 ): Prisma.CustomerWhereInput {
-  return {
-    ...(status === "ALL" ? {} : { status }),
-    ...(query
-      ? {
-          OR: [
-            { name: { contains: query } },
-            { companyName: { contains: query } },
-            { phone: { contains: query } },
-            { email: { contains: query } }
-          ]
-        }
-      : {})
-  };
+  return buildCustomerWhere(
+    parseCustomerListFilters({ query, status, sort: "company", direction: "asc" }),
+  );
 }
 
 export function createCustomerWorkbook({
@@ -147,16 +143,19 @@ export function createCustomerWorkbook({
     { header: "Open Invoices", key: "openInvoiceCount", width: 15 },
     { header: "Payment Behaviour (12 Months)", key: "paymentBehaviour", width: 29 },
     { header: "Eligible Orders (12 Months)", key: "eligibleOrderCount", width: 27 },
+    { header: "Payment Reliability (12 Months)", key: "paymentReliability", width: 31 },
+    { header: "Eligible Settled Invoices", key: "eligibleSettledInvoiceCount", width: 25 },
+    { header: "On-Time Percentage", key: "onTimePercentage", width: 21 },
     { header: "Notes", key: "notes", width: 38 },
     { header: "Created At", key: "createdAt", width: 20 },
     { header: "Updated At", key: "updatedAt", width: 20 }
   ];
 
-  worksheet.mergeCells("A1:P1");
+  worksheet.mergeCells("A1:S1");
   worksheet.getCell("A1").value = "CV TAJUK - CUSTOMER DATA";
-  worksheet.mergeCells("A2:P2");
+  worksheet.mergeCells("A2:S2");
   worksheet.getCell("A2").value = `Filter: ${formatStatusLabel(status)}${query ? ` | Search: ${query}` : ""}`;
-  worksheet.mergeCells("A3:P3");
+  worksheet.mergeCells("A3:S3");
   worksheet.getCell("A3").value = `Exported by ${exportedBy} on ${formatDateTime(exportedAt)}`;
   worksheet.getRow(5).values = [
     "Contact Name",
@@ -172,6 +171,9 @@ export function createCustomerWorkbook({
     "Open Invoices",
     "Payment Behaviour (12 Months)",
     "Eligible Orders (12 Months)",
+    "Payment Reliability (12 Months)",
+    "Eligible Settled Invoices",
+    "On-Time Percentage",
     "Notes",
     "Created At",
     "Updated At"
@@ -180,6 +182,7 @@ export function createCustomerWorkbook({
   for (const customer of customers) {
     const paymentSummary = getCustomerPaymentSummary(customer);
     const paymentBehaviour = getCustomerPaymentBehaviour(customer, exportedAt);
+    const paymentReliability = getCustomerPaymentReliability(customer, exportedAt);
     worksheet.addRow({
       contactName: customer.name,
       company: customer.companyName,
@@ -194,6 +197,11 @@ export function createCustomerWorkbook({
       openInvoiceCount: paymentSummary.openInvoiceCount,
       paymentBehaviour: paymentBehaviour.behaviour,
       eligibleOrderCount: paymentBehaviour.orderCount,
+      paymentReliability: paymentReliability.label,
+      eligibleSettledInvoiceCount: paymentReliability.eligibleInvoiceCount,
+      onTimePercentage: paymentReliability.onTimePercentage === null
+        ? "-"
+        : `${paymentReliability.onTimePercentage}%`,
       notes: customer.notes ?? "",
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt
@@ -201,7 +209,7 @@ export function createCustomerWorkbook({
   }
 
   styleCustomerWorksheet(worksheet, customers.length + 5);
-  worksheet.autoFilter = `A5:P${Math.max(5, customers.length + 5)}`;
+  worksheet.autoFilter = `A5:S${Math.max(5, customers.length + 5)}`;
   return workbook;
 }
 
@@ -247,8 +255,8 @@ function styleCustomerWorksheet(worksheet: ExcelJS.Worksheet, lastRow: number) {
   }
 
   worksheet.getColumn("J").numFmt = '[$Rp-421] #,##0';
-  worksheet.getColumn("O").numFmt = "dd mmm yyyy hh:mm";
-  worksheet.getColumn("P").numFmt = "dd mmm yyyy hh:mm";
+  worksheet.getColumn("R").numFmt = "dd mmm yyyy hh:mm";
+  worksheet.getColumn("S").numFmt = "dd mmm yyyy hh:mm";
 }
 
 function parseCustomerExportStatus(value: string | null): CustomerExportStatus | null {

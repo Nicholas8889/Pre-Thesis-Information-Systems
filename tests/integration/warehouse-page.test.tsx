@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   note: vi.fn(),
   user: vi.fn(),
+  customers: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -23,6 +24,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     pickingList: {
       findMany: mocks.lists,
+      findFirst: mocks.list,
       findUnique: mocks.list,
       count: mocks.listCount,
     },
@@ -31,6 +33,9 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: mocks.noteFirst,
       findUnique: mocks.note,
       count: mocks.noteCount,
+    },
+    customer: {
+      findMany: mocks.customers,
     },
   },
 }));
@@ -55,6 +60,7 @@ const order = {
   orderNumber: "SO-READY",
   customerPoNumber: null,
   customerId: "customer",
+  deliveryDestinationSnapshot: "Destination",
   status: "Invoiced",
   approvalStatus: "Approved",
   requiredDate: null,
@@ -125,9 +131,12 @@ describe("warehouse tabs and print views", () => {
       },
     ]);
     mocks.notes.mockResolvedValue(notes);
-    mocks.noteFirst.mockResolvedValue(null);
+    mocks.noteFirst.mockImplementation(async (args) =>
+      args?.where?.id ? mocks.note(args) : null
+    );
     mocks.noteCount.mockResolvedValue(1);
     mocks.note.mockResolvedValue(null);
+    mocks.customers.mockResolvedValue([]);
     mocks.list.mockResolvedValue(list);
     mocks.listCount.mockImplementation(async ({ where }) =>
       Array.isArray(where?.status?.in) ? 0 : 2,
@@ -284,6 +293,21 @@ describe("warehouse tabs and print views", () => {
   });
 
   it("filters Completed by search, picker, date, and Surat Jalan state", async () => {
+    mocks.lists.mockImplementationOnce(async ({ where }) => {
+      const predicate = JSON.stringify(where);
+      expect(predicate).toContain("ALREADY-ISSUED");
+      expect(predicate).toContain("Picker");
+      expect(predicate).toContain("packedAt");
+      expect(predicate).toContain("Issued");
+      return [
+        {
+          ...list,
+          id: "issued-list",
+          pickingListNumber: "PL-ALREADY-ISSUED",
+          deliveryNote: notes[0],
+        },
+      ];
+    });
     const searchHtml = renderToStaticMarkup(
       await PickPackPage({
         searchParams: Promise.resolve({
@@ -299,6 +323,7 @@ describe("warehouse tabs and print views", () => {
     expect(searchHtml).toContain("PL-ALREADY-ISSUED");
     expect(searchHtml).not.toContain(">PL-PACKED<");
 
+    mocks.lists.mockResolvedValueOnce([]);
     const emptyHtml = renderToStaticMarkup(
       await PickPackPage({
         searchParams: Promise.resolve({

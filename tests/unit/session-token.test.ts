@@ -21,6 +21,7 @@ describe("signed session tokens", () => {
       userId: "user-1",
       username: "admin",
       role: "ADMIN",
+      sessionVersion: 1,
       exp: Math.floor(Date.now() / 1000) + 60
     });
 
@@ -36,16 +37,30 @@ describe("signed session tokens", () => {
       userId: "user-1",
       username: "admin",
       role: "ADMIN",
+      sessionVersion: 1,
       exp: Math.floor(Date.now() / 1000) - 1
     });
     const valid = await signSession({
       userId: "user-1",
       username: "admin",
       role: "ADMIN",
+      sessionVersion: 1,
       exp: Math.floor(Date.now() / 1000) + 60
     });
 
     await expect(verifySignedSession(expired)).resolves.toBeNull();
     await expect(verifySignedSession(`${valid}tampered`)).resolves.toBeNull();
+  });
+
+  it("rejects legacy sessions without a session version", async () => {
+    const legacy = await signSession({
+      userId: "user-1",
+      username: "admin",
+      role: "ADMIN",
+      sessionVersion: undefined as never,
+      exp: Math.floor(Date.now() / 1000) + 60
+    });
+
+    await expect(verifySignedSession(legacy)).resolves.toBeNull();
   });
 });
