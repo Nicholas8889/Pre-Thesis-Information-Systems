@@ -91,7 +91,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       title: "Customer Purchase Orders Help",
       purpose: "Use Customer Purchase Orders to manage orders received from customer POs and monitor product required dates.",
       steps: [
-        "Create a Customer PO using the required date and uploaded customer PO document; the system generates both Sales Order Number and Customer PO Number.",
+        "Create a Customer PO using the required date and uploaded customer PO document. Enter a Customer PO Number or leave it blank for automatic numbering; Sales Order Number is generated automatically.",
         "Review the same customer, product, PPN, and Net Sales estimates used by Direct Sales Orders before confirming.",
         "Review the PO detail and process it before the required date reminder becomes overdue.",
         "Continue with invoice, payment, receivable, collection, and Surat Jalan using the same process as Sales Orders."

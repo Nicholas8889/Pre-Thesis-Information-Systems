@@ -229,7 +229,7 @@ This is a thesis project. It now supports local demo usage and Vercel/Supabase d
 2. Open Customers and select Add Customer.
 3. Open Customer Inquiries, select Add Inquiry, choose the customer, and add requested item data.
 4. Convert the inquiry to Sales Order for a normal order or Customer PO when the customer has a PO.
-5. Complete order or PO details, choose Immediate Payment or Credit payment terms, and save.
+5. Complete order or PO details, choose Immediate Payment or Credit payment terms, and save. For Customer PO, optionally enter a unique Customer PO Number (up to 120 characters); leave it blank to generate one automatically. The Sales Order Number is always generated automatically.
 6. If Sales created the order for a customer with outstanding payments, use Manager access to review it in Need Approval. Review the Customer PO document when applicable, then approve it or provide a required reason to reject it.
 7. Use Admin or Manager access to generate the invoice from an eligible order for a Clean customer. Manager approval generates the invoice automatically for an order requiring approval.
 8. Open Invoices and select View / Print Invoice to show the printable invoice output.

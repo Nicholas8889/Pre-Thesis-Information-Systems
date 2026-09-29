@@ -145,15 +145,19 @@ export function SalesOrderForm({
 
       {isCustomerPo && (
         <div className="grid gap-4 rounded-md border border-line bg-accent/10 p-4 md:grid-cols-2">
-          <div className="text-sm font-medium text-ink">
-            Generated IDs
-            <div className="mt-1 rounded-md border border-line bg-white px-3 py-2 text-sm font-semibold text-ink">
-              Sales Order Number and Customer PO Number are generated after save.
-            </div>
+          <label className="text-sm font-medium text-ink">
+            Customer PO Number (Optional)
+            <input
+              name="customerPoNumber"
+              type="text"
+              maxLength={120}
+              placeholder="Leave blank to generate automatically"
+              className={`${inputClass} mt-1 bg-white`}
+            />
             <span className="mt-1 block text-xs font-normal text-ink/70">
-              Customer Purchase Orders receive both an SO number and a PO number.
+              Enter the number from the customer PO document, or leave blank for automatic numbering. Sales Order Number is generated automatically.
             </span>
-          </div>
+          </label>
 
           <label className="text-sm font-medium text-ink">
             Product Required Date
@@ -455,10 +459,6 @@ export function SalesOrderForm({
                       <InsightMetric
                         label="Selisih Persentase"
                         value={formatSignedPercentage(comparison.percentageDifference)}
-                      />
-                      <InsightMetric
-                        label="Comparison"
-                        value={comparison.comparison[0].toUpperCase() + comparison.comparison.slice(1)}
                       />
                     </>
                   )}

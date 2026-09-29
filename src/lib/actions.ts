@@ -581,6 +581,14 @@ export async function createSalesOrder(formData: FormData) {
   const basePath = isCustomerPo ? "/customer-purchase-orders" : "/sales-orders";
   const moduleName = isCustomerPo ? "Customer Purchase Orders" : "Sales Orders";
   const orderLabel = isCustomerPo ? "Customer PO" : "Sales order";
+  const customerPoNumberEntry = isCustomerPo ? formData.get("customerPoNumber") : null;
+  if (customerPoNumberEntry !== null && typeof customerPoNumberEntry !== "string") {
+    redirectWithMessage(`${basePath}?mode=create`, "error", "Customer PO Number must be entered as text");
+  }
+  const requestedCustomerPoNumber = typeof customerPoNumberEntry === "string" ? customerPoNumberEntry.trim() : "";
+  if (requestedCustomerPoNumber.length > 120 || /[\u0000-\u001f\u007f]/.test(requestedCustomerPoNumber)) {
+    redirectWithMessage(`${basePath}?mode=create`, "error", "Customer PO Number must be a single line of 120 characters or fewer");
+  }
   const customerId = getRequiredString(formData, "customerId");
   const inquiryId = getString(formData, "inquiryId");
   const idempotencyKey = getString(formData, "idempotencyKey") || randomUUID();
@@ -748,6 +756,12 @@ export async function createSalesOrder(formData: FormData) {
       "Upload a non-empty PDF document with a valid PDF signature (maximum 8 MB)"
     );
   }
+  if (requestedCustomerPoNumber && await prisma.salesOrder.findUnique({
+    where: { customerPoNumber: requestedCustomerPoNumber },
+    select: { id: true }
+  })) {
+    redirectWithMessage(`${basePath}?mode=create`, "error", "Customer PO Number is already used. Enter a different number or leave it blank to generate automatically");
+  }
   const storedDocument = customerPoDocument
     ? await uploadCustomerPoDocument(customerPoDocument)
     : null;
@@ -774,7 +788,9 @@ export async function createSalesOrder(formData: FormData) {
 
   const [orderNumber, customerPoNumber, invoiceNumber] = await Promise.all([
     allocateDocumentNumber("SO", getJakartaDocumentYear(issueDate)),
-    isCustomerPo ? allocateDocumentNumber("PO", getJakartaDocumentYear(issueDate)) : Promise.resolve(null),
+    isCustomerPo
+      ? requestedCustomerPoNumber || allocateAvailableCustomerPoNumber(getJakartaDocumentYear(issueDate))
+      : Promise.resolve(null),
     createsInvoice ? allocateDocumentNumber("INV", getJakartaDocumentYear(issueDate)) : Promise.resolve(null)
   ]);
   let result: {
@@ -985,6 +1001,9 @@ export async function createSalesOrder(formData: FormData) {
     if (isUniqueFieldCollision(error, "idempotency_key") || isUniqueFieldCollision(error, "idempotencyKey")) {
       const existing = await prisma.salesOrder.findUnique({ where: { idempotencyKey }, select: { id: true } });
       if (existing) redirectWithMessage(`${basePath}?view=${existing.id}`, "success", `${orderLabel} already created`);
+    }
+    if (isUniqueFieldCollision(error, "customer_po_number") || isUniqueFieldCollision(error, "customerPoNumber")) {
+      redirectWithMessage(`${basePath}?mode=create`, "error", "Customer PO Number is already used. Enter a different number or leave it blank to generate automatically");
     }
     throw error;
   }
@@ -2973,6 +2992,18 @@ async function withDeliveryNoteNumberRetry<T>(operation: () => Promise<T>): Prom
     }
   }
   throw new Error("Unable to allocate a Surat Jalan number");
+}
+
+async function allocateAvailableCustomerPoNumber(year: number) {
+  // A customer-entered reference may already use the automatic number format.
+  while (true) {
+    const number = await allocateDocumentNumber("PO", year);
+    const existing = await prisma.salesOrder.findUnique({
+      where: { customerPoNumber: number },
+      select: { id: true }
+    });
+    if (!existing) return number;
+  }
 }
 
 function getString(formData: FormData, name: string) {

@@ -300,7 +300,7 @@ export async function OrdersBySourcePage({
           <h2 className="mb-2 text-lg font-semibold">Create {createLabel}</h2>
           <p className="mb-4 text-sm leading-6 text-ink/80">
             {isCustomerPo
-              ? "Record the customer PO document and product required date. The system generates both a Sales Order Number and Customer PO Number, then invoice, payment, delivery note, receivable, and collection work continue through the same process as a direct Sales Order. Customer POs entered by Sales for customers with outstanding payments are submitted to a Manager first."
+              ? "Record the customer PO document and product required date. Enter a Customer PO Number or leave it blank for automatic numbering. The system generates a Sales Order Number, then invoice, payment, delivery note, receivable, and collection work continue through the same process as a direct Sales Order. Customer POs entered by Sales for customers with outstanding payments are submitted to a Manager first."
               : "Start from a direct Sales Order, then the system generates an invoice and connects payment, delivery note, receivable, and collection work. Orders created by Sales for customers with outstanding payments are submitted to a Manager first."}
           </p>
           {customers.length === 0 ? (
@@ -701,7 +701,7 @@ function SalesOrderSourceDialog() {
             <ClipboardList aria-hidden="true" className="h-7 w-7 text-brand" />
             <h3 className="mt-3 font-semibold text-ink">Customer PO</h3>
             <p className="mt-1 text-sm leading-6 text-ink/80">
-              Generates a Sales Order Number and Customer PO Number, requires a product required date and document upload, and follows the same risk-based Manager approval as a direct Sales Order.
+              Accepts a Customer PO Number or generates one when blank, generates a Sales Order Number, requires a product required date and document upload, and follows the same risk-based Manager approval as a direct Sales Order.
             </p>
           </Link>
         </div>
