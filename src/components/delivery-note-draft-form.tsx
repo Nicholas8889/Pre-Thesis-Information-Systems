@@ -113,7 +113,7 @@ export function DeliveryNoteDraftForm({ note }: { note: DraftNote }) {
               <th className="py-3 pr-4">SO / Customer PO</th>
               <th className="py-3 pr-4">Product</th>
               <th className="py-3 pr-4 text-right">Ordered</th>
-              <th className="py-3 pr-4 text-right">Packed</th>
+              <th className="py-3 pr-4 text-right">Ready to ship</th>
               <th className="py-3 pr-4 text-right">Send</th>
               <th className="py-3 pr-4 text-right">Outstanding</th>
               <th className="py-3">Adjustment note</th>
@@ -130,7 +130,7 @@ export function DeliveryNoteDraftForm({ note }: { note: DraftNote }) {
                   <td className="py-3 pr-4 font-medium">
                     {item.itemName}
                     <span className="block text-xs font-normal text-ink/60">
-                      {fulfillmentShortage > 0 ? `Pick & Pack shortage: ${fulfillmentShortage}` : "Packed in full"}
+                      {fulfillmentShortage > 0 ? `Historical preparation difference: ${fulfillmentShortage}` : "Ready to ship"}
                       {deliveryReduction > 0 ? ` · Draft reduction: ${deliveryReduction}` : ""}
                     </span>
                   </td>

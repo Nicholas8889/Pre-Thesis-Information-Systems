@@ -237,16 +237,40 @@ describe("warehouse tabs and print views", () => {
         canManage
       />,
     );
-    expect(pending).toContain("Complete Pick &amp; Pack");
+    expect(pending).toContain("Lanjut ke Pack");
     expect(pending).not.toContain("Create Surat Jalan");
     expect(pending).not.toContain("Reopen");
-    expect(pending).toContain('name="availability_line"');
-    expect(pending).toContain('name="available_line"');
-    expect(pending).toContain('name="packed_line"');
-    expect(pending).toContain("Picking PIC");
-    expect(pending).toContain("Packing PIC");
-    expect(pending).toContain("Shortage");
+    expect(pending).not.toContain('type="checkbox"');
+    expect(pending).not.toContain('type="number"');
+    expect(pending).not.toContain('name="availability_line"');
+    expect(pending).not.toContain('name="available_line"');
+    expect(pending).not.toContain('name="packed_line"');
+    expect(pending).toContain("PIC Pick &amp; Pack");
+    expect(pending).not.toContain("Packing PIC");
+    expect(pending).not.toContain("Shortage");
     expect(pending).not.toContain("Package count / Koli");
+  });
+  it("shows checks only in Pack and locks completed checklist sheets", () => {
+    const packList = { ...list, usesChecklist: true, status: "InProgress", packedAt: null,
+      items: list.items.map(item => ({ ...item, isChecked: false })) };
+    const pack = renderToStaticMarkup(<PickingListPanel list={packList as never} canManage />);
+    expect(pack).toContain('type="checkbox"');
+    expect(pack).toContain('name="checkedItemId"');
+    expect(pack).toContain("Save Progress");
+    expect(pack).toMatch(/value="complete" disabled=""/);
+    expect(pack).not.toContain('type="number"');
+    expect(pack).not.toContain("Packing PIC");
+    expect(pack).not.toContain("Shortage");
+    const allChecked = { ...packList, items: packList.items.map(item => ({ ...item, isChecked: true })) };
+    const ready = renderToStaticMarkup(<PickingListPanel list={allChecked as never} canManage />);
+    expect(ready).toMatch(/value="complete" class=/);
+    const done = renderToStaticMarkup(<PickingListPanel list={{ ...allChecked, status: "Packed", packedAt: list.packedAt } as never} canManage />);
+    expect(done).toContain('disabled=""');
+    expect(done).toContain("Reopen");
+    expect(done).not.toContain("Selesaikan Pick");
+    const sales = renderToStaticMarkup(<PickingListPanel list={packList as never} canManage={false} />);
+    expect(sales).toContain('disabled=""');
+    expect(sales).not.toContain("Save Progress");
   });
   it("prints quantities, discrepancy fields and signatures without financial data", async () => {
     const html = renderToStaticMarkup(
@@ -267,6 +291,30 @@ describe("warehouse tabs and print views", () => {
       expect(html).toContain(label);
     for (const label of ["Package count / Koli", "Unit Price", "Subtotal", "Discount", "PPN", "Rp"])
       expect(html).not.toContain(label);
+  });
+  it("prints the checklist with one PIC and keeps Pick free of checkboxes", async () => {
+    const sheet = { ...list, usesChecklist: true,
+      items: list.items.map(item => ({ ...item, isChecked: true })) };
+    mocks.list.mockResolvedValue(sheet);
+    const completed = renderToStaticMarkup(await PrintPage({ params: Promise.resolve({ pickingListId: sheet.id }) }));
+    expect(completed).toContain("PICK &amp; PACK SHEET");
+    expect(completed).toContain("PIC Pick &amp; Pack");
+    expect(completed).toContain("Sudah diperiksa");
+    for (const label of ["Availability", "Available", "Shortage", "Packing PIC", "Package count", "Subtotal", "PPN", "Rp"]) expect(completed).not.toContain(label);
+    mocks.list.mockResolvedValue({ ...sheet, status: "Pending", packedAt: null });
+    const pick = renderToStaticMarkup(await PrintPage({ params: Promise.resolve({ pickingListId: sheet.id }) }));
+    expect(pick).not.toContain("Pack check");
+    expect(pick).not.toContain("Sudah diperiksa");
+    expect(pick).toContain("Ordered quantity");
+  });
+  it("Completed has a single PIC/filter, check counts and print for new sheets", async () => {
+    mocks.lists.mockResolvedValue([{ ...list, usesChecklist: true,
+      items: list.items.map(item => ({ ...item, isChecked: true })) }]);
+    const html = renderToStaticMarkup(await PickPackPage({ searchParams: Promise.resolve({ tab: "completed" }) }));
+    expect(html).toContain('name="pic"');
+    expect(html).toContain("1 / 1 checked");
+    expect(html).toContain(`/pick-pack/${list.id}/print`);
+    for (const label of ['name="picker"', 'name="packer"', 'name="fulfillment"', "Picking PIC", "Packing PIC", "Shortage", "Fully Packed"]) expect(html).not.toContain(label);
   });
   it("offers only the selected customer's prepared orders in the combined form", () => {
     const candidates = [

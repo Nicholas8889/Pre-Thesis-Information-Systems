@@ -88,9 +88,12 @@ describe("combined delivery with the real database", () => {
         } });
         lists.push(await tx.pickingList.create({ data: {
           pickingListNumber: "PL-" + marker + "-" + index, salesOrderId: order.id, status: "Packed",
-          pickerName: "Picker", packerName: "Packer", packageCount: 1, packedAt: new Date(),
+          usesChecklist: index === 0,
+          pickerName: "Picker", packerName: index === 0 ? null : "Packer", packageCount: index === 0 ? null : 1, packedAt: new Date(),
           items: { create: { salesOrderItemId: order.items[0].id, itemName: "Shared product",
-            orderedQuantity: 10, availableQuantity: 10, packedQuantity: 10, availabilityStatus: "Available" } }
+            orderedQuantity: 10, isChecked: index === 0,
+            availableQuantity: index === 0 ? 0 : 10, packedQuantity: index === 0 ? 0 : 10,
+            availabilityStatus: index === 0 ? "Unchecked" : "Available" } }
         }, include: { items: true } }));
       }
       const summary = async () => getCustomerPaymentSummary(await tx.customer.findUniqueOrThrow({

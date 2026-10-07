@@ -72,6 +72,33 @@
 | Rendered page | customer-records.test.ts | Customer detail and list show Clean before delivery and outstanding afterward, with the correct amount and invoice links; retained customer controls still render. |
 | Approval | sales-order-approval.test.ts | Only Sales orders for customers with a delivered, unpaid invoice require approval; legacy approval snapshots are displayed as review requests. |
 
+## Production Cost Verification (4 October 2026)
+
+| Level | Coverage | Expected result |
+| --- | --- | --- |
+| Unit | `product-cost.test.ts` | Time-weighted rolling 30 days, pre-window carry-forward, partial/missing history, intraday changes, zero costs, future exclusion, and cost percentage denominator. |
+| Unit | `product-cost-actions.test.ts` | Only Admin enters/changes costs; cost changes and product/audit writes share a transaction; metadata edits do not append cost history. |
+| Render | `sales-order-form-pricing.test.tsx` | SO/Customer PO use production cost guidance; PPN is excluded from comparison; serialized order prices stay unchanged. |
+| Database integration | `order-form-insights.test.ts` | Real cost-history query yields a time-weighted average independent of order selling prices; fixtures roll back. |
+| UAT | `UAT-COST-001` | Admin input, read-only cost for other roles, consistent Products/SO/PO references, and unchanged historical snapshots. |
+
+Verification completed: all 350 unit tests passed; the cost-insight database
+integration passed with rolled-back fixtures; changed-file ESLint, source
+TypeScript, Prisma validation, and whitespace checks passed. The migration was
+applied and verified with 14 products, 14 baseline entries, no missing histories,
+and RLS enabled. Browser smoke checks confirmed the existing Products layout,
+Admin-editable/Manager-read-only cost, and matching SO/Customer PO comparisons
+with and without PPN, without submitting business records.
+
+The optimized build compiled, but its route type validation is blocked by the
+pre-existing exported helper `getCustomerExportFilter` in
+`src/app/api/customers/export/route.ts`; production build readiness remains
+unverified for this change.
+
+Follow-up verification on 7 October 2026: the helper export was moved out of the
+Sales Orders route module as part of the SO/PO item editor, and the full
+production build now passes route type validation and static page generation.
+
 ## Picking & Packing Verification (12 September 2026)
 
 | Level | Coverage | Expected result |

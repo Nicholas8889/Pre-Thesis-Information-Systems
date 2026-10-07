@@ -18,7 +18,8 @@ import {
   TableOverflowMenu,
 } from "@/components/table-actions";
 import {
-  canCreateDeliveryFromPickingList,
+  canCreateDeliveryFromSheet,
+  getPickingDeliveryQuantity,
   canFulfillOrder,
 } from "@/lib/picking-list";
 import { formatDate } from "@/lib/format";
@@ -206,8 +207,11 @@ export default async function SuratJalanPage({
       list.status === "Packed" &&
       !list.deliveryNote &&
       canFulfillOrder(list.salesOrder) &&
-      canCreateDeliveryFromPickingList(list.items),
-  );
+      canCreateDeliveryFromSheet(list),
+  ).map(list => ({
+    ...list,
+    items: list.items.map(item => ({ ...item, packedQuantity: getPickingDeliveryQuantity(list, item) })),
+  }));
   const selectedId =
     (requestedNote && visibleStatuses.includes(requestedNote.status)
       ? requestedNote.id
@@ -516,7 +520,7 @@ export default async function SuratJalanPage({
                   <th className="py-3 pr-4">Product Code</th>
                   <th className="py-3 pr-4">Product Name</th>
                   <th className="py-3 pr-4 text-right">Ordered</th>
-                  <th className="py-3 pr-4 text-right">Packed</th>
+                  <th className="py-3 pr-4 text-right">Ready to ship</th>
                   <th className="py-3 pr-4 text-right">Final Send</th>
                   <th className="py-3 pr-4 text-right">Outstanding</th>
                   <th className="py-3 pr-4">Unit</th>

@@ -24,6 +24,33 @@ export type PickingQuantityItem = {
   notes?: string | null;
 };
 
+type DeliverySheet = {
+  status: string;
+  usesChecklist?: boolean;
+  pickerName: string | null;
+  packerName: string | null;
+  items: (PickingQuantityItem & { isChecked?: boolean })[];
+};
+
+// Completed history keeps its recorded quantities. Checklist sheets authorize
+// the order snapshot only after every item has been explicitly checked.
+export function canCreateDeliveryFromSheet(list: DeliverySheet) {
+  if (list.status !== "Packed" || !list.pickerName?.trim()) return false;
+  if (!list.usesChecklist) {
+    return Boolean(list.packerName?.trim()) && canCreateDeliveryFromPickingList(list.items);
+  }
+  return list.items.length > 0 && list.items.every(item =>
+    item.isChecked === true && Number.isSafeInteger(item.orderedQuantity) && item.orderedQuantity > 0,
+  );
+}
+
+export function getPickingDeliveryQuantity(
+  list: { usesChecklist?: boolean },
+  item: { orderedQuantity: number; packedQuantity: number },
+) {
+  return list.usesChecklist ? item.orderedQuantity : item.packedQuantity;
+}
+
 export function canFulfillOrder(order: FulfillmentOrder) {
   return (
     ["Confirmed", "Invoiced"].includes(order.status) &&

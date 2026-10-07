@@ -164,7 +164,7 @@ describe("Picking List to Delivered with the real database", () => {
             ).toBe(0);
             await expect(
               createPickingList(form({ salesOrderId: order.id })),
-            ).rejects.toThrow("Picking+PIC+is+required");
+            ).rejects.toThrow("PIC+Pick+%26+Pack+is+required");
             await expect(
               createPickingList(
                 form({ salesOrderId: order.id, pickerName: "Picking PIC Test" }),
@@ -177,112 +177,48 @@ describe("Picking List to Delivered with the real database", () => {
             await expect(
               createDeliveryNote(form({ pickingListId: list.id })),
             ).rejects.toThrow("Picking%20List%20is%20not%20ready");
-            const progressForm = (
-              complete: boolean,
-              full: boolean,
-              withShortage = false,
-            ) => {
+            const progressForm = (complete: boolean, allChecked: boolean) => {
               const data = form({
                 id: list.id,
                 version: list.updatedAt.toISOString(),
                 intent: complete ? "complete" : "save",
-                pickerName: "Picking PIC Test",
-                packerName: complete ? "Packing PIC Test" : "",
-                packageCount: complete ? "3" : "",
-                ...Object.fromEntries(
-                  list.items.flatMap((item) => {
-                    const available =
-                      full && withShortage && item.itemName === "Test product A"
-                        ? item.orderedQuantity - 1
-                        : full
-                          ? item.orderedQuantity
-                          : 0;
-                    const availabilityStatus = !full
-                      ? "Unchecked"
-                      : available === item.orderedQuantity
-                        ? "Available"
-                        : "Partial";
-                    return [
-                      [`availability_${item.id}`, availabilityStatus],
-                      [`available_${item.id}`, String(available)],
-                      [`packed_${item.id}`, String(available)],
-                      [
-                        `notes_${item.id}`,
-                        available < item.orderedQuantity && full
-                          ? "One unit unavailable"
-                          : "",
-                      ],
-                    ];
-                  }),
-                ),
+                pickerName: "Pick & Pack PIC Test",
               });
-              for (const item of list.items) data.append("itemId", item.id);
+              for (const item of list.items) {
+                data.append("itemId", item.id);
+                if (allChecked) data.append("checkedItemId", item.id);
+              }
               return data;
             };
-            const tamperedPickingPayload = progressForm(false, false);
-            tamperedPickingPayload.append("itemId", "foreign-item");
-            tamperedPickingPayload.set("availability_foreign-item", "Available");
-            tamperedPickingPayload.set("available_foreign-item", "1");
-            tamperedPickingPayload.set("packed_foreign-item", "1");
-            tamperedPickingPayload.set("notes_foreign-item", "tampered");
-            await expect(savePickingList(tamperedPickingPayload)).rejects.toThrow(
-              "Submit+every+Picking+List+item+exactly+once",
-            );
-            expect(await tx.pickingList.findUniqueOrThrow({ where: { id: list.id } })).toMatchObject({
-              status: "Pending",
-              packedAt: null,
-            });
-            await expect(
-              savePickingList(progressForm(true, false)),
-            ).rejects.toThrow("Review+every+item");
+            expect(list.usesChecklist).toBe(true);
+            await expect(savePickingList(progressForm(true, true))).rejects.toThrow("Open+Pack+before");
+            const moveToPack = progressForm(false, false);
+            moveToPack.set("intent", "continue");
             const staleForm = progressForm(true, true);
-            await expect(
-              savePickingList(progressForm(false, false)),
-            ).rejects.toThrow("success=Pick%20%26%20Pack%20progress%20saved");
-            await expect(savePickingList(staleForm)).rejects.toThrow(
-              "This+Picking+List+changed",
-            );
-            list = await tx.pickingList.findUniqueOrThrow({
-              where: { id: list.id },
-              include: { items: true },
-            });
+            await expect(savePickingList(moveToPack)).rejects.toThrow("Ready%20for%20Pack%20checks");
+            await expect(savePickingList(staleForm)).rejects.toThrow("This+Picking+List+changed");
+            list = await tx.pickingList.findUniqueOrThrow({ where: { id: list.id }, include: { items: true } });
             expect(list.status).toBe("InProgress");
-            const auditCountBeforeInvalidPackage = await tx.auditTrail.count({
-              where: { entityId: list.id }
-            });
-            for (const invalidPackageCount of ["", "0", "-1", "1.5", "text", " 1 ", "2147483648"]) {
-              const invalidPackageForm = progressForm(true, true);
-              invalidPackageForm.set("packageCount", invalidPackageCount);
-              await expect(savePickingList(invalidPackageForm)).rejects.toThrow(
-                "Package+count+is+required+and+must+be+a+positive+whole+number"
-              );
-              expect(await tx.pickingList.findUniqueOrThrow({ where: { id: list.id } })).toMatchObject({
-                status: "InProgress",
-                packageCount: null,
-                packedAt: null
-              });
-            }
-            expect(await tx.auditTrail.count({ where: { entityId: list.id } })).toBe(
-              auditCountBeforeInvalidPackage
-            );
-            const missingPackingPic = progressForm(true, true);
-            missingPackingPic.set("packerName", "");
-            await expect(savePickingList(missingPackingPic)).rejects.toThrow(
-              "Review+every+item",
-            );
-            await expect(
-              savePickingList(progressForm(true, true)),
-            ).rejects.toThrow("success=Pick%20%26%20Pack%20completed");
-            list = await tx.pickingList.findUniqueOrThrow({
-              where: { id: list.id },
-              include: { items: true },
-            });
+            const tamperedPayload = progressForm(false, false);
+            tamperedPayload.append("checkedItemId", "foreign-item");
+            await expect(savePickingList(tamperedPayload)).rejects.toThrow("Submit+every+sheet+item");
+            await expect(savePickingList(progressForm(true, false))).rejects.toThrow("Check+every+item+in+Pack");
+            const missingPic = progressForm(true, true);
+            missingPic.set("pickerName", "");
+            await expect(savePickingList(missingPic)).rejects.toThrow("PIC+Pick+%26+Pack+is+required");
+            const partial = progressForm(false, false);
+            partial.append("checkedItemId", list.items[0].id);
+            await expect(savePickingList(partial)).rejects.toThrow("progress%20saved");
+            list = await tx.pickingList.findUniqueOrThrow({ where: { id: list.id }, include: { items: true } });
+            expect(list.items.filter(item => item.isChecked)).toHaveLength(1);
+            expect(list.packedAt).toBeNull();
+            await expect(savePickingList(progressForm(true, true))).rejects.toThrow("success=Pick%20%26%20Pack%20completed");
+            list = await tx.pickingList.findUniqueOrThrow({ where: { id: list.id }, include: { items: true } });
             expect(list).toMatchObject({
-              status: "Packed",
-              pickerName: "Picking PIC Test",
-              packerName: "Packing PIC Test",
-              packageCount: 3,
+              status: "Packed", usesChecklist: true,
+              pickerName: "Pick & Pack PIC Test", packerName: "Pick & Pack PIC Test", packageCount: null,
             });
+            expect(list.items.every(item => item.isChecked && item.packedQuantity === item.orderedQuantity)).toBe(true);
             expect(list.packedAt).not.toBeNull();
             expect(await summary()).toMatchObject({
               paymentStatus: "Clean",
@@ -332,6 +268,7 @@ describe("Picking List to Delivered with the real database", () => {
             });
             expect(list.status).toBe("InProgress");
             expect(list.packageCount).toBeNull();
+            expect(list.items.every(item => !item.isChecked)).toBe(true);
             expect(list.packedAt).toBeNull();
             expect(context.audit).toHaveBeenCalledTimes(auditCountBeforeLongReason + 1);
             expect(context.audit).toHaveBeenLastCalledWith(
@@ -342,8 +279,7 @@ describe("Picking List to Delivered with the real database", () => {
               }),
               expect.objectContaining({ transaction: tx }),
             );
-            const repackForm = progressForm(true, true, true);
-            repackForm.set("packageCount", "2147483647");
+            const repackForm = progressForm(true, true);
             await expect(
               savePickingList(repackForm),
             ).rejects.toThrow("success=Pick%20%26%20Pack%20completed");
@@ -353,9 +289,9 @@ describe("Picking List to Delivered with the real database", () => {
             });
             expect(list).toMatchObject({
               status: "Packed",
-              pickerName: "Picking PIC Test",
-              packerName: "Packing PIC Test",
-              packageCount: 2147483647,
+              pickerName: "Pick & Pack PIC Test",
+              packerName: "Pick & Pack PIC Test",
+              packageCount: null,
             });
             expect(list.packedAt).not.toBeNull();
             await expect(
@@ -413,7 +349,7 @@ describe("Picking List to Delivered with the real database", () => {
             expect(
               note.items.map((item) => [item.itemName, item.quantity]).sort(),
             ).toEqual([
-              ["Test product A", 7],
+              ["Test product A", 8],
               ["Test product B", 2],
             ]);
             const issueData = form({

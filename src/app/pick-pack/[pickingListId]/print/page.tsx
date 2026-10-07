@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { PrintButton } from "@/components/print-button";
+import { PickingChecklistPrint } from "@/components/picking-checklist-print";
 import { formatDate } from "@/lib/format";
 import { getPickingTotals } from "@/lib/picking-list";
 import { prisma } from "@/lib/prisma";
@@ -54,7 +55,7 @@ export default async function PickingListPrintPage({
         <PrintButton />
       </div>
 
-      <article className="rounded-md border border-line bg-white p-8 text-ink shadow-card print:border-0 print:p-0 print:shadow-none">
+      {list.usesChecklist ? <PickingChecklistPrint list={list} /> : <article className="rounded-md border border-line bg-white p-8 text-ink shadow-card print:border-0 print:p-0 print:shadow-none">
         <header className="flex flex-wrap justify-between gap-4 border-b-2 border-strong pb-5">
           <div>
             <p className="text-lg font-bold">CV TAJUK</p>
@@ -217,7 +218,7 @@ export default async function PickingListPrintPage({
               : "........................"}
           </p>
         </footer>
-      </article>
+      </article>}
     </div>
   );
 }

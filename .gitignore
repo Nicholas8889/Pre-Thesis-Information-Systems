@@ -2,6 +2,7 @@ node_modules
 .npm-cache
 .next
 .next-local
+.next-order-edit-ui
 out
 coverage
 .env

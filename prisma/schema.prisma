@@ -146,6 +146,7 @@ model User {
   updatedAt      DateTime   @updatedAt @map("updated_at")
 
   portfolioCustomers Customer[] @relation("CustomerPortfolioOwner")
+  productCostEntries ProductCostHistory[]
 
   @@map("users")
 }
@@ -242,10 +243,27 @@ model Product {
 
   salesOrderItems SalesOrderItem[]
   inquiryItems    CustomerInquiryItem[]
+  costHistory     ProductCostHistory[]
 
   @@index([productName], map: "products_product_name_idx")
   @@index([status], map: "products_status_idx")
   @@map("products")
+}
+
+model ProductCostHistory {
+  id              String   @id(map: "product_cost_history_pkey") @default(cuid())
+  productId       String   @map("product_id")
+  unitCost        Int      @map("unit_cost")
+  effectiveFrom   DateTime @default(now()) @map("effective_from")
+  createdByUserId String?  @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade, map: "product_cost_history_product_id_fkey")
+  createdBy User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull, map: "product_cost_history_created_by_user_id_fkey")
+
+  @@unique([productId, effectiveFrom], map: "product_cost_history_product_effective_key")
+  @@index([createdByUserId], map: "product_cost_history_created_by_user_id_idx")
+  @@map("product_cost_history")
 }
 
 model SalesOrder {
@@ -261,6 +279,8 @@ model SalesOrder {
   customerPoDocumentSha256     String?                  @map("customer_po_document_sha256")
   idempotencyKey               String?                  @unique(map: "sales_orders_idempotency_key_key") @map("idempotency_key")
   version                      Int                      @default(1)
+  revisionNumber               Int                      @default(1) @map("revision_number")
+  packStartedAt                DateTime?                @map("pack_started_at") @db.Timestamptz(3)
   customerId                   String                   @map("customer_id")
   deliveryDestinationSnapshot  String                   @default("") @map("delivery_destination_snapshot")
   orderDate                    DateTime                 @map("order_date")
@@ -291,6 +311,7 @@ model SalesOrder {
   deliveryNotes   DeliveryNote[]
   deliverySources DeliveryNoteSource[]
   pickingList     PickingList?
+  itemRevisions   SalesOrderItemRevision[]
   customerInquiry CustomerInquiry?
 
   @@index([approvalStatus], map: "sales_orders_approval_status_idx")
@@ -300,6 +321,28 @@ model SalesOrder {
   @@index([customerId, orderDate], map: "sales_orders_customer_id_order_date_idx")
   @@index([source, status, requiredDate, id], map: "sales_orders_source_status_required_id_idx")
   @@map("sales_orders")
+}
+
+model SalesOrderItemRevision {
+  id                    String   @id(map: "sales_order_item_revisions_pkey") @default(cuid())
+  salesOrderId          String   @map("sales_order_id")
+  revisionNumber        Int      @map("revision_number")
+  invoiceId             String?  @map("invoice_id")
+  invoiceRevisionNumber Int?     @map("invoice_revision_number")
+  actorUserId           String   @map("actor_user_id")
+  actorUsername         String   @map("actor_username")
+  actorDisplayName      String?  @map("actor_display_name")
+  actorRole             UserRole @map("actor_role")
+  reason                String
+  beforeSnapshot        Json     @map("before_snapshot")
+  afterSnapshot         Json     @map("after_snapshot")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Restrict, map: "sales_order_item_revisions_sales_order_id_fkey")
+
+  @@unique([salesOrderId, revisionNumber], map: "sales_order_item_revisions_order_revision_key")
+  @@index([actorUserId], map: "sales_order_item_revisions_actor_user_id_idx")
+  @@map("sales_order_item_revisions")
 }
 
 model CustomerInquiry {
@@ -380,6 +423,7 @@ model PickingList {
   pickingListNumber String            @unique(map: "picking_lists_picking_list_number_key") @map("picking_list_number")
   salesOrderId      String            @unique(map: "picking_lists_sales_order_id_key") @map("sales_order_id")
   status            PickingListStatus @default(Pending)
+  usesChecklist     Boolean           @default(false) @map("uses_checklist")
   pickerName        String?           @map("picker_name")
   packerName        String?           @map("packer_name")
   packageCount      Int?              @map("package_count")
@@ -407,6 +451,7 @@ model PickingListItem {
   availableQuantity  Int                     @default(0) @map("available_quantity")
   packedQuantity     Int                     @default(0) @map("packed_quantity")
   availabilityStatus PickingItemAvailability @default(Unchecked) @map("availability_status")
+  isChecked          Boolean                 @default(false) @map("is_checked")
   notes              String?
 
   pickingList      PickingList       @relation(fields: [pickingListId], references: [id], onDelete: Cascade, map: "picking_list_items_picking_list_id_fkey")
@@ -446,6 +491,7 @@ model Invoice {
   creditTermWeeks          Int?             @map("credit_term_weeks")
   status                   InvoiceStatus    @default(Unpaid)
   version                  Int              @default(1)
+  revisionNumber           Int              @default(1) @map("revision_number")
   cancellationReason       String?          @map("cancellation_reason")
   cancelledAt              DateTime?        @map("cancelled_at")
   cancelledByUserId        String?          @map("cancelled_by_user_id")

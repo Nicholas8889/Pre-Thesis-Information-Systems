@@ -4,7 +4,11 @@ import { FileUp, Plus, Trash2 } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { calculateAdjustedUnitPrice, CREDIT_TERM_OPTIONS } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/format";
-import { getProductPriceComparison } from "@/lib/product-insights";
+import {
+  getProductCostCoverageText,
+  getProductionCostComparison,
+  type ProductCostInsight
+} from "@/lib/product-cost";
 import { calculateTaxInclusiveAmounts, formatPpnRate } from "@/lib/tax";
 import type { CustomerPaymentSummary } from "@/lib/customer-intelligence";
 
@@ -19,13 +23,10 @@ type CustomerOption = CustomerPaymentSummary & {
   ppnApplied: boolean;
 };
 
-type ProductOption = {
+type ProductOption = ProductCostInsight & {
   id: string;
   productName: string;
   listPrice: number;
-  averageSoldPrice: number | null;
-  averageEligibleQuantity: number;
-  averageMonthLabel: string;
 };
 
 type DraftItem = {
@@ -98,7 +99,7 @@ export function SalesOrderForm({
         estimatedTax.ppnApplied
           ? `PPN (${formatPpnRate(estimatedTax.ppnRateBasisPoints)}): ${formatCurrency(estimatedTax.ppnAmount)}`
           : "PPN: Not applied - customer NPWP not provided",
-        `Net Sales (Margin): ${formatCurrency(estimatedTax.netSalesAmount)}`
+        `Net Sales (Excluding PPN): ${formatCurrency(estimatedTax.netSalesAmount)}`
       ].join("\n")
     : `Total Price: ${formatCurrency(total)}\nPPN and Net Sales: Select a customer`;
 
@@ -296,9 +297,16 @@ export function SalesOrderForm({
             (product) => product.id === item.productId
           );
           const proposedUnitPrice = getFinalUnitPrice(item);
-          const comparison = getProductPriceComparison(
-            proposedUnitPrice,
-            selectedProduct?.averageSoldPrice ?? null
+          const proposedUnitPriceExcludingPpn = selectedCustomer
+            ? calculateTaxInclusiveAmounts({
+                totalAmount: proposedUnitPrice,
+                ppnApplied: selectedCustomer.ppnApplied,
+                ppnRateBasisPoints
+              }).netSalesAmount
+            : null;
+          const comparison = getProductionCostComparison(
+            proposedUnitPriceExcludingPpn,
+            selectedProduct?.averageProductionCost ?? null
           );
 
           return (
@@ -417,7 +425,7 @@ export function SalesOrderForm({
               >
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">
-                    Product Price Insight
+                    Product Cost Insight
                   </p>
                   <p className="text-xs text-ink/70">
                     Advisory only; your Base Unit Price, markup, and discount remain unchanged.
@@ -425,39 +433,34 @@ export function SalesOrderForm({
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   <InsightMetric
-                    label="Latest Base Price"
-                    value={formatCurrency(selectedProduct.listPrice)}
-                    help={
-                      selectedProduct.averageSoldPrice === null
-                        ? `No eligible sales in ${selectedProduct.averageMonthLabel}; the latest base price is the available pricing reference.`
-                        : "Current base price from the product master."
-                    }
+                    label="Latest Production Cost / Unit"
+                    value={formatCurrency(selectedProduct.latestProductionCost ?? selectedProduct.listPrice)}
+                    help="Current production cost per unit entered by Admin, excluding PPN."
                   />
                   <InsightMetric
-                    label="Average Sold Price - This Month"
+                    label="Average Production Cost - Last 30 Days"
                     value={
-                      selectedProduct.averageSoldPrice === null
-                        ? "Average sold price unavailable"
-                        : formatCurrency(selectedProduct.averageSoldPrice)
+                      selectedProduct.averageProductionCost === null
+                        ? "Average production cost unavailable"
+                        : formatCurrency(selectedProduct.averageProductionCost)
                     }
-                    help={
-                      selectedProduct.averageSoldPrice === null
-                        ? `No eligible sales in ${selectedProduct.averageMonthLabel}.`
-                        : `${selectedProduct.averageEligibleQuantity} eligible unit(s) in ${selectedProduct.averageMonthLabel}, cumulative through today.`
-                    }
+                    help={getProductCostCoverageText(selectedProduct)}
                   />
                   <InsightMetric
-                    label="Proposed Final Unit Price"
-                    value={formatCurrency(proposedUnitPrice)}
+                    label="Proposed Unit Price (Excluding PPN)"
+                    value={proposedUnitPriceExcludingPpn === null
+                      ? "Select a customer"
+                      : formatCurrency(proposedUnitPriceExcludingPpn)}
+                    help="Selling price after markup and discount, excluding PPN for the cost comparison."
                   />
-                  {selectedProduct.averageSoldPrice !== null && (
+                  {selectedProduct.averageProductionCost !== null && (
                     <>
                       <InsightMetric
-                        label="Selisih Nominal"
+                        label="Selisih Harga terhadap Average Cost"
                         value={formatSignedCurrency(comparison.absoluteDifference)}
                       />
                       <InsightMetric
-                        label="Selisih Persentase"
+                        label="Selisih terhadap Cost (%)"
                         value={formatSignedPercentage(comparison.percentageDifference)}
                       />
                     </>

@@ -6,15 +6,12 @@ import { getEffectiveInvoiceStatusWhere } from "@/lib/invoice-status";
 import { formatNpwp } from "@/lib/npwp";
 import { customerInvoiceBalanceSelect } from "@/lib/customer-payment-query";
 import { getCustomerPaymentReliability } from "@/lib/customer-payment-reliability";
-import {
-  getCurrentMonthAverageSoldPriceFromAggregate,
-  getJakartaCurrentMonthWindow,
-  PRODUCT_AVERAGE_ELIGIBLE_STATUSES
-} from "@/lib/product-insights";
+import { getAverageProductionCost } from "@/lib/product-cost";
+import { loadProductCostInsights } from "@/lib/product-cost-query";
 
 type OrderFormInsightsClient = Pick<
   PrismaClient,
-  "customer" | "invoice" | "product" | "salesOrderItem"
+  "customer" | "invoice" | "product" | "productCostHistory"
 >;
 
 export async function loadOrderFormInsights(
@@ -22,14 +19,11 @@ export async function loadOrderFormInsights(
   now = new Date(),
   customerWhere: Prisma.CustomerWhereInput = {}
 ) {
-  const currentMonth = getJakartaCurrentMonthWindow(now);
-
   const [
     customerRecords,
     customerBalanceAggregates,
     overdueInvoiceAggregates,
-    productRecords,
-    productPriceAggregates
+    productRecords
   ] = await Promise.all([
     db.customer.findMany({
       where: { status: "Active", ...customerWhere },
@@ -83,26 +77,11 @@ export async function loadOrderFormInsights(
         productName: true,
         listPrice: true
       }
-    }),
-    db.salesOrderItem.groupBy({
-      by: ["productId"],
-      where: {
-        productId: { not: null },
-        product: { status: "Active" },
-        quantity: { gt: 0 },
-        subtotal: { gte: 0 },
-        salesOrder: {
-          orderDate: {
-            gte: currentMonth.monthStart,
-            lte: now,
-            lt: currentMonth.nextMonthStart
-          },
-          status: { in: [...PRODUCT_AVERAGE_ELIGIBLE_STATUSES] }
-        }
-      },
-      _sum: { quantity: true, subtotal: true }
     })
   ]);
+  const costsByProduct = await loadProductCostInsights(
+    db, productRecords.map((product) => product.id), now
+  );
 
   const balancesByCustomer = new Map(
     customerBalanceAggregates.map((aggregate) => [
@@ -118,25 +97,6 @@ export async function loadOrderFormInsights(
       aggregate.customerId,
       aggregate._count._all
     ])
-  );
-
-  const pricesByProduct = new Map(
-    productPriceAggregates.flatMap((aggregate) =>
-      aggregate.productId
-        ? [
-            [
-              aggregate.productId,
-              getCurrentMonthAverageSoldPriceFromAggregate(
-                {
-                  eligibleQuantity: aggregate._sum.quantity ?? 0,
-                  eligibleSalesValue: aggregate._sum.subtotal ?? 0
-                },
-                now
-              )
-            ] as const
-          ]
-        : []
-    )
   );
 
   return {
@@ -159,20 +119,13 @@ export async function loadOrderFormInsights(
       };
     }),
     products: productRecords.map((product) => {
-      const average =
-        pricesByProduct.get(product.id) ??
-        getCurrentMonthAverageSoldPriceFromAggregate(
-          { eligibleQuantity: 0, eligibleSalesValue: 0 },
-          now
-        );
+      const cost = costsByProduct.get(product.id) ?? getAverageProductionCost([], now);
 
       return {
         id: product.id,
         productName: product.productName,
         listPrice: product.listPrice,
-        averageSoldPrice: average.averageSoldPrice,
-        averageEligibleQuantity: average.eligibleQuantity,
-        averageMonthLabel: average.monthLabel
+        ...cost
       };
     })
   };

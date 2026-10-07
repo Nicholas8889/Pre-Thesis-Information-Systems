@@ -2,7 +2,6 @@ import type { DeliveryNoteStatus, Prisma } from "@prisma/client";
 
 import type { SearchParams } from "@/lib/pagination";
 
-export type FulfillmentFilter = "all" | "full" | "shortage";
 export type DeliveryFilter =
   | "all"
   | "not-issued"
@@ -12,9 +11,7 @@ export type DeliveryFilter =
 
 export type CompletedPickingFilters = {
   query: string;
-  picker: string;
-  packer: string;
-  fulfillment: FulfillmentFilter;
+  pic: string;
   from: string;
   to: string;
   deliveryStatus: DeliveryFilter;
@@ -23,9 +20,7 @@ export type CompletedPickingFilters = {
 export const COMPLETED_PICKING_QUERY_PARAMS = [
   "tab",
   "q",
-  "picker",
-  "packer",
-  "fulfillment",
+  "pic",
   "from",
   "to",
   "deliveryStatus",
@@ -36,9 +31,7 @@ export function parseCompletedPickingFilters(
 ): CompletedPickingFilters {
   return {
     query: getFirst(params.q)?.trim() ?? "",
-    picker: getFirst(params.picker)?.trim() ?? "",
-    packer: getFirst(params.packer)?.trim() ?? "",
-    fulfillment: normalizeFulfillmentFilter(getFirst(params.fulfillment)),
+    pic: (getFirst(params.pic) ?? getFirst(params.picker) ?? getFirst(params.packer))?.trim() ?? "",
     from: normalizeDateFilter(getFirst(params.from)),
     to: normalizeDateFilter(getFirst(params.to)),
     deliveryStatus: normalizeDeliveryFilter(getFirst(params.deliveryStatus)),
@@ -73,23 +66,12 @@ export function buildCompletedPickingWhere(
       ],
     });
   }
-  if (filters.picker) {
-    conditions.push({ pickerName: { contains: filters.picker } });
-  }
-  if (filters.packer) {
-    conditions.push({ packerName: { contains: filters.packer } });
-  }
-  if (filters.fulfillment === "full") {
+  if (filters.pic) {
     conditions.push({
-      items: {
-        none: { availabilityStatus: { in: ["Partial", "Unavailable"] } },
-      },
-    });
-  } else if (filters.fulfillment === "shortage") {
-    conditions.push({
-      items: {
-        some: { availabilityStatus: { in: ["Partial", "Unavailable"] } },
-      },
+      OR: [
+        { pickerName: { contains: filters.pic } },
+        { usesChecklist: false, packerName: { contains: filters.pic } },
+      ],
     });
   }
   if (fromDate || toDate) {
@@ -133,11 +115,7 @@ export function completedPickingHref(
 ) {
   const query = new URLSearchParams({ tab: "completed" });
   if (filters.query) query.set("q", filters.query);
-  if (filters.picker) query.set("picker", filters.picker);
-  if (filters.packer) query.set("packer", filters.packer);
-  if (filters.fulfillment !== "all") {
-    query.set("fulfillment", filters.fulfillment);
-  }
+  if (filters.pic) query.set("pic", filters.pic);
   if (filters.from) query.set("from", filters.from);
   if (filters.to) query.set("to", filters.to);
   if (filters.deliveryStatus !== "all") {
@@ -145,12 +123,6 @@ export function completedPickingHref(
   }
   if (view) query.set("view", view);
   return `/pick-pack?${query.toString()}`;
-}
-
-function normalizeFulfillmentFilter(
-  value: string | undefined,
-): FulfillmentFilter {
-  return value === "full" || value === "shortage" ? value : "all";
 }
 
 function normalizeDeliveryFilter(value: string | undefined): DeliveryFilter {

@@ -17,6 +17,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
+    "demo:preview": "tsx prisma/seed.ts",
+    "demo:validate": "tsx prisma/seed.ts --validate",
+    "demo:replace": "tsx prisma/seed.ts --apply",
     "prisma:seed:users": "tsx prisma/seed-demo-users.ts",
     "db:reset": "prisma migrate reset"
   },

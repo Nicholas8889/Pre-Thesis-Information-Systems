@@ -11,7 +11,7 @@ describe("order form insights integration", () => {
     await prisma.$disconnect();
   });
 
-  it("loads shallow options with database-side customer and product aggregates", async () => {
+  it("loads customer aggregates and cost history independently of selling prices", async () => {
     const marker = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const npwp = `${Date.now()}${Math.floor(Math.random() * 1_000)}`
       .padStart(16, "0")
@@ -35,7 +35,13 @@ describe("order form insights integration", () => {
         const product = await tx.product.create({
           data: {
             productName: `Insight Product ${marker}`,
-            listPrice: 100
+            listPrice: 120,
+            costHistory: {
+              create: [
+                { unitCost: 100, effectiveFrom: new Date(now.getTime() - 40 * 86_400_000) },
+                { unitCost: 120, effectiveFrom: new Date(now.getTime() - 10 * 86_400_000) }
+              ]
+            }
           }
         });
 
@@ -110,10 +116,11 @@ describe("order form insights integration", () => {
         expect(loadedCustomer).not.toHaveProperty("paymentBehaviour");
         expect(loadedCustomer.npwp).toBe(formatNpwp(npwp));
         expect(loadedProduct).toMatchObject({
-          averageSoldPrice: 110,
-          averageEligibleQuantity: 2,
-          averageMonthLabel: "August 2026"
+          latestProductionCost: 120,
+          averageProductionCost: 107,
+          coveredDays: 30
         });
+        expect(loadedProduct).not.toHaveProperty("averageSoldPrice");
 
         throw new Error(ROLLBACK_MARKER);
       }, { timeout: 20_000 })

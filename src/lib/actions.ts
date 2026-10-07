@@ -18,7 +18,8 @@ import { getCustomerPaymentSummary } from "@/lib/customer-intelligence";
 import { customerInvoiceBalanceSelect } from "@/lib/customer-payment-query";
 import { prisma } from "@/lib/prisma";
 import {
-  canCreateDeliveryFromPickingList,
+  canCreateDeliveryFromSheet,
+  getPickingDeliveryQuantity,
   canFulfillOrder,
 } from "@/lib/picking-list";
 import { parseOptionalNpwp } from "@/lib/npwp";
@@ -79,6 +80,7 @@ import {
   allocateDocumentNumber,
   getDueDateForPaymentTerm,
   normalizeOrderItems,
+  MAX_ORDER_UNIT_PRICE,
   parseSalesOrderPaymentTerm
 } from "@/lib/workflow";
 
@@ -315,6 +317,9 @@ export async function updateCustomerStatus(formData: FormData) {
 
 export async function createProduct(formData: FormData) {
   const currentUser = await requireCurrentUser();
+  if (currentUser.role !== "ADMIN") {
+    redirectWithMessage("/products", "error", "Only Admin can enter production costs and add products");
+  }
   const productName = getRequiredString(formData, "productName");
   const sku = parseProductSku(formData.get("sku"));
   const listPrice = parseProductPrice(formData.get("listPrice"));
@@ -325,7 +330,7 @@ export async function createProduct(formData: FormData) {
   }
 
   if (listPrice === null) {
-    redirectWithMessage("/products", "error", "List Price must be a valid non-negative amount");
+    redirectWithMessage("/products", "error", "Production Cost / Unit must be a valid non-negative amount");
   }
 
   const status = getStatus<ProductStatus>(formData, "status", ["Active", "Inactive"], "Active");
@@ -336,7 +341,10 @@ export async function createProduct(formData: FormData) {
         sku,
         notes: mergeActionNotes(getString(formData, "notes"), actionNote),
         listPrice,
-        status
+        status,
+        costHistory: {
+          create: { unitCost: listPrice, createdByUserId: currentUser.id }
+        }
       }
     });
     await createAuditTrailLog({
@@ -369,17 +377,21 @@ export async function updateProduct(formData: FormData) {
   }
 
   if (listPrice === null) {
-    redirectWithMessage("/products", "error", "List Price must be a valid non-negative amount");
-  }
-
-  const oldProduct = await prisma.product.findUnique({ where: { id } });
-
-  if (!oldProduct) {
-    redirectWithMessage("/products", "error", "Product was not found");
+    redirectWithMessage("/products", "error", "Production Cost / Unit must be a valid non-negative amount");
   }
 
   const status = getStatus<ProductStatus>(formData, "status", ["Active", "Inactive"], "Active");
   await prisma.$transaction(async tx => {
+    // Serialize cost changes so each history entry matches the committed master.
+    await tx.$queryRaw`SELECT "id" FROM "products" WHERE "id" = ${id} FOR UPDATE`;
+    const oldProduct = await tx.product.findUnique({ where: { id } });
+    if (!oldProduct) {
+      redirectWithMessage("/products", "error", "Product was not found");
+    }
+    const costChanged = oldProduct.listPrice !== listPrice;
+    if (costChanged && currentUser.role !== "ADMIN") {
+      redirectWithMessage("/products", "error", "Only Admin can change Production Cost / Unit");
+    }
     const product = await tx.product.update({
       where: { id },
       data: {
@@ -387,7 +399,16 @@ export async function updateProduct(formData: FormData) {
         sku,
         notes: mergeActionNotes(getString(formData, "notes"), actionNote),
         listPrice,
-        status
+        status,
+        ...(costChanged ? {
+          costHistory: {
+            create: {
+              unitCost: listPrice,
+              createdByUserId: currentUser.id,
+              effectiveFrom: new Date()
+            }
+          }
+        } : {})
       }
     });
     await createAuditTrailLog({
@@ -1170,6 +1191,7 @@ export async function deleteSalesOrder(formData: FormData) {
       salesOrderStatus: salesOrder.status,
       hasPickingList: Boolean(salesOrder.pickingList),
       hasInquiry: Boolean(salesOrder.customerInquiry),
+      hasItemRevisions: salesOrder.revisionNumber > 1,
       invoiceStatus: salesOrder.invoice?.status,
       deliveryNoteStatuses: [
         ...salesOrder.deliveryNotes,
@@ -1180,7 +1202,7 @@ export async function deleteSalesOrder(formData: FormData) {
     redirectWithMessage(
       `${basePath}/${salesOrder.id}`,
       "error",
-      "Only an unlinked Draft without invoice, inquiry, Picking List, or delivery history can be deleted"
+      "Only an unlinked Draft without invoice, inquiry, Picking List, delivery history or item revisions can be deleted"
     );
   }
 
@@ -1198,6 +1220,7 @@ export async function deleteSalesOrder(formData: FormData) {
   };
 
   await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM sales_orders WHERE id = ${salesOrder.id} FOR UPDATE`;
     const current = await tx.salesOrder.findUnique({
       where: { id: salesOrder.id },
       include: {
@@ -1213,7 +1236,8 @@ export async function deleteSalesOrder(formData: FormData) {
       invoiceStatus: current.invoice?.status,
       deliveryNoteStatuses: current.deliveryNotes.map(note => note.status),
       hasPickingList: Boolean(current.pickingList),
-      hasInquiry: Boolean(current.customerInquiry)
+      hasInquiry: Boolean(current.customerInquiry),
+      hasItemRevisions: current.revisionNumber > 1,
     })) {
       throw new Error("SALES_ORDER_DELETE_CONFLICT");
     }
@@ -2347,7 +2371,7 @@ export async function createDeliveryNote(formData: FormData) {
     new Set(requestedItemIds).size !== requestedItemIds.length ||
     requestedItemIds.length > 1000
   )) {
-    redirectWithMessage("/surat-jalan?mode=create", "error", "Select at least one packed item, without duplicates");
+    redirectWithMessage("/surat-jalan?mode=create", "error", "Select at least one ready item, without duplicates");
   }
 
   const recipientName = getRequiredString(formData, "recipientName");
@@ -2363,16 +2387,23 @@ export async function createDeliveryNote(formData: FormData) {
   const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
 
   const deliveryNote = await withDeliveryNoteNumberRetry(async () => prisma.$transaction(async tx => {
+    // Share the item-edit/warehouse lock order, including combined shipments.
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM sales_orders
+      WHERE id IN (SELECT sales_order_id FROM picking_lists WHERE id IN (${Prisma.join([...pickingListIds].sort())}))
+      ORDER BY id FOR UPDATE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM invoices
+      WHERE sales_order_id IN (SELECT sales_order_id FROM picking_lists WHERE id IN (${Prisma.join([...pickingListIds].sort())}))
+      ORDER BY sales_order_id, id FOR UPDATE`);
     await tx.$queryRaw(Prisma.sql`SELECT id FROM picking_lists WHERE id IN (${Prisma.join([...pickingListIds].sort())}) ORDER BY id FOR UPDATE`);
     const lists = await tx.pickingList.findMany({
       relationLoadStrategy: "join",
       where: { id: { in: pickingListIds } },
       orderBy: { id: "asc" },
       select: {
-        id: true, status: true, salesOrderId: true, pickerName: true, packerName: true,
+        id: true, status: true, usesChecklist: true, salesOrderId: true, pickerName: true, packerName: true,
         items: { select: {
           id: true, salesOrderItemId: true, itemName: true, orderedQuantity: true,
-          availableQuantity: true, packedQuantity: true, availabilityStatus: true, notes: true
+          availableQuantity: true, packedQuantity: true, availabilityStatus: true, notes: true, isChecked: true
         } },
         deliveryNote: { select: { id: true } },
         deliverySource: { select: { id: true } },
@@ -2394,8 +2425,7 @@ export async function createDeliveryNote(formData: FormData) {
     if (lists.length !== pickingListIds.length || lists.some(list => {
       const order = list.salesOrder;
       return list.status !== "Packed" || list.deliveryNote || list.deliverySource ||
-        !canFulfillOrder(order) || !list.pickerName || !list.packerName ||
-        !canCreateDeliveryFromPickingList(list.items) || order.deliveryNotes.length > 0 ||
+        !canFulfillOrder(order) || !canCreateDeliveryFromSheet(list) || order.deliveryNotes.length > 0 ||
         order.deliverySources.length > 0 || (order.invoice?.deliveryNotes.length ?? 0) > 0 ||
         (order.invoice?.deliverySources.length ?? 0) > 0 ||
         order.items.length !== list.items.length ||
@@ -2418,7 +2448,9 @@ export async function createDeliveryNote(formData: FormData) {
       redirectWithMessage("/surat-jalan?mode=create", "error", "Recipient address must match the selected orders' delivery destination");
     }
 
-    const allItems = lists.flatMap(list => list.items);
+    const allItems = lists.flatMap(list => list.items.map(item => ({
+      ...item, packedQuantity: getPickingDeliveryQuantity(list, item),
+    })));
     const selectedItemIds = explicitItemSelection
       ? new Set(requestedItemIds)
       : new Set(allItems.filter(item => item.packedQuantity > 0).map(item => item.id));
@@ -2430,7 +2462,7 @@ export async function createDeliveryNote(formData: FormData) {
       }) ||
       lists.some(list => !list.items.some(item => selectedItemIds.has(item.id)))
     ) {
-      redirectWithMessage("/surat-jalan?mode=create", "error", "Selected items must be packed and each selected order must contain an item to deliver");
+      redirectWithMessage("/surat-jalan?mode=create", "error", "Selected items must be ready to ship and each selected order must contain an item to deliver");
     }
 
     const finalQuantityByItemId = new Map<string, number>();
@@ -2441,7 +2473,7 @@ export async function createDeliveryNote(formData: FormData) {
         : String(item.packedQuantity);
       const quantity = Number(rawQuantity);
       if (!rawQuantity || !Number.isInteger(quantity) || quantity < 1 || quantity > item.packedQuantity) {
-        redirectWithMessage("/surat-jalan?mode=create", "error", "Final delivery quantity must be between one and the packed quantity");
+        redirectWithMessage("/surat-jalan?mode=create", "error", "Final delivery quantity must be between one and the ready-to-ship quantity");
       }
       finalQuantityByItemId.set(item.id, quantity);
     }
@@ -2487,7 +2519,7 @@ export async function createDeliveryNote(formData: FormData) {
         pickingListItemId: item.id,
         itemName: item.itemName,
         orderedQuantitySnapshot: item.orderedQuantity,
-        packedQuantitySnapshot: item.packedQuantity,
+        packedQuantitySnapshot: getPickingDeliveryQuantity(list, item),
         quantity: finalQuantityByItemId.get(item.id) ?? 0,
         outstandingQuantity: item.orderedQuantity - (finalQuantityByItemId.get(item.id) ?? 0),
         unit: "PCS"
@@ -3042,7 +3074,7 @@ function parseProductPrice(value: FormDataEntryValue | null) {
   const rawValue = String(value ?? "").trim();
   const parsed = Number(rawValue);
 
-  if (!rawValue || !Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+  if (!rawValue || !Number.isSafeInteger(parsed) || parsed < 0 || parsed > MAX_ORDER_UNIT_PRICE) {
     return null;
   }
 

@@ -5,12 +5,23 @@ import {
   DELIVERY_VEHICLE_PLATE_OPTIONS
 } from "../src/lib/delivery-options";
 import { getCustomerPaymentBehaviour } from "../src/lib/customer-intelligence";
-import { getCurrentMonthAverageSoldPrice } from "../src/lib/product-insights";
+import { getAverageProductionCost } from "../src/lib/product-cost";
 import { buildOrderTaxSnapshot } from "../src/lib/tax";
+import { runDemoSeed } from "./demo/manage";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  // The default seed previews a small, reproducible demo. Replacement is explicit
+  // and requires a verified backup, isolated validation, and an exact target.
+  if (process.env.DEMO_PROFILE !== "volume") {
+    await runDemoSeed();
+    return;
+  }
+  const volumeTarget = new URL(process.env.DATABASE_URL ?? "http://invalid");
+  if (!["localhost", "127.0.0.1"].includes(volumeTarget.hostname) || process.env.ALLOW_VOLUME_RESET !== "yes") {
+    throw new Error("The legacy volume fixture only runs on localhost with ALLOW_VOLUME_RESET=yes");
+  }
   await prisma.auditTrail.deleteMany();
   await prisma.customerOutreach.deleteMany();
   await prisma.collectionTask.deleteMany();
@@ -70,6 +81,28 @@ async function main() {
       { productName: "Delivery Service", listPrice: 1800000, status: "Active" },
       { productName: "Handling Fee", listPrice: 150000, status: "Active" }
     ]
+  });
+
+  // Explicit demo cost history; ordinary migration only records today's cost.
+  const seedCostNow = new Date();
+  const seedProducts = await prisma.product.findMany({
+    select: { id: true, listPrice: true }
+  });
+  await prisma.productCostHistory.createMany({
+    data: seedProducts.flatMap((product) => [
+      {
+        productId: product.id,
+        unitCost: Math.round(product.listPrice * 0.95),
+        effectiveFrom: new Date(seedCostNow.getTime() - 40 * 86_400_000),
+        createdByUserId: adminUser.id
+      },
+      {
+        productId: product.id,
+        unitCost: product.listPrice,
+        effectiveFrom: new Date(seedCostNow.getTime() - 10 * 86_400_000),
+        createdByUserId: adminUser.id
+      }
+    ])
   });
 
   const productIdByName = new Map(
@@ -934,16 +967,7 @@ async function verifySeedDemoData() {
       prisma.product.findMany({
         select: {
           id: true,
-          salesOrderItems: {
-            select: {
-              productId: true,
-              quantity: true,
-              subtotal: true,
-              salesOrder: {
-                select: { orderDate: true, status: true }
-              }
-            }
-          }
+          costHistory: { select: { unitCost: true, effectiveFrom: true } }
         }
       }),
       prisma.salesOrder.findMany({
@@ -1002,12 +1026,9 @@ async function verifySeedDemoData() {
   assertSeed(
     products.some(
       (product) =>
-        getCurrentMonthAverageSoldPrice(
-          product.id,
-          product.salesOrderItems
-        ).averageSoldPrice !== null
+        getAverageProductionCost(product.costHistory).averageProductionCost !== null
     ),
-    "No product has an eligible current-month average sold price"
+    "No product has an average production cost over the last 30 days"
   );
 
   assertSeed(

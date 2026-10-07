@@ -10,6 +10,7 @@ describe("ongoing sales order deletion", () => {
       })
     ).toBe(true);
     expect(canDeleteOngoingSalesOrder({ salesOrderStatus: "Draft", deliveryNoteStatuses: [], hasInquiry: true })).toBe(false);
+    expect(canDeleteOngoingSalesOrder({ salesOrderStatus: "Draft", deliveryNoteStatuses: [], hasItemRevisions: true })).toBe(false);
   });
 
   it("protects completed or cancelled processes", () => {

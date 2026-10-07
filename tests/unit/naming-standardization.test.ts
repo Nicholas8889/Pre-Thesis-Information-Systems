@@ -142,7 +142,7 @@ describe("canonical business naming", () => {
     const salesOrderDetail = projectFile(
       "src/app/sales-orders/[salesOrderId]/page.tsx"
     );
-    const salesOrderList = projectFile("src/app/sales-orders/page.tsx");
+    const salesOrderList = projectFile("src/components/orders-by-source-page.tsx");
     const paymentsPage = projectFile("src/app/payments/page.tsx");
     const paymentForm = projectFile("src/components/payment-form.tsx");
     const productBrandingFiles = [

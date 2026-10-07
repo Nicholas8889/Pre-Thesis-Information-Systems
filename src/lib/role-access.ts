@@ -1,5 +1,6 @@
 export type RoleCapability =
   | "CREATE_SALES_ORDER"
+  | "EDIT_SALES_ORDER_ITEMS"
   | "DELETE_SALES_ORDER"
   | "CREATE_INVOICE"
   | "CANCEL_INVOICE"
@@ -34,6 +35,7 @@ export function canRole(role: string | null | undefined, capability: RoleCapabil
 export function getRestrictionMessage(capability: RoleCapability) {
   return {
     CREATE_SALES_ORDER: "You cannot create Sales Orders. Only Sales and Manager roles can do this.",
+    EDIT_SALES_ORDER_ITEMS: "Editing order items requires Sales, Admin or Manager access and an eligible transaction.",
     DELETE_SALES_ORDER: "You cannot delete Sales Orders. Only Admin and Manager roles can do this.",
     CREATE_INVOICE: "You cannot create Invoices. Only Admin and Manager roles can do this.",
     CANCEL_INVOICE: "You cannot cancel Invoices. Only Admin and Manager roles can do this.",

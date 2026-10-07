@@ -336,12 +336,12 @@ export default async function PickPackPage({
                     </select>
                   </label>
                   <label className="text-sm font-medium">
-                    Picking PIC
+                    PIC Pick &amp; Pack
                     <input
                       name="pickerName"
                       required
                       maxLength={120}
-                      placeholder="Name of picking personnel"
+                      placeholder="Name of Pick & Pack personnel"
                       className={`${inputClass} mt-1`}
                     />
                   </label>
@@ -397,7 +397,7 @@ export default async function PickPackPage({
                               className={actionClass}
                               href={`/pick-pack?tab=active&mode=create&salesOrderId=${order.id}`}
                             >
-                              Set Picking PIC
+                              Set PIC Pick &amp; Pack
                             </Link>
                           ) : (
                             <span className="text-ink/50">
@@ -435,8 +435,8 @@ export default async function PickPackPage({
                       <th className="py-3 pr-4">Picking List</th>
                       <th className="py-3 pr-4">Customer / Order</th>
                       <th className="py-3 pr-4">Status</th>
-                      <th className="py-3 pr-4">Picking PIC</th>
-                      <th className="py-3 pr-4">Packed / Available / Ordered</th>
+                      <th className="py-3 pr-4">PIC Pick &amp; Pack</th>
+                      <th className="py-3 pr-4">Pack checks</th>
                       <th className="py-3">Actions</th>
                     </tr>
                   </thead>
@@ -456,8 +456,8 @@ export default async function PickPackPage({
                           <StatusBadge
                             status={
                               list.status === "Pending"
-                                ? "Ready to Prepare"
-                                : "Preparing"
+                                ? "Pick"
+                                : "Pack"
                             }
                           />
                         </td>
@@ -465,20 +465,7 @@ export default async function PickPackPage({
                           {list.pickerName ?? "-"}
                         </td>
                         <td className="py-3 pr-4">
-                          {list.items.reduce(
-                            (sum, item) => sum + item.packedQuantity,
-                            0,
-                          )}{" "}
-                          /{" "}
-                          {list.items.reduce(
-                            (sum, item) => sum + item.availableQuantity,
-                            0,
-                          )}{" "}
-                          /{" "}
-                          {list.items.reduce(
-                            (sum, item) => sum + item.orderedQuantity,
-                            0,
-                          )}
+                          {list.status === "Pending" ? "—" : `${list.items.filter(item => item.isChecked).length} / ${list.items.length} checked`}
                         </td>
                         <td className="py-3">
                           <div className="flex gap-2">
@@ -522,7 +509,7 @@ export default async function PickPackPage({
                 </h2>
                 <p className="mt-1 text-sm text-ink/70">
                   Prepared lists are read-only. Reopen is available only before
-                  a Surat Jalan is issued.
+                  a Surat Jalan exists.
                 </p>
               </div>
               <p className="text-sm font-medium text-ink/70">
@@ -532,7 +519,7 @@ export default async function PickPackPage({
             </div>
             <form
               method="get"
-              className="grid gap-3 rounded-md border border-line bg-soft p-4 md:grid-cols-2 xl:grid-cols-8"
+              className="grid gap-3 rounded-md border border-line bg-soft p-4 md:grid-cols-2 xl:grid-cols-6"
             >
               <input type="hidden" name="tab" value="completed" />
               <label className="text-sm font-medium xl:col-span-2">
@@ -545,34 +532,8 @@ export default async function PickPackPage({
                 />
               </label>
               <label className="text-sm font-medium">
-                Picking PIC
-                <input
-                  name="picker"
-                  defaultValue={filters.picker}
-                  placeholder="Picking PIC"
-                  className={`${inputClass} mt-1 bg-white`}
-                />
-              </label>
-              <label className="text-sm font-medium">
-                Packing PIC
-                <input
-                  name="packer"
-                  defaultValue={filters.packer}
-                  placeholder="Packing PIC"
-                  className={`${inputClass} mt-1 bg-white`}
-                />
-              </label>
-              <label className="text-sm font-medium">
-                Fulfillment
-                <select
-                  name="fulfillment"
-                  defaultValue={filters.fulfillment}
-                  className={`${inputClass} mt-1 bg-white`}
-                >
-                  <option value="all">All</option>
-                  <option value="full">Fully packed</option>
-                  <option value="shortage">With shortage</option>
-                </select>
+                PIC Pick &amp; Pack
+                <input name="pic" defaultValue={filters.pic} placeholder="PIC name" className={`${inputClass} mt-1 bg-white`} />
               </label>
               <label className="text-sm font-medium">
                 Completed from
@@ -606,7 +567,7 @@ export default async function PickPackPage({
                   <option value="cancelled">Cancelled</option>
                 </select>
               </label>
-              <div className="flex flex-wrap items-end gap-2 md:col-span-2 xl:col-span-8">
+              <div className="flex flex-wrap items-end gap-2 md:col-span-2 xl:col-span-6">
                 <button className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
                   Apply Filters
                 </button>
@@ -632,9 +593,8 @@ export default async function PickPackPage({
                         <th className="py-3 pr-4">Picking List</th>
                         <th className="py-3 pr-4">Completed</th>
                         <th className="py-3 pr-4">Customer / Order</th>
-                        <th className="py-3 pr-4">Picking PIC</th>
-                        <th className="py-3 pr-4">Packing PIC</th>
-                        <th className="py-3 pr-4">Fulfillment</th>
+                        <th className="py-3 pr-4">PIC Pick &amp; Pack</th>
+                        <th className="py-3 pr-4">Pack checks</th>
                         <th className="py-3 pr-4">Surat Jalan</th>
                         <th className="py-3">Actions</th>
                       </tr>
@@ -660,23 +620,10 @@ export default async function PickPackPage({
                             </p>
                           </td>
                           <td className="py-3 pr-4 text-ink/80">
-                            {list.pickerName ?? "-"}
-                          </td>
-                          <td className="py-3 pr-4 text-ink/80">
-                            {list.packerName ?? "-"}
+                            {list.pickerName ?? list.packerName ?? "—"}
                           </td>
                           <td className="py-3 pr-4">
-                            <StatusBadge
-                              status={
-                                list.items.some(
-                                  (item) =>
-                                    item.availableQuantity <
-                                    item.orderedQuantity,
-                                )
-                                  ? "Shortage"
-                                  : "Fully Packed"
-                              }
-                            />
+                            {list.usesChecklist ? `${list.items.filter(item => item.isChecked).length} / ${list.items.length} checked` : "Historical record"}
                           </td>
                           <td className="py-3 pr-4">
                             <StatusBadge
@@ -715,7 +662,7 @@ export default async function PickPackPage({
               label="completed picking lists"
               nextCursor={completedPickingPage.nextCursor}
               pathname="/pick-pack"
-              searchParams={params}
+              searchParams={{ ...params, pic: filters.pic }}
               state={completedPagination}
               preserveParams={COMPLETED_PICKING_QUERY_PARAMS}
             />

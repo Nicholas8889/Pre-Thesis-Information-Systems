@@ -8,39 +8,31 @@ This flow separates internal warehouse work from the customer-facing delivery do
 
 - Admin and Manager can create Picking Lists, complete Pick & Pack, create and edit Draft Surat Jalan, Issue them, and update delivery status.
 - Sales can review the records but cannot mutate them.
-- Picking PIC is required when the Picking List is created.
-- Packing PIC is required when Pick & Pack is completed.
+- One PIC Pick & Pack is required when a new sheet is created.
+- Historical completed sheets retain their original Picking and Packing PIC records.
 
 ## End-to-end flow
 
 ```text
 Invoice active
-  -> Create Picking List + assign Picking PIC
-  -> Check availability and packed quantity per item
-  -> Assign Packing PIC
+  -> Create sheet + assign PIC Pick & Pack
+  -> Pick: view item list and ordered quantities
+  -> Pack: check each item, save progress as needed
   -> Complete Pick & Pack
-  -> Select packed items across completed SO / Customer PO records
-  -> Create Draft Surat Jalan
-  -> Adjust final delivery header and quantities
-  -> Issue & Lock
-  -> Print final positive-quantity lines
-  -> Delivered or Cancelled
+  -> Create Draft Surat Jalan from checked items (ordered quantities initially)
+  -> Adjust final delivery quantities
+  -> Issue & Lock -> Print -> Delivered or Cancelled
 ```
 
 ## Pick & Pack
 
-The Picking List copies customer, order reference, invoice reference, item, and ordered quantity from the transaction. The warehouse records:
+Pick is read-only item data; only Pack has item checkboxes. Completion requires one PIC and every item checked. There are no item quantity inputs, availability/shortage statuses or package-count requirements. The completed sheet is locked; Reopen with a reason resets every check while no Surat Jalan exists.
 
-- availability status: Unchecked, Available, Partial, or Unavailable;
-- available quantity;
-- packed quantity;
-- an operational shortage note when the ordered quantity cannot be fulfilled.
-
-Completion is allowed with a shortage when every item has been checked, every available unit is packed, and every shortage has a note. A completed list is immutable unless Admin or Manager reopens it before a Surat Jalan exists.
+Active unlinked legacy sheets are moved to checklist mode with their previous state retained in Audit Trail. Historical completed/linked sheets and existing delivery snapshots are unchanged. Their original ready quantities remain valid for historical delivery creation; new checklist sheets use ordered quantities after every check is confirmed.
 
 ## Draft Surat Jalan
 
-A Surat Jalan can be created only from completed Pick & Pack records. Admin or Manager first chooses a customer, then selects packed items grouped by SO / Customer PO. One Surat Jalan may combine selected items from several source orders when their customer and destination match. Creation is concurrency-safe and keeps each source order linked to at most one delivery document.
+A Surat Jalan can be created only from completed Pick & Pack records. Admin or Manager first chooses a customer, then selects ready items grouped by SO / Customer PO. One Surat Jalan may combine selected ready items from several source orders when their customer and destination match. Creation is concurrency-safe and keeps each source order linked to at most one delivery document.
 
 The new document starts as **Draft**. It copies:
 
@@ -48,7 +40,7 @@ The new document starts as **Draft**. It copies:
 - driver and vehicle assignment;
 - source SO / Customer PO and invoice references for every included order;
 - every Pick & Pack item from each included order as an audit snapshot;
-- ordered and packed quantities as immutable snapshots;
+- ordered and ready-to-ship quantities as immutable snapshots (the existing packed snapshot column retains this value);
 - the chosen final quantity for selected items, while unselected and packed-zero items start at zero and remain recorded as outstanding.
 
 While the document remains Draft, Admin or Manager can:
@@ -58,7 +50,7 @@ While the document remains Draft, Admin or Manager can:
 - restore an item up to its packed quantity;
 - add an optional adjustment note.
 
-The final delivery quantity cannot exceed the packed quantity.
+The final delivery quantity cannot exceed the ready-to-ship snapshot. New checklist sheets start at ordered quantities; historical sheets use their originally packed quantities.
 
 ## Outstanding delivery
 
@@ -70,7 +62,7 @@ outstanding delivery = ordered quantity snapshot - final delivery quantity
 
 The detail view also distinguishes:
 
-- Pick & Pack shortage: ordered minus packed;
+- Historical preparation difference: ordered minus the ready snapshot;
 - Draft reduction: packed minus final delivery quantity.
 
 Outstanding is informational and auditable. This version still allows only one Surat Jalan per order, so it does not create an automatic follow-up shipment.
@@ -89,6 +81,8 @@ Issue records the timestamp and operator. After Issue:
 Optimistic version checks and row locks prevent two operators from overwriting the same Draft.
 
 ## Printing
+
+Internal checklist sheets can print at every stage. Pick shows only item/ordered data; Pack and Completed include check results and one PIC signature. Historical sheets keep the original print layout.
 
 A Draft cannot be printed as an official Surat Jalan. Printing becomes available only after Issue.
 

@@ -62,7 +62,7 @@ For future schema changes during development, create a new migration with `npm r
 npm run prisma:seed
 ```
 
-The seed data includes five customers, five sales orders, five invoices, paid invoices, unpaid invoices, partial invoices, overdue invoices, payments, Surat Jalan records, and collection records.
+This now previews the small UMKM demo dataset without accessing or changing the database. It includes 15 customers, 10 textile products, 22 direct Sales Orders, 8 Customer POs, and 24 invoices across six months. To validate or replace the configured database, follow [the demo dataset runbook](docs/DEMO_DATASET_RUNBOOK.md). Replacement requires an explicit target and creates a verified application-data and PO-attachment backup first.
 
 If the deployed Supabase database already has business data but is missing demo login accounts, use the safer user-only seed:
 
@@ -94,6 +94,30 @@ npm.cmd run dev
 ```
 
 If port 3000 is already in use, open `http://localhost:3000` first because the app may already be running. Otherwise, run `npm.cmd run dev -- --port 3001` and open `http://localhost:3001`.
+
+## Production Cost Guidance
+
+The existing product price input is **Production Cost / Unit**, excluding PPN.
+Only Admin can enter or change this cost. Its stored Prisma field remains
+`listPrice` for compatibility with existing order and inquiry defaults.
+Every actual cost change creates an attributed history entry in the same
+transaction; editing names, notes, or status does not create a cost change.
+
+Products, Sales Orders, and Customer POs display **Average Production Cost - Last
+30 Days** in their existing layouts. This is the average unit cost weighted by
+the time each cost was in effect, not by sales quantity or number of edits:
+`sum(unit cost × duration) / duration with known cost history`. The last cost
+before the window carries forward; future entries are excluded. Partial history
+shows its actual coverage, and missing history is unavailable. Display dates use
+WIB. This is a production cost reference over time, not inventory valuation or
+a quantity-weighted cost of units manufactured.
+
+The migration records existing product costs starting at migration time without
+inventing earlier history. Apply it with `npm run prisma:deploy`; do not reset or
+reseed an existing database. The demo seed supplies explicit sample history.
+SO/PO price comparisons exclude PPN and calculate the percentage relative to
+cost. They remain advisory and do not alter entered prices, totals, or historical
+order/invoice snapshots.
 
 ## Run Tests
 
@@ -173,17 +197,18 @@ npm run build
 npm start
 ```
 
-The integration suite uses the configured Supabase database and rolls its fixture transactions back. `npm run prisma:seed` is intentionally excluded from routine release verification because it deletes and recreates application demo records.
+The integration suite uses the configured Supabase database and rolls its fixture transactions back. Database replacement is excluded from routine release verification; the default `npm run prisma:seed` only previews the dataset.
 
 ### How to Reset Demo Data
 
 ```bash
-npm run prisma:seed
+npm run demo:validate -- --target YOUR_PROJECT_REF
+npm run demo:replace -- --target YOUR_PROJECT_REF --python PATH_TO_REPORTLAB_PYTHON
 ```
 
-This command deletes and recreates the application demo records in the configured database. Do not run it against a database containing records that must be preserved.
+The replacement command archives existing application rows and private PO attachments, tests restore and replacement in an isolated schema, then replaces business records in one transaction. Existing ordinary accounts, credentials, schema, RLS, and migration history are preserved. Identified SIT fixture accounts are removed. Do not run it against a database containing business records that should remain active.
 
-The reset restores customers with and without NPWP, all five Customer Payment Behaviour outcomes, current-month product sales with linked Product IDs, PPN and non-PPN order/invoice snapshots, assigned Surat Jalan drivers/plates, receivables, collection, and the default demo accounts. The seed finishes by verifying these scenarios and fails if any snapshot or reconciliation rule is inconsistent.
+The reset supplies fictional textile customers with and without NPWP, on-time and late payers, customers without payment history, PPN and non-PPN snapshots, current cost history, picking, combined Surat Jalan, receivables, collection, and pending manager approvals. Financial totals and application queries are verified before replacement. See the runbook for backups, prerequisites, and repeatable demo scenarios.
 
 ### How to Add Another Account
 
@@ -265,23 +290,25 @@ This project is intentionally limited to the scope of a thesis project and contr
 
 Fulfillment is split into two modules:
 
-- **Pick & Pack** at `/pick-pack`: **Active** contains eligible SO/Customer PO orders plus Pending and InProgress lists; **Completed** contains every Prepared list, including lists that already have Surat Jalan.
-- **Surat Jalan** at `/surat-jalan`: creation of delivery documents from Prepared lists, active delivery documents in **Surat Jalan Open**, and Delivered documents in **Completed**. Cancelled documents remain available through the separate archive filter.
+- **Pick & Pack** at `/pick-pack`: **Active** contains eligible SO/Customer PO orders and unfinished sheets. **Completed** keeps every finished sheet, including delivery-linked and historical records.
+- **Surat Jalan** at `/surat-jalan`: create Drafts from completed sheets, issue/lock them, and record delivery receipt. Cancelled documents remain in their labelled archive.
 
-Admin and Manager create and update Picking Lists and Surat Jalan. Sales can review them. An order must be Confirmed/Invoiced with Approved/NotRequired approval and an active invoice. Both Immediate Payment and Credit invoices may remain Unpaid, Partial, or Overdue during preparation and delivery. Existing picking or delivery records prevent a duplicate process.
+Admin and Manager manage sheets and deliveries; Sales can review them. Orders require Confirmed/Invoiced status, Approved/NotRequired approval, and an active invoice. Immediate Payment and Credit invoices need not be fully paid before preparation or shipment.
 
-1. Open **Pick & Pack** and create a Picking List from an eligible invoiced SO or Customer PO, then assign the required **Picking PIC**. Customer, product, ordered quantity, invoice, and order references are copied automatically without prices.
-2. During physical work, record each item as Available, Partial, Unavailable, or Unchecked; enter Available and Packed quantities, operational notes, and the **Packing PIC**.
-3. Save partial progress at any time. Packed cannot exceed Available, and Available cannot exceed Ordered.
-4. Select **Complete Pick & Pack** after every item has been checked and every available unit is packed. Shortages are allowed, but each shortage requires an operational note. The result becomes read-only and moves to **Completed**.
-5. Completed shows Fully Packed or Shortage, both PICs, quantity totals, and filters for PIC and fulfillment condition. Reopen remains available before Surat Jalan exists.
-6. Select **Create Surat Jalan**, choose a customer, then select packed items from one or more completed SO / Customer PO records for the same customer and destination. Set each selected final quantity from one up to its packed quantity.
-7. A Draft snapshot keeps every line from each included source order. Selected lines use the chosen final quantity; unselected and packed-zero lines use zero, so the difference remains stored as outstanding delivery. While Draft, the header and final quantities can still be adjusted from zero up to the packed quantity.
-8. Select **Issue & Lock** to save and lock the final document. Only positive final quantities are printed. Issued documents can become Delivered or Cancelled; Delivered documents move to **Completed**.
+1. Create a Picking List with one required **PIC Pick & Pack**. Order/customer/item references and ordered quantities are copied without prices.
+2. **Pick** displays the item list and quantities without editable quantities or checkboxes. Select **Lanjut ke Pack**.
+3. **Pack** has a **Sudah diperiksa** checkbox per item, the same PIC, and optional internal notes. **Save Progress** preserves partial checks.
+4. **Selesaikan Pick & Pack** requires a PIC and every item checked. No Available/Packed counts, availability status, package count or shortage notes are completion inputs. The sheet becomes read-only in **Completed**.
+5. **Completed** supports search, one PIC filter, completion dates and Surat Jalan status. Admin/Manager can **Reopen** with a reason while no Surat Jalan exists; all checks reset for another review.
+6. Select **Create Surat Jalan** and choose items from one or more completed sheets for the same customer/destination. Checklist sheets use ordered quantities as their initial ready-to-ship quantities. Historical completed lists retain their originally packed quantities and both original PIC records in detail/print.
+7. The Draft snapshots every included source line. Selected lines use the chosen delivery quantity; unselected lines start at zero. Final quantities can be adjusted from zero up to the ready-to-ship snapshot while Draft. Outstanding delivery remains ordered minus final send.
+8. **Issue & Lock** locks the document. Only positive final quantities print. Issued documents can become Delivered or Cancelled.
 
-The **Completed** tab supports search, Picking PIC, Packing PIC, fulfillment condition, completion-date, and Surat Jalan-status filters with pagination. Admin and Manager can **Reopen** a completed list with a required reason while no Surat Jalan exists; reopening restores it to **Active** and records the action in Audit Trail. Once linked to a Surat Jalan, the Picking List remains immutable and available as completion history.
+Print is available for both new and historical sheets. Checklist printing uses one PIC signature; Pick prints only item/ordered data, while Pack and Completed include recorded checks. Historical printing keeps its original quantity and personnel records.
 
-This version supports one Picking List and at most one Surat Jalan per source order, while one Surat Jalan may combine selected packed items from several source orders. Remaining outstanding lines are informational and cannot be moved into a follow-up Surat Jalan. Stock balances, reservations, rack locations, and carrier integration remain outside scope.
+Migration `20261004100000_add_pick_pack_checklist` adds checklist persistence. Migration `20261005010000_transition_active_pick_pack_checklists` transitions only unlinked unfinished legacy sheets, resets checks, and preserves the previous state in Audit Trail. Completed sheets and delivery snapshots are not rewritten.
+
+This version supports one Picking List and at most one Surat Jalan per source order. A Surat Jalan may combine several source orders for the same customer/destination. Outstanding delivery is informational and does not create follow-up shipments. Stock balances, reservations, rack locations and carrier integration remain outside scope.
 
 Migration `20260917215722_add_pick_pack_availability` renames the legacy picked quantity to available quantity, adds an explicit availability status, safely resets unstarted legacy lists, preserves active/completed history, and enforces quantity/status consistency at the database boundary.
 
@@ -322,6 +349,8 @@ Important rules:
 - Invoice and Surat Jalan documents show the Customer PO Number when the linked order source is a Customer PO.
 
 ## Canonical Naming and Compatibility Routes
+
+SO and Customer PO detail pages support **Edit Barang** in the existing item table. Users can change products/quantities and add/remove rows, review the resulting total, and provide a required reason. Saving updates the same invoice and Pending Pick sheet atomically and records immutable revision history. Item editing closes after any payment, entering Pack (including after Reopen), or creating any Surat Jalan. Sales can edit their own pre-invoice orders; invoiced orders require Admin/Manager, and invoiced Approved orders require Manager. Revised documents show a revision badge, including the printable invoice. See [the item editor flow and verification](docs/ORDER_ITEM_EDIT_STAGE3.md).
 
 - Customer Purchase Orders use `SalesOrder.source = CUSTOMER_PO` and the canonical route `/customer-purchase-orders`; `/pre-orders` remains a redirect for old bookmarks.
 - Collections use `CollectionTask` and `/collections`; `/billing` remains a redirect.

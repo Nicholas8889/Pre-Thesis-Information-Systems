@@ -190,8 +190,8 @@ Precondition: Use an approved demo database reset with the current seed. The see
 Steps:
 
 1. Open Customers and locate examples of Immediate Payment, Short-Term Credit, Long-Term Credit, Mixed, and No Payment History.
-2. Open Products and confirm at least one product shows a current-month Average Sold Price with quantity/value evidence.
-3. Start a Sales Order or Customer PO for a seeded customer with NPWP and confirm the live estimate shows NPWP, PPN, Net Sales (Margin), and Total.
+2. Open Products and confirm at least one product shows Average Production Cost - Last 30 Days with cost-history coverage. Its production cost input is editable only by Admin.
+3. Start a Sales Order or Customer PO for a seeded customer with NPWP and confirm the live estimate shows NPWP, PPN, Net Sales (Excluding PPN), and Total. Product Cost Insight compares the proposed selling price excluding PPN with the same average cost shown in Products.
 4. Repeat with a customer without NPWP and confirm PPN is not applied and Net Sales equals Total.
 5. Finalize an eligible order, generate its Invoice, and confirm the Invoice tax snapshot exactly matches the order.
 6. Create Surat Jalan, choose an allowlisted driver and vehicle plate, and enter Sender separately.
@@ -199,6 +199,19 @@ Steps:
 8. Review Audit Trail using the finalized record references.
 
 Expected result: Customer intelligence, final product pricing, tax identity, Invoice totals, and delivery assignment stay consistent and explainable throughout the connected revenue-cycle flow.
+
+## UAT-COST-001: Admin Updates Production Cost
+
+Roles: Admin, Sales, and Manager
+
+1. As Admin, edit Production Cost / Unit for a product and save. Keep its existing name, notes, and status.
+2. Open its detail and SO/Customer PO creation. Confirm the latest cost reflects the edit and the average has a last-30-day period and actual history coverage.
+3. Save a notes-only edit without changing cost. Confirm it does not start a new cost entry.
+4. As Sales or Manager, confirm cost is read-only while other product metadata can still be edited.
+5. Compare a taxed and untaxed proposed selling price against cost. Verify the percentage uses cost as the denominator and taxed prices are compared excluding PPN.
+6. Open an existing order and invoice. Confirm their saved amounts remain unchanged.
+
+Expected result: Cost changes have Admin attribution, the existing layouts are retained, and guidance depends on cost history rather than sales transactions.
 
 ## UAT-005: Manager Reviews Dashboard and Receivables
 

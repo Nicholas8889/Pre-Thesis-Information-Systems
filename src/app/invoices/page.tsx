@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DocumentRevisionBadge } from "@/components/document-revision-badge";
 import { Eye, FilePlus2, Printer } from "lucide-react";
 import { cancelInvoice, updateInvoiceNotes } from "@/lib/actions";
 import { EmptyState } from "@/components/empty-state";
@@ -134,6 +135,7 @@ export default async function InvoicesPage({
             <div>
               <p className="text-sm font-semibold uppercase text-ink/50">Invoice</p>
               <h2 className="mt-1 text-2xl font-semibold">{selectedInvoice.invoiceNumber}</h2>
+              <DocumentRevisionBadge revisionNumber={selectedInvoice.revisionNumber} />
               <p className="mt-1 text-sm text-ink/80">
                 Sales Order {selectedInvoice.orderNumberSnapshot}
                 {selectedInvoice.orderSourceSnapshot === "CUSTOMER_PO" &&
@@ -325,7 +327,7 @@ export default async function InvoicesPage({
               <tbody className="divide-y divide-line text-sm">
                 {visibleInvoices.map((invoice) => (
                   <tr key={invoice.id} className="transition hover:bg-soft">
-                    <td className="py-3 pr-4 font-medium">{invoice.invoiceNumber}</td>
+                    <td className="py-3 pr-4 font-medium">{invoice.invoiceNumber} <DocumentRevisionBadge revisionNumber={invoice.revisionNumber} /></td>
                     <td className="py-3 pr-4 text-ink/80">{invoice.customerCompanySnapshot}</td>
                     <td className="py-3 pr-4 text-ink/80">{formatDate(invoice.issueDate)}</td>
                     <td className="py-3 pr-4 text-ink/80">{formatDate(invoice.dueDate)}</td>

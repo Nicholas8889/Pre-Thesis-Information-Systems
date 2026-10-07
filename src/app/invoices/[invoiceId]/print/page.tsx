@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { PrintButton } from "@/components/print-button";
+import { DocumentRevisionBadge } from "@/components/document-revision-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { prisma } from "@/lib/prisma";
 import { getPaymentTermLabel } from "@/lib/calculations";
@@ -79,6 +80,7 @@ export default async function InvoicePrintPage({
             <div className="text-left sm:text-right">
               <h1 className="text-3xl font-bold tracking-normal">INVOICE</h1>
               <p className="mt-2 text-sm font-semibold">{invoice.invoiceNumber}</p>
+              <DocumentRevisionBadge revisionNumber={invoice.revisionNumber} />
               <div className="mt-2 flex sm:justify-end">
                 <StatusBadge status={invoice.status} />
               </div>

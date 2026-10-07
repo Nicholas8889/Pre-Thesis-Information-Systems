@@ -18,20 +18,17 @@ describe("completed Pick & Pack query", () => {
       }),
     ).toEqual({
       query: "ACME",
-      picker: "",
-      packer: "",
-      fulfillment: "all",
+      pic: "",
       from: "",
       to: "2026-09-27",
       deliveryStatus: "all",
     });
   });
 
-  it("builds one database predicate for search, PIC, fulfillment, date, delivery, and portfolio", () => {
+  it("uses one PIC filter for checklist and historical personnel without shortage filtering", () => {
     const filters = parseCompletedPickingFilters({
       q: "PO-42",
-      picker: "Dewi",
-      packer: "Raka",
+      pic: "Dewi",
       fulfillment: "shortage",
       from: "2026-09-01",
       to: "2026-09-27",
@@ -46,18 +43,18 @@ describe("completed Pick & Pack query", () => {
       expect.arrayContaining([
         { salesOrder: { createdByUserId: "sales-1" } },
         { status: "Packed" },
-        { pickerName: { contains: "Dewi" } },
-        { packerName: { contains: "Raka" } },
         {
-          items: {
-            some: { availabilityStatus: { in: ["Partial", "Unavailable"] } },
-          },
+          OR: [
+            { pickerName: { contains: "Dewi" } },
+            { usesChecklist: false, packerName: { contains: "Dewi" } },
+          ],
         },
       ]),
     );
     expect(JSON.stringify(where)).toContain("PO-42");
     expect(JSON.stringify(where)).toContain("Delivered");
     expect(JSON.stringify(where)).toContain("packedAt");
+    expect(JSON.stringify(where)).not.toContain("availabilityStatus");
   });
 
   it("preserves only canonical filters when opening a completed record", () => {
@@ -69,7 +66,12 @@ describe("completed Pick & Pack query", () => {
     });
 
     expect(completedPickingHref(filters, "pick-9")).toBe(
-      "/pick-pack?tab=completed&q=PL-9&fulfillment=full&deliveryStatus=not-issued&view=pick-9",
+      "/pick-pack?tab=completed&q=PL-9&deliveryStatus=not-issued&view=pick-9",
     );
+  });
+  it("canonicalizes old PIC bookmarks and ignores obsolete shortage parameters", () => {
+    const filters = parseCompletedPickingFilters({ packer: " Raka ", fulfillment: "shortage" });
+    expect(filters.pic).toBe("Raka");
+    expect(completedPickingHref(filters)).toBe("/pick-pack?tab=completed&pic=Raka");
   });
 });

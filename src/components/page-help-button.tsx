@@ -50,12 +50,12 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
     match: (pathname) => pathname === "/products",
     content: {
       title: "Products Help",
-      purpose: "Use Products to manage product names, prices, notes, and availability status.",
+      purpose: "Use Products to manage product names, production costs, notes, and availability status.",
       steps: [
-        "Use Add Product to create a product master record.",
-        "Search products by name or notes, and sort the current-month average sold-price column when comparing products.",
-        "Use view to compare the editable List Price with the weighted average final selling price for this month.",
-        "Use edit to update product data, or mark a product active or inactive from its detail."
+        "Admin uses Add Product to create a product and enter its production cost per unit excluding PPN.",
+        "Search products by name or notes, and sort the average production-cost column when comparing products.",
+        "Use view to compare the latest production cost with its time-weighted average over the last 30 days. Days before cost history began are excluded.",
+        "Admin changes production cost through Edit Product. Each cost change starts a new history entry; other product edits do not change the average."
       ]
     }
   },
@@ -68,6 +68,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       steps: [
         "Check the summary card for the snapshotted NPWP, PPN, Net Sales, order status, invoice, payments, and remaining amount.",
         "Review customer, item, invoice, payment, Surat Jalan, receivable, and collection sections.",
+        "Use Edit Barang in Item Details to change products or quantities, then review the changes and provide a reason before saving. Editing closes after payment, entering Pack, or creating a Surat Jalan; the button explains any restriction.",
         "Use available buttons to print an invoice, record payment, or continue the order workflow."
       ]
     }
@@ -78,7 +79,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       title: "Sales Orders Help",
       purpose: "Use Sales Orders to start and monitor the direct-order revenue cycle.",
       steps: [
-        "Click Create Sales Order to select a customer, review customer and product insights, add items, and choose payment terms.",
+        "Click Create Sales Order to select a customer, compare the proposed selling price excluding PPN with the last-30-day average production cost, add items, and choose payment terms.",
         "Review the estimated Total Price, PPN, and Net Sales calculation before confirming the order.",
         "The system generates a connected invoice after confirmation.",
         "Use Need Approval to review Sales-created orders requiring approval for outstanding payments, Open for active orders, and Completed for completed or closed orders."
@@ -94,6 +95,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
         "Create a Customer PO using the required date and uploaded customer PO document. Enter a Customer PO Number or leave it blank for automatic numbering; Sales Order Number is generated automatically.",
         "Review the same customer, product, PPN, and Net Sales estimates used by Direct Sales Orders before confirming.",
         "Review the PO detail and process it before the required date reminder becomes overdue.",
+        "Use Edit Barang in the detail item table to correct products or quantities. Saving requires a reason and updates the connected invoice and Pick sheet. Editing closes after payment, entering Pack, or creating a Surat Jalan.",
         "Continue with invoice, payment, receivable, collection, and Surat Jalan using the same process as Sales Orders."
       ]
     }
@@ -138,8 +140,8 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
     match: (pathname) => pathname.startsWith("/pick-pack/") && pathname.endsWith("/print"),
     content: {
       title: "Picking List Print Help",
-      purpose: "Print the internal picking, packing, and shortage record.",
-      steps: ["Check customer, invoice, order reference, and ordered quantities.", "Review availability, available quantity, packed quantity, shortage, and operational notes.", "Obtain confirmation from both Picking PIC and Packing PIC before delivery."]
+      purpose: "Print the internal Pick & Pack sheet and recorded checks.",
+      steps: ["Check customer, invoice, order reference, and ordered quantities.", "Pick shows the item list; Pack and Completed include recorded item checks and one PIC Pick & Pack signature.", "Historical sheets retain their original quantities and personnel records."]
     }
   },
   {
@@ -148,11 +150,12 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       title: "Pick & Pack Help",
       purpose: "Create and verify Picking Lists before orders are issued as Surat Jalan.",
       steps: [
-        "Use Active to create a Picking List for an invoiced Sales Order or Customer PO and assign the Picking PIC.",
-        "Record availability, available quantity, packed quantity, operational notes, and the Packing PIC.",
-        "Complete Pick & Pack after all available units are packed. Shortage is allowed when every shortage has a note.",
-        "Filter Completed by reference, either PIC, fulfillment condition, completion date, or Surat Jalan status.",
-        "Admin and Manager can Reopen a completed list before Surat Jalan is issued; a reason is required.",
+        "Use Active to create a Picking List for an invoiced Sales Order or Customer PO with one PIC Pick & Pack.",
+        "Pick displays products and ordered quantities. Use Lanjut ke Pack to open the item checklist.",
+        "In Pack, check each item and use Save Progress as needed. Selesaikan Pick & Pack requires the PIC and every item checked; no quantity input is required.",
+        "Completed sheets are locked. Historical sheets retain their original quantity and personnel records.",
+        "Use the single PIC filter, completion dates and Surat Jalan status to find completed sheets. Print is available for both checklist and historical sheets.",
+        "Admin and Manager can Reopen a completed list with a reason while no Surat Jalan exists. Every Pack check is reset.",
         "Use Create Surat Jalan to continue in the separate delivery module."
       ]
     }
@@ -175,8 +178,8 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       title: "Surat Jalan Help",
       purpose: "Prepare, issue, and track Surat Jalan after warehouse preparation is complete.",
       steps: [
-        "Choose a customer, then select packed items from one or more Prepared SO / Customer PO lists for the same destination. The Draft stores every included source line for audit.",
-        "While Draft, adjust recipient, delivery assignment, and final quantity up to each packed quantity. Review the stored outstanding delivery.",
+        "Choose a customer, then select items from completed SO / Customer PO sheets for the same destination. Checklist sheets use ordered quantities; historical sheets use their recorded ready quantities.",
+        "While Draft, adjust recipient, delivery assignment, and final quantity up to each ready-to-ship quantity. Review the stored outstanding delivery.",
         "Pilih Kirim Surat Jalan ketika jumlah final sudah benar. Setelah dikirim, data terkunci dan dokumen dapat dicetak.",
         "Gunakan Tandai Sudah Diterima untuk mencatat nama penerima, waktu penerimaan, dan catatan opsional. Surat Jalan yang diterima berpindah ke Completed; yang dibatalkan masuk arsip terpisah."
       ]

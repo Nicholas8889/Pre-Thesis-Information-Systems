@@ -104,7 +104,7 @@ export function ActionConfirmationDialog() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="action-confirmation-title"
-        className="w-full max-w-lg rounded-lg border border-line bg-white p-5 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-line bg-white p-5 shadow-2xl"
       >
         <h2 id="action-confirmation-title" className="text-lg font-semibold text-ink">
           Confirm {pending.title}
@@ -114,7 +114,7 @@ export function ActionConfirmationDialog() {
           shown in the Audit Trail.
         </p>
         {pending.summary && (
-          <div className="mt-4 whitespace-pre-line rounded-md bg-accent/15 px-4 py-3 text-sm font-semibold leading-7 text-ink">
+          <div className="mt-4 max-h-64 overflow-y-auto whitespace-pre-line rounded-md bg-accent/15 px-4 py-3 text-sm font-semibold leading-7 text-ink">
             {pending.summary}
           </div>
         )}

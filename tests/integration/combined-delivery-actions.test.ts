@@ -79,6 +79,19 @@ function deliveredForm() {
 }
 
 describe("combined delivery server actions", () => {
+  it("uses ordered snapshots for checked sheets with one PIC and no legacy packed count", async () => {
+    const checklist = { ...packed("a"), usesChecklist: true, packerName: null,
+      items: packed("a").items.map(item => ({ ...item, isChecked: true, availableQuantity: 0, packedQuantity: 0, availabilityStatus: "Unchecked" })) };
+    mocks.lists.mockResolvedValue([checklist]);
+    await expect(createDeliveryNote(form(["a"]))).rejects.toThrow("tab=open&view=sj");
+    expect(mocks.items.mock.calls[0][0].data[0]).toMatchObject({ orderedQuantitySnapshot: 5, packedQuantitySnapshot: 5, quantity: 5, outstandingQuantity: 0 });
+  });
+  it("rejects a checklist sheet with an unchecked item even when legacy quantities look complete", async () => {
+    mocks.lists.mockResolvedValue([{ ...packed("a"), usesChecklist: true,
+      items: packed("a").items.map(item => ({ ...item, isChecked: false })) }]);
+    await expect(createDeliveryNote(form(["a"]))).rejects.toThrow("Picking%20List%20is%20not%20ready");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks(); mocks.role = "ADMIN"; mocks.writes.length = 0;
     mocks.lists.mockResolvedValue([packed("a"), packed("b")]);
@@ -144,7 +157,7 @@ describe("combined delivery server actions", () => {
     const data = form();
     data.append("selectedItemId", "tampered-item");
     data.set("quantity_tampered-item", "1");
-    await expect(createDeliveryNote(data)).rejects.toThrow("Selected%20items%20must%20be%20packed");
+    await expect(createDeliveryNote(data)).rejects.toThrow("Selected%20items%20must%20be%20ready");
     expect(mocks.create).not.toHaveBeenCalled();
   });
 

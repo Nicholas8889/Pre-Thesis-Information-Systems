@@ -120,7 +120,7 @@ export function CombinedDeliveryNoteForm({
       <div>
         <h3 className="text-lg font-semibold">Create Draft Surat Jalan</h3>
         <p className="mt-1 text-sm text-ink/70">
-          Select packed items from one or more SO / Customer PO for the same customer and destination; invoices stay separate.
+          Select items from completed Pick & Pack sheets for the same customer and destination; invoices stay separate. Checklist sheets start with ordered quantities.
         </p>
       </div>
 
@@ -151,7 +151,7 @@ export function CombinedDeliveryNoteForm({
       )}
 
       <fieldset disabled={!selectedDestinationKey} className="space-y-4">
-        <legend className="font-semibold">Packed items ready to ship</legend>
+        <legend className="font-semibold">Checked items ready to ship</legend>
         {!available.length && (
           <p className="text-sm text-ink/70">Select a customer with completed Pick & Pack records.</p>
         )}
@@ -167,7 +167,7 @@ export function CombinedDeliveryNoteForm({
                 </div>
                 <div className="flex gap-3 text-xs font-semibold">
                   <button type="button" className="text-brand" onClick={() => selectOrderItems(candidate)}>
-                    Select packed
+                    Select all ready items
                   </button>
                   <button type="button" className="text-ink/60" onClick={() => clearOrderItems(candidate)}>
                     Clear
@@ -178,7 +178,7 @@ export function CombinedDeliveryNoteForm({
               <div className="hidden grid-cols-[minmax(220px,1fr)_90px_90px_150px_110px] border-b border-line px-4 py-2 text-right text-xs font-semibold uppercase text-ink/50 md:grid">
                 <span className="text-left">Item</span>
                 <span>Ordered</span>
-                <span>Packed</span>
+                <span>Ready</span>
                 <span>Final send</span>
                 <span>Outstanding</span>
               </div>
@@ -207,13 +207,13 @@ export function CombinedDeliveryNoteForm({
                           {item.itemName}
                           {item.packedQuantity <= 0 && (
                             <span className="block text-xs font-normal text-amber-700">
-                              Not selectable: packed quantity is zero
+                              Not selectable: historical ready quantity is zero
                             </span>
                           )}
                         </span>
                       </label>
                       <p className="text-right"><span className="md:hidden">Ordered: </span>{item.orderedQuantity}</p>
-                      <p className="text-right"><span className="md:hidden">Packed: </span>{item.packedQuantity}</p>
+                      <p className="text-right"><span className="md:hidden">Ready: </span>{item.packedQuantity}</p>
                       <label className="flex items-center justify-end gap-2">
                         <span className="md:hidden">Send</span>
                         <input

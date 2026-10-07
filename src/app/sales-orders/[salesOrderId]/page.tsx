@@ -8,6 +8,9 @@ import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
 import { StatusStack } from "@/components/status-stack";
 import { RestrictedAction } from "@/components/restricted-action";
 import { DeleteSalesOrderButton } from "@/components/delete-sales-order-button";
+import { OrderItemEditor } from "@/components/order-item-editor";
+import { DocumentRevisionBadge } from "@/components/document-revision-badge";
+import { getOrderItemEditEligibility } from "@/lib/order-item-edit-policy";
 import { generateInvoice, updateCustomerPoDraftMetadata } from "@/lib/actions";
 import {
   calculateTotalPaidFromPayments,
@@ -32,6 +35,7 @@ export const dynamic = "force-dynamic";
 type DetailInvoice = {
   id: string;
   invoiceNumber: string;
+  revisionNumber?: number;
   customerId: string;
   issueDate: Date;
   dueDate: Date;
@@ -63,10 +67,14 @@ export default async function SalesOrderDetailPage({
       deliverySources: { include: { deliveryNote: { include: { invoice: true, items: true } } } },
       customer: true,
       customerInquiry: { select: { id: true } },
-      pickingList: { select: { id: true, status: true, pickingListNumber: true } },
+      pickingList: { select: { id: true, status: true, pickingListNumber: true, packedAt: true,
+        deliveryNote: { select: { id: true } }, deliverySource: { select: { id: true } },
+        items: { select: { isChecked: true, deliveryNoteItem: { select: { id: true } } } },
+      } },
       items: true,
       invoice: {
         include: {
+          _count: { select: { deliverySources: true } },
           payments: { orderBy: { paymentDate: "desc" } },
           collectionTasks: { orderBy: { scheduledDate: "asc" } },
           deliveryNotes: {
@@ -88,6 +96,17 @@ export default async function SalesOrderDetailPage({
   if (!salesOrder) {
     notFound();
   }
+  const itemEditEligibility = getOrderItemEditEligibility(currentUser, {
+    ...salesOrder,
+    invoice: salesOrder.invoice ? { ...salesOrder.invoice, _count: {
+      payments: salesOrder.invoice.payments.length, deliveryNotes: salesOrder.invoice.deliveryNotes.length,
+      deliverySources: salesOrder.invoice._count.deliverySources,
+    } } : null,
+    _count: { deliveryNotes: salesOrder.deliveryNotes.length, deliverySources: salesOrder.deliverySources.length },
+  });
+  const editProducts = itemEditEligibility.allowed ? await prisma.product.findMany({ where: { status: "Active" },
+    orderBy: [{ productName: "asc" }, { id: "asc" }], select: { id: true, productName: true, listPrice: true },
+  }) : [];
 
   const isCustomerPo = salesOrder.source === "CUSTOMER_PO";
   const orderLabel = isCustomerPo ? "Customer PO" : "Sales Order";
@@ -129,6 +148,7 @@ export default async function SalesOrderDetailPage({
     hasPickingList: Boolean(salesOrder.pickingList),
     invoiceStatus: invoice?.status,
     hasInquiry: Boolean(salesOrder.customerInquiry),
+    hasItemRevisions: salesOrder.revisionNumber > 1,
     deliveryNoteStatuses: deliveryNotes.map((note) => note.status)
   });
   const relatedRecordCount =
@@ -159,6 +179,7 @@ export default async function SalesOrderDetailPage({
           <div>
             <p className="text-sm font-semibold uppercase text-ink/50">{orderLabel}</p>
             <h1 className="mt-1 text-2xl font-semibold">{salesOrder.orderNumber}</h1>
+            <DocumentRevisionBadge revisionNumber={salesOrder.revisionNumber} />
             <p className="mt-1 text-sm text-ink/80">
               {salesOrder.customer.companyName} - {formatDate(salesOrder.orderDate)}
               {isCustomerPo && salesOrder.customerPoNumber ? ` - PO ${salesOrder.customerPoNumber}` : ""}
@@ -371,56 +392,9 @@ export default async function SalesOrderDetailPage({
           </div>
         </div>
 
-        <div className="rounded-md border border-line bg-white p-5 shadow-card">
-          <h2 className="text-lg font-semibold">{orderLabel} Item Details</h2>
-          <div className="mt-4 overflow-x-auto">
-            <table>
-              <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
-                <tr>
-                  <th className="py-3 pr-4">Product Name</th>
-                  <th className="py-3 pr-4 text-right">Qty</th>
-                  <th className="py-3 pr-4">Unit</th>
-                  <th className="py-3 pr-4 text-right">Base Unit Price</th>
-                  <th className="py-3 pr-4 text-right">Markup</th>
-                  <th className="py-3 pr-4 text-right">Discount</th>
-                  <th className="py-3 pr-4 text-right">Final Unit Price</th>
-                  <th className="py-3 pr-4 text-right">Line Total</th>
-                  <th className="py-3">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line text-sm">
-                {salesOrder.items.map((item) => (
-                  <tr key={item.id} className="transition hover:bg-soft">
-                    <td className="py-3 pr-4 font-medium">{item.itemName}</td>
-                    <td className="py-3 pr-4 text-right text-ink/80">{item.quantity}</td>
-                    <td className="py-3 pr-4 text-ink/80">PCS</td>
-                    <td className="py-3 pr-4 text-right text-ink/80">
-                      {formatCurrency(item.baseUnitPrice)}
-                    </td>
-                    <td className="py-3 pr-4 text-right text-ink/80">
-                      {item.markupPercent ? `${item.markupPercent}%` : "-"}
-                    </td>
-                    <td className="py-3 pr-4 text-right text-ink/80">
-                      {item.discountPercent ? `${item.discountPercent}%` : "-"}
-                    </td>
-                    <td className="py-3 pr-4 text-right text-ink/80">
-                      {formatCurrency(item.finalUnitPrice)}
-                    </td>
-                    <td className="py-3 pr-4 text-right font-medium">
-                      {formatCurrency(item.subtotal)}
-                    </td>
-                    <td className="py-3 text-ink/80">-</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {salesOrder.notes && (
-            <p className="mt-4 whitespace-pre-wrap rounded-md bg-soft p-3 text-sm text-ink/80">
-              {salesOrder.notes}
-            </p>
-          )}
-        </div>
+        <OrderItemEditor id={salesOrder.id} version={salesOrder.version} orderNumber={salesOrder.orderNumber}
+          orderLabel={orderLabel} items={salesOrder.items} products={editProducts}
+          eligibility={itemEditEligibility} notes={salesOrder.notes} />
       </section>
 
       <RelatedSections
@@ -502,7 +476,7 @@ function RelatedSections({
     <div className="space-y-6">
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold">Invoice</h2>
+          <div className="flex items-center gap-2"><h2 className="text-lg font-semibold">Invoice</h2><DocumentRevisionBadge revisionNumber={invoice?.revisionNumber} /></div>
           {invoice && (
             <Link
               href={`/invoices?view=${invoice.id}`}
