@@ -21,27 +21,39 @@ beforeAll(async () => {
         import { createRoot } from "react-dom/client";
         import { TableSearchToolbar } from "./src/components/table-search-toolbar";
         import { TableEnhancer } from "./src/components/table-enhancer";
+        import { ServerTableColumnHeader } from "./src/components/server-table-column-header";
         window.routerCalls = [];
         const root = createRoot(document.getElementById("root"));
         window.renderFixture = (overrides = {}) => {
           const props = { defaultValue: "", placeholder: "Search order, PO number, or customer",
             resetHref: "/sales-orders?tab=done", loadedCount: 3, totalCount: 103, page: 1,
-            paymentTermType: "CREDIT", empty: false, ...overrides };
+            paymentTermType: "CREDIT", empty: false, columnTools: false,
+            columnHref: "/surat-jalan?tab=open&q=SJ&customerId=other&cursor=old&cursorHistory=~", ...overrides };
           root.render(<main className="app-main p-5">
             <section id="server-card" className="shadow-card rounded-md border border-line bg-white p-5">
               <h2 className="mb-4 text-lg font-semibold">Sales Order Records</h2>
               <TableSearchToolbar {...props}>
                 <input type="hidden" name="tab" value="done" />
-                <div className="table-search-filters" key={props.paymentTermType}>
+                {props.columnTools ? <>
+                  <input type="hidden" name="customerId" value="other" />
+                  <input type="hidden" name="status" value="Issued" />
+                </> : <div className="table-search-filters" key={props.paymentTermType}>
                   <label>Payment terms<select name="paymentTermType" defaultValue={props.paymentTermType}
                     className="h-10 rounded-md border border-line px-3 text-sm">
                     <option value="">All payment terms</option><option value="CREDIT">Credit</option>
                   </select></label>
                   <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
-                </div>
+                </div>}
               </TableSearchToolbar>
-              {props.empty ? <p>No matching orders.</p> : <table data-server-paginated="true">
-                <thead><tr><th>Customer</th><th>Status</th></tr></thead>
+              {props.empty ? <p>No matching orders.</p> : <table key={String(props.columnTools)} data-server-paginated="true">
+                <thead><tr>{props.columnTools ? <>
+                  <th data-table-column-tools="true"><ServerTableColumnHeader key={props.columnHref} label="Date"
+                    href={props.columnHref} sort={{name: "date", active: false, direction: "desc"}}
+                    filter={{type: "date", startDate: "", endDate: ""}} /></th>
+                  <th data-table-column-tools="true"><ServerTableColumnHeader key={props.columnHref} label="Status"
+                    href={props.columnHref} filter={{type: "options", name: "status", value: "Issued",
+                    allLabel: "All statuses in this tab", options: [{value: "Draft", label: "Draft"}, {value: "Issued", label: "Dikirim"}]}} /></th>
+                </> : <><th>Customer</th><th>Status</th></>}</tr></thead>
                 <tbody>{["Zulu", "Alpha", "Beta"].map((name, i) =>
                   <tr key={name + props.defaultValue}><td>{name}</td><td>{i < 2 ? "Paid" : "Open"}</td></tr>
                 )}</tbody>
@@ -192,5 +204,54 @@ describe("table search toolbar in a browser", () => {
     expect((mobileInput?.x ?? 0) + (mobileInput?.width ?? 0)).toBeLessThanOrEqual(375);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375);
     await page.screenshot({ path: "tmp/table-search-toolbar-mobile.png" });
+  });
+
+  it("uses only header controls and sends filters to the server while retaining search and customer", async () => {
+    await page.evaluate(() => (window as unknown as {renderFixture: (props: object) => void}).renderFixture({columnTools: true}));
+    await page.waitForSelector('#server-card th[data-table-column-tools]');
+    expect(await page.locator('#server-card .table-search-filters').count()).toBe(0);
+    expect(await page.getByRole('button', {name: 'Apply', exact: true}).count()).toBe(0);
+    expect(await page.getByRole('button', {name: 'Filter Status', exact: true}).count()).toBe(1);
+    expect(await page.getByRole('button', {name: 'Filter Date', exact: true}).count()).toBe(1);
+    expect(await page.getByRole('button', {name: 'Sort by Date', exact: true}).count()).toBe(1);
+    await page.getByRole('button', {name: 'Filter Status', exact: true}).click();
+    await page.getByRole('dialog').getByLabel('Draft', {exact: true}).check();
+    await page.getByRole('button', {name: 'Apply Filter', exact: true}).click();
+    const href = await page.evaluate(() => (window as unknown as {routerCalls: {href: string}[]}).routerCalls.at(-1)!.href);
+    const params = new URL(href, 'http://localhost').searchParams;
+    expect(params.get('status')).toBe('Draft');
+    expect(params.get('q')).toBe('SJ');
+    expect(params.get('customerId')).toBe('other');
+    expect(params.get('tab')).toBe('open');
+    expect(params.has('cursor')).toBe(false);
+    expect(params.has('cursorHistory')).toBe(false);
+    expect(await page.locator('#server-card tbody tr:visible').count()).toBe(3);
+    expect(await page.getByRole('dialog').count()).toBe(0);
+  });
+
+  it("sends date ranges and header sorting to the server, clears only its column, and closes with Escape", async () => {
+    await page.evaluate(() => (window as unknown as {renderFixture: (props: object) => void}).renderFixture({columnTools: true}));
+    await page.getByRole('button', {name: 'Filter Date', exact: true}).click();
+    await page.getByLabel('Start Date', {exact: true}).fill('2026-10-01');
+    await page.getByLabel('End Date', {exact: true}).fill('2026-10-13');
+    await page.getByRole('button', {name: 'Apply Filter', exact: true}).click();
+    const dateHref = await page.evaluate(() => (window as unknown as {routerCalls: {href: string}[]}).routerCalls.at(-1)!.href);
+    expect(new URL(dateHref, 'http://localhost').searchParams.get('startDate')).toBe('2026-10-01');
+    expect(new URL(dateHref, 'http://localhost').searchParams.get('endDate')).toBe('2026-10-13');
+    await page.evaluate(href => (window as unknown as {renderFixture: (props: object) => void}).renderFixture({columnTools: true, columnHref: href}), dateHref);
+    await page.getByRole('button', {name: 'Sort by Date', exact: true}).click();
+    const sortedHref = await page.evaluate(() => (window as unknown as {routerCalls: {href: string}[]}).routerCalls.at(-1)!.href);
+    expect(new URL(sortedHref, 'http://localhost').searchParams.get('sort')).toBe('date');
+    expect(new URL(sortedHref, 'http://localhost').searchParams.get('direction')).toBe('asc');
+    expect(new URL(sortedHref, 'http://localhost').searchParams.get('startDate')).toBe('2026-10-01');
+    await page.getByRole('button', {name: 'Filter Date', exact: true}).click();
+    await page.getByRole('button', {name: 'Clear', exact: true}).click();
+    const clearedHref = await page.evaluate(() => (window as unknown as {routerCalls: {href: string}[]}).routerCalls.at(-1)!.href);
+    expect(new URL(clearedHref, 'http://localhost').searchParams.has('startDate')).toBe(false);
+    expect(new URL(clearedHref, 'http://localhost').searchParams.get('customerId')).toBe('other');
+    await page.getByRole('button', {name: 'Filter Status', exact: true}).click();
+    await page.keyboard.press('Escape');
+    expect(await page.getByRole('dialog').count()).toBe(0);
+    await page.screenshot({path: 'tmp/surat-jalan-header-filters.png'});
   });
 });

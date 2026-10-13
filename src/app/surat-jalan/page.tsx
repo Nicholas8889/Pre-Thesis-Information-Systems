@@ -35,6 +35,7 @@ import { canRole } from "@/lib/role-access";
 import { buildPortfolioScope } from "@/lib/portfolio-scope";
 import { ServerPagination } from "@/components/server-pagination";
 import { TableSearchToolbar } from "@/components/table-search-toolbar";
+import { ServerTableColumnHeader } from "@/components/server-table-column-header";
 import {
   getCursorArgs,
   getCursorPage,
@@ -156,6 +157,7 @@ export default async function SuratJalanPage({
   const appliedStatus = filters.status && visibleStatuses.includes(filters.status)
     ? filters.status
     : "";
+  const listHref = buildDeliveryNoteListHref(activeTab, filters, showCancelled);
   const pagination = getCursorPagination(params);
 
   const [
@@ -182,6 +184,7 @@ export default async function SuratJalanPage({
       relationLoadStrategy: "join",
       where: visibleWhere,
       include: {
+        customer: { select: { companyName: true } },
         invoice: true,
         sources: deliverySourcesInclude,
       },
@@ -537,40 +540,14 @@ export default async function SuratJalanPage({
           >
             <input type="hidden" name="tab" value={activeTab} />
             {showCancelled && <input type="hidden" name="archive" value="cancelled" />}
-            <div className="table-search-filters" key={JSON.stringify(filters)}>
-              <label>Customer
-                <select name="customerId" defaultValue={filters.customerId ?? ""} className="h-10 rounded-md border border-line px-3 text-sm">
-                  <option value="">All customers</option>
-                  {filterCustomers.map(customer => (
-                    <option key={customer.id} value={customer.id}>{customer.companyName}</option>
-                  ))}
-                </select>
-              </label>
-              <label>Start date<input name="startDate" type="date" defaultValue={filters.startDate ? toDateOnlyValue(filters.startDate) : ""} className="h-10 rounded-md border border-line px-3 text-sm" /></label>
-              <label>End date<input name="endDate" type="date" defaultValue={filters.endDate ? toDateOnlyValue(filters.endDate) : ""} className="h-10 rounded-md border border-line px-3 text-sm" /></label>
-              <label>Status
-                <select name="status" defaultValue={appliedStatus} className="h-10 rounded-md border border-line px-3 text-sm">
-                  <option value="">All statuses in this tab</option>
-                  {visibleStatuses.map(status => <option key={status} value={status}>{getDeliveryNoteStatusLabel(status)}</option>)}
-                </select>
-              </label>
-              <label>Sort by
-                <select name="sort" defaultValue={filters.sort} className="h-10 rounded-md border border-line px-2 text-sm">
-                  <option value="createdAt">Created</option>
-                  <option value="date">Date</option>
-                  <option value="number">Number</option>
-                </select>
-              </label>
-              <label>Direction
-                <select name="direction" defaultValue={filters.direction} className="h-10 rounded-md border border-line px-2 text-sm">
-                  <option value="asc">Asc</option>
-                  <option value="desc">Desc</option>
-                </select>
-              </label>
-              <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
-            </div>
+            <input type="hidden" name="customerId" value={filters.customerId ?? ""} />
+            <input type="hidden" name="startDate" value={filters.startDate ? toDateOnlyValue(filters.startDate) : ""} />
+            <input type="hidden" name="endDate" value={filters.endDate ? toDateOnlyValue(filters.endDate) : ""} />
+            <input type="hidden" name="status" value={appliedStatus} />
+            <input type="hidden" name="sort" value={filters.sort} />
+            <input type="hidden" name="direction" value={filters.direction} />
           </TableSearchToolbar>
-          {visibleDeliveryNotes.length === 0 ? (
+          {visibleDeliveryNotes.length === 0 && (
             <EmptyState
               message={
                 activeTab === "completed"
@@ -578,16 +555,30 @@ export default async function SuratJalanPage({
                   : "No ongoing Surat Jalan."
               }
             />
-          ) : (
+          )}
             <div className="overflow-x-auto">
               <table data-server-paginated="true">
                 <thead className="border-b border-line text-left text-xs uppercase text-ink/70">
                   <tr>
-                    <th className="py-3 pr-4">Surat Jalan No.</th>
-                    <th className="py-3 pr-4">Date</th>
+                    <th className="py-3 pr-4 table-enhanced-header" data-table-column-tools="true" aria-sort={filters.sort === "number" ? (filters.direction === "asc" ? "ascending" : "descending") : "none"}>
+                      <ServerTableColumnHeader key={listHref} label="Surat Jalan No." href={listHref}
+                        sort={{ name: "number", active: filters.sort === "number", direction: filters.direction }} />
+                    </th>
+                    <th className="py-3 pr-4 table-enhanced-header" data-table-column-tools="true" aria-sort={filters.sort === "date" ? (filters.direction === "asc" ? "ascending" : "descending") : "none"}>
+                      <ServerTableColumnHeader key={listHref} label="Date" href={listHref}
+                        sort={{ name: "date", active: filters.sort === "date", direction: filters.direction }}
+                        filter={{ type: "date", startDate: filters.startDate ? toDateOnlyValue(filters.startDate) : "", endDate: filters.endDate ? toDateOnlyValue(filters.endDate) : "" }} />
+                    </th>
+                    <th className="py-3 pr-4 table-enhanced-header" data-table-column-tools="true">
+                      <ServerTableColumnHeader key={listHref} label="Customer" href={listHref}
+                        filter={{ type: "options", name: "customerId", value: filters.customerId ?? "", allLabel: "All customers", options: filterCustomers.map(customer => ({ value: customer.id, label: customer.companyName })) }} />
+                    </th>
                     <th className="py-3 pr-4">Recipient</th>
                     <th className="py-3 pr-4">Invoice</th>
-                    <th className="py-3 pr-4">Status</th>
+                    <th className="py-3 pr-4 table-enhanced-header" data-table-column-tools="true">
+                      <ServerTableColumnHeader key={listHref} label="Status" href={listHref}
+                        filter={{ type: "options", name: "status", value: appliedStatus, allLabel: "All statuses in this tab", options: visibleStatuses.map(status => ({ value: status, label: getDeliveryNoteStatusLabel(status) })) }} />
+                    </th>
                     <th className="py-3 pr-4">Notes</th>
                     <th className="py-3">Actions</th>
                   </tr>
@@ -603,6 +594,9 @@ export default async function SuratJalanPage({
                       </td>
                       <td className="py-3 pr-4 text-ink/80">
                         {formatDate(deliveryNote.deliveryDate)}
+                      </td>
+                      <td className="py-3 pr-4 text-ink/80">
+                        {deliveryNote.customer.companyName}
                       </td>
                       <td className="py-3 pr-4 text-ink/80">
                         {deliveryNote.recipientName}
@@ -660,7 +654,6 @@ export default async function SuratJalanPage({
                 </tbody>
               </table>
             </div>
-          )}
           <ServerPagination
             hasNext={deliveryNotePage.hasNext}
             label="delivery notes"

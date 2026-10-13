@@ -186,7 +186,7 @@ function enhanceTable(table: HTMLTableElement) {
 
   headers.forEach((header, columnIndex) => {
     const headerName = headerNames[columnIndex];
-    if (!headerName || skippedHeaderPattern.test(headerName)) return;
+    if (!headerName || skippedHeaderPattern.test(headerName) || header.hasAttribute("data-table-column-tools")) return;
 
     header.classList.add("table-enhanced-header");
     const controls = document.createElement("span");
@@ -272,6 +272,7 @@ function enhanceTable(table: HTMLTableElement) {
       if (!pageSearchToolbar) toolbar.remove();
       pagination.remove();
       headers.forEach((header) => {
+        if (header.hasAttribute("data-table-column-tools")) return;
         header
           .querySelectorAll("[data-table-header-controls]")
           .forEach((control) => control.remove());

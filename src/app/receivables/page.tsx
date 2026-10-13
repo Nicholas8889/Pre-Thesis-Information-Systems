@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eye, Handshake } from "lucide-react";
+import { Eye, Filter, Handshake } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { ProcessTabs } from "@/components/process-tabs";
@@ -120,6 +120,32 @@ export default async function ReceivablesPage({
       )}
 
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
+        <h2 className="mb-3 text-lg font-semibold">Receivable Records</h2>
+        <nav aria-label="Receivable status" className="mb-3 flex flex-wrap items-center gap-2 no-print">
+          <Filter className="h-4 w-4 text-ink/50" aria-hidden="true" />
+          {statusOptions.map(status => {
+            const selected = status === (filters.status ?? "All");
+            const query = new URLSearchParams({
+              tab: activeTab,
+              sort: filters.sort,
+              direction: filters.direction,
+            });
+            if (filters.query) query.set("q", filters.query);
+            if (status !== "All") query.set("status", status);
+
+            return (
+              <Link
+                key={status}
+                href={`/receivables?${query}`}
+                scroll={false}
+                aria-current={selected ? "page" : undefined}
+                className={`inline-flex h-9 items-center justify-center rounded-md border px-3 text-xs font-semibold transition ${selected ? "border-brand bg-brand text-white" : "border-line bg-white text-brand hover:bg-soft"}`}
+              >
+                {status}
+              </Link>
+            );
+          })}
+        </nav>
         <TableSearchToolbar
           defaultValue={filters.query}
           placeholder="Invoice, customer, or sales order"
@@ -129,26 +155,9 @@ export default async function ReceivablesPage({
           page={pagination.page}
         >
           <input type="hidden" name="tab" value={activeTab} />
-          <div className="table-search-filters" key={JSON.stringify(filters)}>
-            <label>Status
-              <select name="status" defaultValue={filters.status ?? "All"} className="h-10 rounded-md border border-line bg-white px-3 text-sm">
-                {statusOptions.map(item => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </label>
-            <label>Sort by
-              <select name="sort" defaultValue={filters.sort} className="h-10 rounded-md border border-line bg-white px-3 text-sm">
-                <option value="dueDate">Due date</option>
-                <option value="amount">Remaining amount</option>
-              </select>
-            </label>
-            <label>Direction
-              <select name="direction" defaultValue={filters.direction} className="h-10 rounded-md border border-line bg-white px-3 text-sm">
-                <option value="asc">Ascending</option>
-                <option value="desc">Descending</option>
-              </select>
-            </label>
-            <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
-          </div>
+          <input type="hidden" name="status" value={filters.status ?? ""} />
+          <input type="hidden" name="sort" value={filters.sort} />
+          <input type="hidden" name="direction" value={filters.direction} />
         </TableSearchToolbar>
 
         {receivables.length === 0 ? (
