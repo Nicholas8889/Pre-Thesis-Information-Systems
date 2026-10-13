@@ -100,14 +100,19 @@ function enhanceTable(table: HTMLTableElement) {
   const originalOrder = new Map(rows.map((row, index) => [row, index]));
   const columnFilters = new Map<number, (row: HTMLTableRowElement) => boolean>();
   const filterControllers: FilterController[] = [];
+  const pageSearchToolbar = table.closest<HTMLElement>(".shadow-card")
+    ?.querySelector<HTMLFormElement>("[data-table-search-toolbar]") ?? null;
   const pageSearchInput = findPageSearchInput(table);
   const searchInput = pageSearchInput ?? document.createElement("input");
-  let searchValue = searchInput.value.trim().toLowerCase();
+  let searchValue = pageSearchToolbar ? "" : searchInput.value.trim().toLowerCase();
   let currentPage = 1;
 
-  const toolbar = document.createElement("div");
-  toolbar.className = "table-enhancer-toolbar no-print";
-  toolbar.dataset.tableToolbar = "true";
+  const toolbar = pageSearchToolbar?.querySelector<HTMLDivElement>("[data-table-toolbar]")
+    ?? document.createElement("div");
+  if (!pageSearchToolbar) {
+    toolbar.className = "table-enhancer-toolbar no-print";
+    toolbar.dataset.tableToolbar = "true";
+  }
 
   if (!pageSearchInput) {
     const searchLabel = document.createElement("label");
@@ -125,18 +130,17 @@ function enhanceTable(table: HTMLTableElement) {
     currentPage = 1;
     applyFilters();
   };
-  searchInput.addEventListener("input", onSearchInput);
+  if (!pageSearchToolbar) searchInput.addEventListener("input", onSearchInput);
 
-  const resultCount = document.createElement("span");
-  resultCount.className = "table-enhancer-count";
-  toolbar.append(resultCount);
+  const resultCount = pageSearchToolbar?.querySelector<HTMLSpanElement>("[data-table-server-count]")
+    ?? document.createElement("span");
+  if (!pageSearchToolbar) {
+    resultCount.className = "table-enhancer-count";
+    toolbar.append(resultCount);
+  }
 
-  const resetButton = document.createElement("button");
-  resetButton.type = "button";
-  resetButton.className = "table-enhancer-reset";
-  resetButton.textContent = "Reset";
-  resetButton.addEventListener("click", () => {
-    searchInput.value = "";
+  const resetTable = () => {
+    if (!pageSearchToolbar) searchInput.value = "";
     searchValue = "";
     currentPage = 1;
     columnFilters.clear();
@@ -149,9 +153,18 @@ function enhanceTable(table: HTMLTableElement) {
       delete header.dataset.sortDirection;
     });
     applyFilters();
-  });
-  toolbar.append(resetButton);
-  table.parentElement?.insertBefore(toolbar, table);
+  };
+  if (pageSearchToolbar) {
+    pageSearchToolbar.addEventListener("table-tools-reset", resetTable);
+  } else {
+    const resetButton = document.createElement("button");
+    resetButton.type = "button";
+    resetButton.className = "table-enhancer-reset";
+    resetButton.textContent = "Reset";
+    resetButton.addEventListener("click", resetTable);
+    toolbar.append(resetButton);
+    table.parentElement?.insertBefore(toolbar, table);
+  }
 
   const pagination = document.createElement("nav");
   pagination.className = "table-enhancer-pagination no-print";
@@ -255,7 +268,8 @@ function enhanceTable(table: HTMLTableElement) {
     destroy: () => {
       filterControllers.forEach((controller) => controller.destroy());
       searchInput.removeEventListener("input", onSearchInput);
-      toolbar.remove();
+      pageSearchToolbar?.removeEventListener("table-tools-reset", resetTable);
+      if (!pageSearchToolbar) toolbar.remove();
       pagination.remove();
       headers.forEach((header) => {
         header
@@ -302,7 +316,9 @@ function enhanceTable(table: HTMLTableElement) {
     });
 
     const firstShown = matchingRows.length === 0 ? 0 : range.start + 1;
-    resultCount.textContent = serverPaginated
+    resultCount.textContent = pageSearchToolbar && columnFilters.size === 0
+      ? resultCount.dataset.tableServerCount ?? ""
+      : serverPaginated
       ? matchingRows.length === rows.length
         ? `${rows.length} loaded on this page`
         : `${matchingRows.length} matching on this page (${rows.length} loaded)`

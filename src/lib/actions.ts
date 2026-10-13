@@ -2139,14 +2139,31 @@ export async function updateCollectionTask(formData: FormData) {
   const expectedVersion = parseCollectionTaskVersion(formData.get("expectedVersion"));
   const scheduledDate = parseDateOnly(getRequiredString(formData, "scheduledDate"));
   const notes = getRequiredString(formData, "notes");
-  const actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
+  const requestedStatus = getString(formData, "status");
+  const nextStatus = !requestedStatus || requestedStatus === "Planned"
+    ? "Planned"
+    : parseCollectionTaskTransition(requestedStatus);
+  const editPath = requestedStatus && taskId ? `/collections?view=${encodeURIComponent(taskId)}` : "/collections";
 
-  if (!taskId || !expectedVersion || !scheduledDate || !notes) {
+  if (!taskId || !expectedVersion || !scheduledDate || !notes || !nextStatus) {
     redirectWithMessage(
-      "/collections",
+      editPath,
       "error",
-      "A current Planned task, valid date, and notes are required"
+      "A current Planned task, valid date, notes, and valid status are required"
     );
+  }
+
+  let actionNote: string;
+  try {
+    actionNote = normalizeActionNote(
+      getString(formData, "confirmationNote"),
+      nextStatus === "Planned" ? "optional" : "required"
+    );
+  } catch (error) {
+    if (error instanceof ActionNoteValidationError) {
+      redirectWithMessage(editPath, "error", error.message);
+    }
+    throw error;
   }
 
   try {
@@ -2168,6 +2185,7 @@ export async function updateCollectionTask(formData: FormData) {
         data: {
           scheduledDate,
           notes,
+          status: nextStatus,
           version: { increment: 1 }
         }
       });
@@ -2183,9 +2201,11 @@ export async function updateCollectionTask(formData: FormData) {
         entityType: "COLLECTION_TASK",
         entityId: updated.id,
         recordReference: updated.invoice?.invoiceNumber ?? updated.customer.companyName,
-        action: "UPDATED",
+        action: nextStatus === "Done" ? "COMPLETED" : nextStatus === "Cancelled" ? "CANCELLED" : "UPDATED",
         actionNote,
-        changeSummary: `Collection task schedule updated for ${updated.invoice?.invoiceNumber ?? updated.customer.companyName}`,
+        changeSummary: nextStatus === "Planned"
+          ? `Collection task schedule updated for ${updated.invoice?.invoiceNumber ?? updated.customer.companyName}`
+          : `Collection task marked ${nextStatus.toLowerCase()} by ${currentUser.displayName}`,
         oldValue: summarizeCollectionTask(existing),
         newValue: summarizeCollectionTask(updated)
       }, { transaction: tx });
@@ -2193,7 +2213,7 @@ export async function updateCollectionTask(formData: FormData) {
   } catch (error) {
     if (error instanceof CollectionTaskConflictError) {
       redirectWithMessage(
-        "/collections",
+        editPath,
         "error",
         "Collection task changed in another session. Refresh and try again"
       );
@@ -2202,7 +2222,10 @@ export async function updateCollectionTask(formData: FormData) {
   }
 
   refreshApp();
-  redirectWithMessage("/collections", "success", "Collection task updated");
+  const savedPath = nextStatus !== "Planned"
+    ? `/collections?tab=done&view=${encodeURIComponent(taskId)}`
+    : editPath;
+  redirectWithMessage(savedPath, "success", "Collection task updated");
 }
 
 export async function transitionCollectionTask(formData: FormData) {

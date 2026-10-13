@@ -1,9 +1,10 @@
 import type { Prisma } from "@prisma/client";
-import { Eye, Search } from "lucide-react";
+import { Eye } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { TableActionGroup, TableDetailsAction } from "@/components/table-actions";
 import { ServerPagination } from "@/components/server-pagination";
+import { TableSearchToolbar } from "@/components/table-search-toolbar";
 import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import {
@@ -84,68 +85,53 @@ export default async function AuditTrailPage({
         Audit Trail is read-only. Records are created automatically by the system; Admin can review and filter them but cannot create manual entries.
       </div>
 
-      <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
-        <form className="grid gap-3 lg:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-          <label className="text-sm font-medium text-ink">
-            Search
-            <span className="mt-1 flex items-center gap-2 rounded-md border border-line px-3 py-2">
-              <Search aria-hidden="true" className="h-4 w-4 text-ink/50" />
-              <input
-                name="q"
-                defaultValue={query}
-                className="w-full text-sm outline-none"
-                placeholder="Record reference or keyword"
-              />
-            </span>
-          </label>
-
-          <FilterSelect
-            label="Module"
-            name="moduleName"
-            value={moduleName}
-            options={moduleOptions.map((item) => ({
-              value: item.moduleName,
-              label: item.moduleName
-            }))}
-          />
-
-          <FilterSelect
-            label="User"
-            name="actorUsername"
-            value={actorUsername}
-            options={userOptions.map((item) => ({
-              value: item.actorUsername,
-              label: item.actorDisplayName
-                ? `${item.actorDisplayName} (${item.actorUsername})`
-                : item.actorUsername
-            }))}
-          />
-
-          <FilterSelect
-            label="Action"
-            name="action"
-            value={action}
-            options={actionOptions.map((item) => ({
-              value: item.action,
-              label: formatActionLabel(item.action)
-            }))}
-          />
-
-          <div className="flex items-end gap-2">
-            <button className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
-              Apply
-            </button>
-            <a
-              href="/audit-trail"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-ink/80"
-            >
-              Reset
-            </a>
-          </div>
-        </form>
-      </section>
-
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
+        <TableSearchToolbar
+          defaultValue={query}
+          placeholder="Record reference or keyword"
+          resetHref="/audit-trail"
+          loadedCount={visibleAuditTrailRecords.length}
+        >
+          <div className="table-search-filters" key={JSON.stringify([moduleName, actorUsername, action])}>
+            <FilterSelect
+              label="Module"
+              name="moduleName"
+              value={moduleName}
+              options={moduleOptions.map((item) => ({
+                value: item.moduleName,
+                label: item.moduleName
+              }))}
+            />
+
+            <FilterSelect
+              label="User"
+              name="actorUsername"
+              value={actorUsername}
+              options={userOptions.map((item) => ({
+                value: item.actorUsername,
+                label: item.actorDisplayName
+                  ? `${item.actorDisplayName} (${item.actorUsername})`
+                  : item.actorUsername
+              }))}
+            />
+
+            <FilterSelect
+              label="Action"
+              name="action"
+              value={action}
+              options={actionOptions.map((item) => ({
+                value: item.action,
+                label: formatActionLabel(item.action)
+              }))}
+            />
+
+            <div className="flex items-end gap-2">
+              <button className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
+                Apply
+              </button>
+            </div>
+          </div>
+        </TableSearchToolbar>
         {visibleAuditTrailRecords.length === 0 ? (
           <EmptyState message="No audit trail records yet." />
         ) : (

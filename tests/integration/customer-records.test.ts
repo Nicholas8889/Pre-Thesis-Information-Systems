@@ -18,6 +18,10 @@ vi.mock("@/lib/session", () => ({
 vi.mock("@/lib/actions", () => ({
   createCustomer: vi.fn(), updateCustomer: vi.fn(), updateCustomerStatus: vi.fn()
 }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...await importOriginal<typeof import("next/navigation")>(),
+  useRouter: () => ({ replace: vi.fn() })
+}));
 
 import CustomersPage from "../../src/app/customers/page";
 

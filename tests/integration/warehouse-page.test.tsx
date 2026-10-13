@@ -40,6 +40,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/session", () => ({ requireCurrentUser: mocks.user }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...await importOriginal<typeof import("next/navigation")>(),
+  useRouter: () => ({ replace: vi.fn() })
+}));
 vi.mock("@/lib/actions", () => ({
   createDeliveryNote: vi.fn(),
   updateDeliveryNoteStatus: vi.fn(),

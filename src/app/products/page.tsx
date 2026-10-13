@@ -7,7 +7,6 @@ import {
   Package,
   Pencil,
   Plus,
-  Search,
   XCircle
 } from "lucide-react";
 import {
@@ -28,6 +27,7 @@ import { loadProductCostInsights } from "@/lib/product-cost-query";
 import { requireCurrentUser } from "@/lib/session";
 import { getSearchMessage } from "@/lib/workflow";
 import { ServerPagination } from "@/components/server-pagination";
+import { TableSearchToolbar } from "@/components/table-search-toolbar";
 import {
   getCursorArgs,
   getCursorPage,
@@ -207,18 +207,16 @@ export default async function ProductsPage({
         <div className="mb-5 flex items-center gap-2 border-b border-line pb-4">
           <h2 className="text-lg font-semibold">Product Records</h2>
         </div>
-        <form className="mb-4 flex max-w-md items-center gap-2 rounded-md border border-line bg-white px-3 py-2">
-          <Search aria-hidden="true" className="h-4 w-4 text-ink/50" />
-          <input
-            name="q"
-            className="w-full outline-none"
-            placeholder="Search product"
-            defaultValue={query}
-          />
+        <TableSearchToolbar
+          defaultValue={query}
+          placeholder="Search product"
+          resetHref="/products"
+          loadedCount={products.length}
+        >
           {averagePriceSort && (
             <input type="hidden" name="averagePrice" value={averagePriceSort} />
           )}
-        </form>
+        </TableSearchToolbar>
 
         {products.length === 0 ? (
           <EmptyState message="No products found." />

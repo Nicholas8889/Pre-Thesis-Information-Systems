@@ -204,8 +204,10 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       purpose: "Use Collections to schedule and record payment collection work for open invoices or a customer.",
       steps: [
         "Select customer and optional invoice.",
-        "Set the scheduled date, status, and notes.",
-        "Use the list to monitor planned, done, or cancelled collection tasks."
+        "Set the scheduled date and notes. New tasks start as Planned.",
+        "Open a task using its eye button to edit it in the form above the table.",
+        "Select Done or Cancelled in the Status dropdown and enter a reason before saving.",
+        "Use Completed to view closed tasks."
       ]
     }
   },

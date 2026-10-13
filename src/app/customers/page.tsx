@@ -6,7 +6,6 @@ import {
   FileText,
   Pencil,
   Plus,
-  Search,
   ShieldCheck,
   Wallet,
   UserCheck,
@@ -36,6 +35,7 @@ import { getDeliveryNoteStatusLabel } from "@/lib/delivery-note-status";
 import { getSearchMessage } from "@/lib/workflow";
 import { getOppositeCustomerStatus } from "@/lib/customer-status";
 import { ServerPagination } from "@/components/server-pagination";
+import { TableSearchToolbar } from "@/components/table-search-toolbar";
 import {
   getCursorArgs,
   getCursorPage,
@@ -374,36 +374,38 @@ export default async function CustomersPage({
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-5 flex items-center justify-between gap-2 border-b border-line pb-4">
           <h2 className="text-lg font-semibold">Customer Records</h2>
-          <span className="text-sm font-medium text-ink/60">
-            {matchingCustomerCount} matching customers
-          </span>
         </div>
-        <form className="mb-4 grid gap-3 rounded-md border border-line bg-soft/40 p-3 md:grid-cols-[minmax(220px,1fr)_160px_170px_130px_auto]">
-          <label className="relative">
-            <span className="sr-only">Search customers</span>
-            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink/50" />
-            <input
-              name="q"
-              className="h-10 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-brand"
-              placeholder="Name, company, phone, email, or NPWP"
-              defaultValue={query}
-            />
-          </label>
-          <select name="status" defaultValue={filters.status} className={inputClass} aria-label="Customer status">
-            <option value="ALL">All statuses</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
-          <select name="sort" defaultValue={filters.sort} className={inputClass} aria-label="Customer sort">
-            <option value="company">Company</option>
-            <option value="createdAt">Created date</option>
-          </select>
-          <select name="direction" defaultValue={filters.direction} className={inputClass} aria-label="Sort direction">
-            <option value="asc">Ascending</option>
-            <option value="desc">Descending</option>
-          </select>
-          <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
-        </form>
+        <TableSearchToolbar
+          defaultValue={query}
+          placeholder="Name, company, phone, email, or NPWP"
+          resetHref="/customers"
+          loadedCount={customers.length}
+          totalCount={matchingCustomerCount}
+          page={pagination.page}
+        >
+          <div className="table-search-filters" key={JSON.stringify(filters)}>
+            <label>Status
+              <select name="status" defaultValue={filters.status} className={inputClass}>
+                <option value="ALL">All statuses</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </label>
+            <label>Sort by
+              <select name="sort" defaultValue={filters.sort} className={inputClass}>
+                <option value="company">Company</option>
+                <option value="createdAt">Created date</option>
+              </select>
+            </label>
+            <label>Direction
+              <select name="direction" defaultValue={filters.direction} className={inputClass}>
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </label>
+            <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
+          </div>
+        </TableSearchToolbar>
 
         {customers.length === 0 ? (
           <EmptyState message="No customers found." />

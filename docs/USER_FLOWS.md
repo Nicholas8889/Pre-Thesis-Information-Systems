@@ -440,13 +440,13 @@ Receivables are calculated from Invoices and Payments; users do not manually cre
 
 1. Open **Collections**, or select Create Collection Task from a Receivable.
 2. If opened from a Receivable, confirm the preselected Customer and Invoice.
-3. Enter the scheduled date/deadline, status, and collection note.
-4. Select Save, review the confirmation dialog, and optionally add a note of up to 150 characters.
-5. Submit or Cancel the Collection task.
-6. Use Open for Planned tasks.
-7. Use Completed for Done or Cancelled tasks.
+3. Enter the scheduled date/deadline and collection note. New tasks start as Planned.
+4. Select Add Collection Task, review the confirmation dialog, and optionally add a note of up to 150 characters.
+5. In Open, select a task's eye button to load it into Edit Collection Task above the table.
+6. Update the date and notes, choose Planned, Done, or Cancelled from the Status dropdown, and select Save Changes. Done and Cancelled require a reason of up to 150 characters. All changes are saved together and recorded in Audit Trail.
+7. Use Completed to view Done or Cancelled tasks as read-only details. Back to Add Task returns to the creation form.
 8. Admin sees near or overdue Collection work on the dashboard and in notifications.
-9. Open the task from the notification and use its customer, Invoice, deadline, and notes to perform the collection activity.
+9. A full payment completes linked Planned tasks automatically; cancelling an invoice cancels linked Planned tasks. Tasks without an invoice can be completed or cancelled from the edit form.
 
 ## 14. Customer Outreach Flow
 

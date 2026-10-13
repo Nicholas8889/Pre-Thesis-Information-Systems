@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eye, Filter, Handshake, Search } from "lucide-react";
+import { Eye, Handshake } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { ProcessTabs } from "@/components/process-tabs";
@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { StatusStack } from "@/components/status-stack";
 import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 import { ServerPagination } from "@/components/server-pagination";
+import { TableSearchToolbar } from "@/components/table-search-toolbar";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getPaymentTermLabel } from "@/lib/calculations";
@@ -119,30 +120,36 @@ export default async function ReceivablesPage({
       )}
 
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
-        <form className="mb-4 grid gap-3 rounded-md border border-line bg-soft/40 p-3 md:grid-cols-[minmax(220px,1fr)_150px_150px_130px_auto]">
+        <TableSearchToolbar
+          defaultValue={filters.query}
+          placeholder="Invoice, customer, or sales order"
+          resetHref={`/receivables?tab=${activeTab}`}
+          loadedCount={receivables.length}
+          totalCount={filteredCount}
+          page={pagination.page}
+        >
           <input type="hidden" name="tab" value={activeTab} />
-          <label className="relative">
-            <span className="sr-only">Search receivables</span>
-            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink/50" />
-            <input name="q" defaultValue={filters.query} placeholder="Invoice, customer, or sales order" className="h-10 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-brand" />
-          </label>
-          <label className="relative">
-            <span className="sr-only">Receivable status</span>
-            <Filter aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink/50" />
-            <select name="status" defaultValue={filters.status ?? "All"} className="h-10 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm">
-              {statusOptions.map(item => <option key={item} value={item}>{item}</option>)}
-            </select>
-          </label>
-          <select name="sort" defaultValue={filters.sort} aria-label="Receivable sort" className="h-10 rounded-md border border-line bg-white px-3 text-sm">
-            <option value="dueDate">Due date</option>
-            <option value="amount">Remaining amount</option>
-          </select>
-          <select name="direction" defaultValue={filters.direction} aria-label="Sort direction" className="h-10 rounded-md border border-line bg-white px-3 text-sm">
-            <option value="asc">Ascending</option>
-            <option value="desc">Descending</option>
-          </select>
-          <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
-        </form>
+          <div className="table-search-filters" key={JSON.stringify(filters)}>
+            <label>Status
+              <select name="status" defaultValue={filters.status ?? "All"} className="h-10 rounded-md border border-line bg-white px-3 text-sm">
+                {statusOptions.map(item => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <label>Sort by
+              <select name="sort" defaultValue={filters.sort} className="h-10 rounded-md border border-line bg-white px-3 text-sm">
+                <option value="dueDate">Due date</option>
+                <option value="amount">Remaining amount</option>
+              </select>
+            </label>
+            <label>Direction
+              <select name="direction" defaultValue={filters.direction} className="h-10 rounded-md border border-line bg-white px-3 text-sm">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </label>
+            <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
+          </div>
+        </TableSearchToolbar>
 
         {receivables.length === 0 ? (
           <EmptyState

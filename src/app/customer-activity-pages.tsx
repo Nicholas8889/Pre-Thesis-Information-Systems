@@ -1,9 +1,5 @@
-import {
-  createCollectionTask,
-  recordCustomerOutreach,
-  transitionCollectionTask,
-  updateCollectionTask
-} from "@/lib/actions";
+import { recordCustomerOutreach } from "@/lib/actions";
+import { CollectionTaskForm } from "@/components/collection-task-form";
 import { EmptyState } from "@/components/empty-state";
 import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
@@ -12,6 +8,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { StatusStack } from "@/components/status-stack";
 import { TableActionGroup, TableActionLink } from "@/components/table-actions";
 import { ServerPagination } from "@/components/server-pagination";
+import { TableSearchToolbar } from "@/components/table-search-toolbar";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
@@ -20,7 +17,7 @@ import {
 } from "@/lib/process-status";
 import { getSearchMessage, toDateInputValue } from "@/lib/workflow";
 import { getOpenInvoiceWhere } from "@/lib/invoice-status";
-import { Eye, PhoneCall, Search } from "lucide-react";
+import { Eye, PhoneCall } from "lucide-react";
 import {
   getCursorArgs,
   getCursorPage,
@@ -28,7 +25,6 @@ import {
 } from "@/lib/pagination";
 import { requireCurrentUser } from "@/lib/session";
 import { buildPortfolioScope } from "@/lib/portfolio-scope";
-import { MAX_ACTION_NOTE_LENGTH } from "@/lib/action-notes";
 import {
   buildOutreachCustomerWhere,
   OUTREACH_CUSTOMER_ORDER,
@@ -48,11 +44,21 @@ export async function CollectionsPage({
   const params = (await searchParams) ?? {};
   const selectedCustomerId = getFirst(params.customerId);
   const selectedInvoiceId = getFirst(params.invoiceId);
-  const activeTab = normalizeProcessTab(params.tab);
+  const selectedTaskId = getFirst(params.view);
   const { success, error } = getSearchMessage(params);
   const pagination = getCursorPagination(params);
   const currentUser = await requireCurrentUser();
   const portfolio = buildPortfolioScope(currentUser);
+  const selectedTask = selectedTaskId ? await prisma.collectionTask.findFirst({
+    where: { id: selectedTaskId, ...portfolio.collectionTaskWhere },
+    include: {
+      customer: true,
+      invoice: { include: { salesOrder: { select: { id: true, orderNumber: true } } } }
+    }
+  }) : null;
+  const activeTab = params.tab
+    ? normalizeProcessTab(params.tab)
+    : selectedTask && selectedTask.status !== "Planned" ? "done" : "ongoing";
   const visibleStatuses =
     activeTab === "done"
       ? [...DONE_COLLECTION_TASK_STATUSES]
@@ -99,6 +105,15 @@ export async function CollectionsPage({
   const collectionTaskPage = getCursorPage(collectionTaskRecords, pagination);
   const visibleCollectionTasks = collectionTaskPage.items;
 
+  function taskHref(taskId: string) {
+    const query = new URLSearchParams({ tab: activeTab, view: taskId });
+    for (const key of [pagination.cursorParam, pagination.historyParam]) {
+      const value = getFirst(params[key]);
+      if (value) query.set(key, value);
+    }
+    return `/collections?${query.toString()}#collection-task-form`;
+  }
+
   return (
     <>
       <PageHeader
@@ -106,7 +121,7 @@ export async function CollectionsPage({
         description="Track planned and completed payment collection activities."
       />
 
-      <FlashMessage success={success} error={error} />
+      <FlashMessage success={success} error={error ?? (selectedTaskId && !selectedTask ? "Collection task is unavailable or outside your portfolio." : undefined)} />
 
       <ProcessTabs
         basePath="/collections"
@@ -115,86 +130,39 @@ export async function CollectionsPage({
         doneCount={doneCount}
       />
 
-      {activeTab === "ongoing" && (
-        <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
-          <h2 className="mb-4 text-lg font-semibold">Add Collection Task</h2>
-          {customers.length === 0 ? (
+      {(activeTab === "ongoing" || selectedTask) && (
+        <section id="collection-task-form" className="mb-6 scroll-mt-4 rounded-md border border-line bg-white p-5 shadow-card">
+          <h2 className="mb-4 text-lg font-semibold">
+            {selectedTask ? selectedTask.status === "Planned" ? "Edit Collection Task" : "Collection Task Details" : "Add Collection Task"}
+          </h2>
+          {!selectedTask && customers.length === 0 ? (
             <EmptyState message="Add an active customer before creating a collection task." />
           ) : (
-            <form action={createCollectionTask} className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <label className="text-sm font-medium text-ink">
-                Customer
-                <select
-                  name="customerId"
-                  required
-                  defaultValue={selectedCustomerId ?? selectedInvoice?.customerId ?? ""}
-                  className={`${inputClass} mt-1`}
-                >
-                  <option value="">Select customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.companyName} - {customer.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-ink">
-                Invoice
-                <select
-                  name="invoiceId"
-                  defaultValue={selectedInvoiceId ?? ""}
-                  className={`${inputClass} mt-1`}
-                >
-                  <option value="">No invoice link</option>
-                  {openInvoices.map((invoice) => (
-                    <option key={invoice.id} value={invoice.id}>
-                      {invoice.invoiceNumber} - {invoice.customer.companyName} -{" "}
-                      {formatCurrency(invoice.remainingAmount)} remaining
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-ink">
-                Scheduled Date
-                <input
-                  name="scheduledDate"
-                  type="date"
-                  defaultValue={toDateInputValue()}
-                  required
-                  className={`${inputClass} mt-1`}
-                />
-              </label>
-
-              <label className="text-sm font-medium text-ink">
-                Status
-                <input type="hidden" name="status" value="Planned" />
-                <span className={`${inputClass} mt-1 block bg-soft`}>Planned</span>
-              </label>
-
-              <label className="text-sm font-medium text-ink xl:col-span-3">
-                Notes
-                <input
-                  name="notes"
-                  required
-                  defaultValue={
-                    selectedInvoice
-                      ? `Collect remaining payment of ${formatCurrency(
-                          selectedInvoice.remainingAmount
-                        )} for ${selectedInvoice.invoiceNumber}`
-                      : ""
-                  }
-                  className={`${inputClass} mt-1`}
-                />
-              </label>
-
-              <div className="flex items-end">
-                <button className="inline-flex h-10 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
-                  Add Collection Task
-                </button>
-              </div>
-            </form>
+            <CollectionTaskForm
+              key={selectedTask ? `${selectedTask.id}-${selectedTask.version}` : `new-${selectedCustomerId ?? ""}-${selectedInvoiceId ?? ""}`}
+              customers={customers}
+              invoices={openInvoices.map(invoice => ({
+                id: invoice.id,
+                customerId: invoice.customerId,
+                invoiceNumber: invoice.invoiceNumber,
+                companyName: invoice.customer.companyName,
+                remainingAmount: invoice.remainingAmount
+              }))}
+              customerId={selectedCustomerId ?? selectedInvoice?.customerId}
+              invoiceId={selectedInvoiceId}
+              scheduledDate={toDateInputValue(selectedTask?.scheduledDate)}
+              notes={selectedTask?.notes ?? (selectedInvoice
+                ? `Collect remaining payment of ${formatCurrency(selectedInvoice.remainingAmount)} for ${selectedInvoice.invoiceNumber}`
+                : "")}
+              task={selectedTask ? {
+                id: selectedTask.id,
+                version: selectedTask.version,
+                status: selectedTask.status,
+                customerName: `${selectedTask.customer.companyName} - ${selectedTask.customer.name}`,
+                invoiceNumber: selectedTask.invoice?.invoiceNumber,
+                salesOrderId: selectedTask.invoice?.salesOrderId
+              } : undefined}
+            />
           )}
         </section>
       )}
@@ -244,84 +212,12 @@ export async function CollectionsPage({
                       </StatusStack>
                     </td>
                     <td className="py-3 pr-4 text-ink/80">{collectionTask.notes}</td>
-                    <td className="min-w-72 py-3">
-                      <div className="space-y-2">
-                        <TableActionGroup>
-                          {collectionTask.invoice ? (
-                            <TableActionLink
-                              href={`/sales-orders/${collectionTask.invoice.salesOrderId}`}
-                              label="View Sales Order"
-                            >
-                              <Eye aria-hidden="true" />
-                            </TableActionLink>
-                          ) : (
-                            <span className="text-sm text-ink/70">—</span>
-                          )}
-                        </TableActionGroup>
-                        {collectionTask.status === "Planned" && (
-                          <details>
-                            <summary className="cursor-pointer text-xs font-semibold text-brand">
-                              Manage task
-                            </summary>
-                            <div className="mt-2 space-y-3 rounded-md border border-line bg-soft p-3">
-                              <form action={updateCollectionTask} className="grid gap-2">
-                                <input type="hidden" name="taskId" value={collectionTask.id} />
-                                <input type="hidden" name="expectedVersion" value={collectionTask.version} />
-                                <label className="text-xs font-medium text-ink">
-                                  Scheduled date
-                                  <input
-                                    name="scheduledDate"
-                                    type="date"
-                                    required
-                                    defaultValue={toDateInputValue(collectionTask.scheduledDate)}
-                                    className={`${inputClass} mt-1`}
-                                  />
-                                </label>
-                                <label className="text-xs font-medium text-ink">
-                                  Notes
-                                  <input
-                                    name="notes"
-                                    required
-                                    defaultValue={collectionTask.notes}
-                                    className={`${inputClass} mt-1`}
-                                  />
-                                </label>
-                                <input
-                                  name="confirmationNote"
-                                  maxLength={MAX_ACTION_NOTE_LENGTH}
-                                  placeholder="Optional edit reason"
-                                  className={inputClass}
-                                />
-                                <button className="rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white">
-                                  Save schedule
-                                </button>
-                              </form>
-
-                              {(["Done", "Cancelled"] as const).map(status => (
-                                <form
-                                  key={status}
-                                  action={transitionCollectionTask}
-                                  className="grid gap-2 border-t border-line pt-3"
-                                >
-                                  <input type="hidden" name="taskId" value={collectionTask.id} />
-                                  <input type="hidden" name="expectedVersion" value={collectionTask.version} />
-                                  <input type="hidden" name="status" value={status} />
-                                  <input
-                                    name="confirmationNote"
-                                    required
-                                    maxLength={MAX_ACTION_NOTE_LENGTH}
-                                    placeholder={`Required reason to mark ${status.toLowerCase()}`}
-                                    className={inputClass}
-                                  />
-                                  <button className="rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-brand">
-                                    Mark {status}
-                                  </button>
-                                </form>
-                              ))}
-                            </div>
-                          </details>
-                        )}
-                      </div>
+                    <td className="py-3">
+                      <TableActionGroup>
+                        <TableActionLink href={taskHref(collectionTask.id)} label="View Collection Task">
+                          <Eye aria-hidden="true" />
+                        </TableActionLink>
+                      </TableActionGroup>
                     </td>
                   </tr>
                 ))}
@@ -455,11 +351,13 @@ export async function CustomerOutreachPage({
             <h2 className="text-lg font-semibold">Customer Outreach</h2>
             <p className="mt-1 text-sm text-ink/70">All customers and their latest product-information contact.</p>
           </div>
-          <form className="flex w-full max-w-sm items-center gap-2 rounded-md border border-line px-3 py-2">
-            <Search aria-hidden="true" className="h-4 w-4 text-ink/50" />
-            <input name="q" defaultValue={query} placeholder="Search customer or outreach note" className="w-full text-sm outline-none" />
-          </form>
         </div>
+        <TableSearchToolbar
+          defaultValue={query}
+          placeholder="Search customer or outreach note"
+          resetHref="/customer-outreach"
+          loadedCount={customers.length}
+        />
 
         {customers.length === 0 ? (
           <EmptyState message="No customers match your search." />

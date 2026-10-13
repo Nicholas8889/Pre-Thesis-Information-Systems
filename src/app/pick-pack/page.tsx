@@ -17,6 +17,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { canRole } from "@/lib/role-access";
 import { buildPortfolioScope } from "@/lib/portfolio-scope";
 import { ServerPagination } from "@/components/server-pagination";
+import { TableSearchToolbar } from "@/components/table-search-toolbar";
 import {
   getCursorArgs,
   getCursorPage,
@@ -512,76 +513,60 @@ export default async function PickPackPage({
                   a Surat Jalan exists.
                 </p>
               </div>
-              <p className="text-sm font-medium text-ink/70">
-                {filteredCompletedCount} result
-                {filteredCompletedCount === 1 ? "" : "s"}
-              </p>
             </div>
-            <form
-              method="get"
-              className="grid gap-3 rounded-md border border-line bg-soft p-4 md:grid-cols-2 xl:grid-cols-6"
+            <TableSearchToolbar
+              defaultValue={filters.query}
+              placeholder="Picking List, SO, PO, customer"
+              resetHref="/pick-pack?tab=completed"
+              loadedCount={visibleCompleted.length}
+              totalCount={filteredCompletedCount}
+              page={completedPagination.page}
             >
               <input type="hidden" name="tab" value="completed" />
-              <label className="text-sm font-medium xl:col-span-2">
-                Search
-                <input
-                  name="q"
-                  defaultValue={filters.query}
-                  placeholder="Picking List, SO, PO, customer"
-                  className={`${inputClass} mt-1 bg-white`}
-                />
-              </label>
-              <label className="text-sm font-medium">
-                PIC Pick &amp; Pack
-                <input name="pic" defaultValue={filters.pic} placeholder="PIC name" className={`${inputClass} mt-1 bg-white`} />
-              </label>
-              <label className="text-sm font-medium">
-                Completed from
-                <input
-                  name="from"
-                  type="date"
-                  defaultValue={filters.from}
-                  className={`${inputClass} mt-1 bg-white`}
-                />
-              </label>
-              <label className="text-sm font-medium">
-                Completed to
-                <input
-                  name="to"
-                  type="date"
-                  defaultValue={filters.to}
-                  className={`${inputClass} mt-1 bg-white`}
-                />
-              </label>
-              <label className="text-sm font-medium">
-                Surat Jalan
-                <select
-                  name="deliveryStatus"
-                  defaultValue={filters.deliveryStatus}
-                  className={`${inputClass} mt-1 bg-white`}
-                >
-                  <option value="all">All</option>
-                  <option value="not-issued">Not issued</option>
-                  <option value="open">Open</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </label>
-              <div className="flex flex-wrap items-end gap-2 md:col-span-2 xl:col-span-6">
-                <button className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
-                  Apply Filters
-                </button>
-                <Link
-                  href="/pick-pack?tab=completed"
-                  className={actionClass}
-                >
-                  Reset
-                </Link>
+              <div className="table-search-filters" key={JSON.stringify(filters)}>
+                <label className="text-sm font-medium">
+                  PIC Pick &amp; Pack
+                  <input name="pic" defaultValue={filters.pic} placeholder="PIC name" className={`${inputClass} mt-1 bg-white`} />
+                </label>
+                <label className="text-sm font-medium">
+                  Completed from
+                  <input
+                    name="from"
+                    type="date"
+                    defaultValue={filters.from}
+                    className={`${inputClass} mt-1 bg-white`}
+                  />
+                </label>
+                <label className="text-sm font-medium">
+                  Completed to
+                  <input
+                    name="to"
+                    type="date"
+                    defaultValue={filters.to}
+                    className={`${inputClass} mt-1 bg-white`}
+                  />
+                </label>
+                <label className="text-sm font-medium">
+                  Surat Jalan
+                  <select
+                    name="deliveryStatus"
+                    defaultValue={filters.deliveryStatus}
+                    className={`${inputClass} mt-1 bg-white`}
+                  >
+                    <option value="all">All</option>
+                    <option value="not-issued">Not issued</option>
+                    <option value="open">Open</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </label>
+                <div className="flex flex-wrap items-end gap-2 md:col-span-2 xl:col-span-6">
+                  <button className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
+                    Apply Filters
+                  </button>
+                </div>
               </div>
-            </form>
-          </section>
-
-          <section className="rounded-md border border-line bg-white p-5 shadow-card">
+            </TableSearchToolbar>
             {visibleCompleted.length === 0 ? (
               <EmptyState message="No completed Picking Lists match these filters." />
             ) : (

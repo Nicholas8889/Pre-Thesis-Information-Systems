@@ -34,6 +34,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { canRole } from "@/lib/role-access";
 import { buildPortfolioScope } from "@/lib/portfolio-scope";
 import { ServerPagination } from "@/components/server-pagination";
+import { TableSearchToolbar } from "@/components/table-search-toolbar";
 import {
   getCursorArgs,
   getCursorPage,
@@ -301,35 +302,6 @@ export default async function SuratJalanPage({
           </Link>
         </div>
       )}
-      <form className="mb-4 grid gap-3 rounded-md border border-line bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_190px_150px_150px_140px_130px_auto]">
-        <input type="hidden" name="tab" value={activeTab} />
-        {showCancelled && <input type="hidden" name="archive" value="cancelled" />}
-        <input name="q" defaultValue={filters.query} placeholder="SJ, invoice, order, recipient, or address" className="h-10 rounded-md border border-line px-3 text-sm" />
-        <select name="customerId" defaultValue={filters.customerId ?? ""} className="h-10 rounded-md border border-line px-3 text-sm" aria-label="Customer">
-          <option value="">All customers</option>
-          {filterCustomers.map(customer => (
-            <option key={customer.id} value={customer.id}>{customer.companyName}</option>
-          ))}
-        </select>
-        <input name="startDate" type="date" defaultValue={filters.startDate ? toDateOnlyValue(filters.startDate) : ""} className="h-10 rounded-md border border-line px-3 text-sm" aria-label="Start date" />
-        <input name="endDate" type="date" defaultValue={filters.endDate ? toDateOnlyValue(filters.endDate) : ""} className="h-10 rounded-md border border-line px-3 text-sm" aria-label="End date" />
-        <select name="status" defaultValue={appliedStatus} className="h-10 rounded-md border border-line px-3 text-sm" aria-label="Status">
-          <option value="">All statuses in this tab</option>
-          {visibleStatuses.map(status => <option key={status} value={status}>{getDeliveryNoteStatusLabel(status)}</option>)}
-        </select>
-        <div className="grid grid-cols-2 gap-2">
-          <select name="sort" defaultValue={filters.sort} className="h-10 rounded-md border border-line px-2 text-sm" aria-label="Sort">
-            <option value="createdAt">Created</option>
-            <option value="date">Date</option>
-            <option value="number">Number</option>
-          </select>
-          <select name="direction" defaultValue={filters.direction} className="h-10 rounded-md border border-line px-2 text-sm" aria-label="Direction">
-            <option value="asc">Asc</option>
-            <option value="desc">Desc</option>
-          </select>
-        </div>
-        <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
-      </form>
       {selectedDeliveryNote && (
         <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <div className="mb-5 flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-start sm:justify-between">
@@ -554,8 +526,50 @@ export default async function SuratJalanPage({
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Surat Jalan Records</h2>
-            <span className="text-sm font-medium text-ink/60">{filteredCount} matching records</span>
           </div>
+          <TableSearchToolbar
+            defaultValue={filters.query}
+            placeholder="SJ, invoice, order, recipient, or address"
+            resetHref={`/surat-jalan?tab=${activeTab}${showCancelled ? "&archive=cancelled" : ""}`}
+            loadedCount={visibleDeliveryNotes.length}
+            totalCount={filteredCount}
+            page={pagination.page}
+          >
+            <input type="hidden" name="tab" value={activeTab} />
+            {showCancelled && <input type="hidden" name="archive" value="cancelled" />}
+            <div className="table-search-filters" key={JSON.stringify(filters)}>
+              <label>Customer
+                <select name="customerId" defaultValue={filters.customerId ?? ""} className="h-10 rounded-md border border-line px-3 text-sm">
+                  <option value="">All customers</option>
+                  {filterCustomers.map(customer => (
+                    <option key={customer.id} value={customer.id}>{customer.companyName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>Start date<input name="startDate" type="date" defaultValue={filters.startDate ? toDateOnlyValue(filters.startDate) : ""} className="h-10 rounded-md border border-line px-3 text-sm" /></label>
+              <label>End date<input name="endDate" type="date" defaultValue={filters.endDate ? toDateOnlyValue(filters.endDate) : ""} className="h-10 rounded-md border border-line px-3 text-sm" /></label>
+              <label>Status
+                <select name="status" defaultValue={appliedStatus} className="h-10 rounded-md border border-line px-3 text-sm">
+                  <option value="">All statuses in this tab</option>
+                  {visibleStatuses.map(status => <option key={status} value={status}>{getDeliveryNoteStatusLabel(status)}</option>)}
+                </select>
+              </label>
+              <label>Sort by
+                <select name="sort" defaultValue={filters.sort} className="h-10 rounded-md border border-line px-2 text-sm">
+                  <option value="createdAt">Created</option>
+                  <option value="date">Date</option>
+                  <option value="number">Number</option>
+                </select>
+              </label>
+              <label>Direction
+                <select name="direction" defaultValue={filters.direction} className="h-10 rounded-md border border-line px-2 text-sm">
+                  <option value="asc">Asc</option>
+                  <option value="desc">Desc</option>
+                </select>
+              </label>
+              <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
+            </div>
+          </TableSearchToolbar>
           {visibleDeliveryNotes.length === 0 ? (
             <EmptyState
               message={

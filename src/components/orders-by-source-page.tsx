@@ -22,6 +22,7 @@ import {
 } from "@/components/table-actions";
 import { RestrictedAction } from "@/components/restricted-action";
 import { ServerPagination } from "@/components/server-pagination";
+import { TableSearchToolbar } from "@/components/table-search-toolbar";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getPaymentTermLabel } from "@/lib/calculations";
@@ -270,19 +271,6 @@ export async function OrdersBySourcePage({
         />
       )}
 
-      {!isCreateFlow && (
-        <form className="mb-4 grid gap-3 rounded-md border border-line bg-white p-4 sm:grid-cols-[1fr_220px_auto]">
-          <input type="hidden" name="tab" value={activeTab} />
-          <input name="q" defaultValue={query} placeholder="Search order, PO number, or customer" className="h-10 rounded-md border border-line px-3 text-sm" />
-          <select name="paymentTermType" defaultValue={paymentTermFilter} className="h-10 rounded-md border border-line px-3 text-sm">
-            <option value="">All payment terms</option>
-            <option value="IMMEDIATE">Immediate</option>
-            <option value="CREDIT">Credit</option>
-          </select>
-          <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
-        </form>
-      )}
-
       {!isCustomerPo && mode === "choose" && (
         <SalesOrderSourceDialog />
       )}
@@ -506,6 +494,26 @@ export async function OrdersBySourcePage({
       {!isCreateFlow && (
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <h2 className="mb-4 text-lg font-semibold">{singularLabel} Records</h2>
+        <TableSearchToolbar
+          defaultValue={query}
+          placeholder="Search order, PO number, or customer"
+          resetHref={`${basePath}?tab=${activeTab}`}
+          loadedCount={visibleSalesOrders.length}
+          totalCount={activeTab === "approval" ? approvalCount : activeTab === "done" ? doneCount : ongoingCount}
+          page={pagination.page}
+        >
+          <input type="hidden" name="tab" value={activeTab} />
+          <div className="table-search-filters" key={paymentTermFilter ?? ""}>
+            <label>Payment terms
+              <select name="paymentTermType" defaultValue={paymentTermFilter} className="h-10 rounded-md border border-line px-3 text-sm">
+                <option value="">All payment terms</option>
+                <option value="IMMEDIATE">Immediate</option>
+                <option value="CREDIT">Credit</option>
+              </select>
+            </label>
+            <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
+          </div>
+        </TableSearchToolbar>
         {visibleSalesOrders.length === 0 ? (
           <EmptyState
             message={
