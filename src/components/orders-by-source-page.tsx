@@ -78,7 +78,6 @@ export async function OrdersBySourcePage({
   const canViewApprovals = currentUser?.role === "MANAGER" || currentUser?.role === "SALES";
   const requestedTab = getFirst(params.tab);
   const query = getFirst(params.q);
-  const paymentTermFilter = getFirst(params.paymentTermType);
   const activeTab =
     requestedTab === "approval" && canViewApprovals
       ? "approval"
@@ -90,7 +89,6 @@ export async function OrdersBySourcePage({
   const sharedQuery = {
     source,
     search: query,
-    paymentTermType: paymentTermFilter,
     portfolioWhere: portfolio.salesOrderWhere
   };
   const ongoingWhere: Prisma.SalesOrderWhereInput = buildSalesOrderWhere({ ...sharedQuery, tab: "ongoing" });
@@ -233,7 +231,7 @@ export async function OrdersBySourcePage({
             </Link>
           ) : (
             <div className="flex flex-wrap justify-end gap-2">
-              <SalesOrderExportDialog source={source} tab={activeTab} search={query} paymentTermType={paymentTermFilter} />
+              <SalesOrderExportDialog source={source} tab={activeTab} search={query} />
               {activeTab === "ongoing" && (
                 canCreateSalesOrder ? (
                   <Link
@@ -267,7 +265,7 @@ export async function OrdersBySourcePage({
           doneCount={doneCount}
           approvalCount={canViewApprovals ? approvalCount : undefined}
           searchParams={params}
-          preserveParams={["q", "paymentTermType"]}
+          preserveParams={["q"]}
         />
       )}
 
@@ -277,12 +275,7 @@ export async function OrdersBySourcePage({
 
       {activeTab === "ongoing" && mode === "create" && (
         <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
-          <h2 className="mb-2 text-lg font-semibold">Create {createLabel}</h2>
-          <p className="mb-4 text-sm leading-6 text-ink/80">
-            {isCustomerPo
-              ? "Record the customer PO document and product required date. Enter a Customer PO Number or leave it blank for automatic numbering. The system generates a Sales Order Number, then invoice, payment, delivery note, receivable, and collection work continue through the same process as a direct Sales Order. Customer POs entered by Sales for customers with outstanding payments are submitted to a Manager first."
-              : "Start from a direct Sales Order, then the system generates an invoice and connects payment, delivery note, receivable, and collection work. Orders created by Sales for customers with outstanding payments are submitted to a Manager first."}
-          </p>
+          <h2 className="mb-4 text-lg font-semibold">Create {createLabel}</h2>
           {customers.length === 0 ? (
             <EmptyState message={`Add an active customer before creating a ${singularLabel}.`} />
           ) : products.length === 0 ? (
@@ -503,16 +496,6 @@ export async function OrdersBySourcePage({
           page={pagination.page}
         >
           <input type="hidden" name="tab" value={activeTab} />
-          <div className="table-search-filters" key={paymentTermFilter ?? ""}>
-            <label>Payment terms
-              <select name="paymentTermType" defaultValue={paymentTermFilter} className="h-10 rounded-md border border-line px-3 text-sm">
-                <option value="">All payment terms</option>
-                <option value="IMMEDIATE">Immediate</option>
-                <option value="CREDIT">Credit</option>
-              </select>
-            </label>
-            <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Apply</button>
-          </div>
         </TableSearchToolbar>
         {visibleSalesOrders.length === 0 ? (
           <EmptyState
@@ -648,7 +631,7 @@ export async function OrdersBySourcePage({
           pathname={basePath}
           searchParams={params}
           state={pagination}
-          preserveParams={["tab", "q", "paymentTermType"]}
+          preserveParams={["tab", "q"]}
         />
       </section>
       )}
