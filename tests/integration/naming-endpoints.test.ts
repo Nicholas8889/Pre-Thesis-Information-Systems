@@ -38,7 +38,7 @@ const context = { params: Promise.resolve({ salesOrderId: "order-1" }) };
 
 describe("canonical download endpoints", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mocks.currentUser.mockResolvedValue({ status: "Active" });
   });
 
@@ -118,11 +118,15 @@ describe("canonical download endpoints", () => {
     expect(String.fromCharCode(endpointBytes[0], endpointBytes[1])).toBe("PK");
   });
 
-  it("canonical and legacy Customer PO document routes return identical attachments", async () => {
+  it.each([
+    "customer-purchase-orders/purchase-order.pdf",
+    "demo/umkm-textile-v1/2026-10-14/purchase-order.pdf",
+    "demo/umkm-textile-v1/2026-10-14/2026-10-14T12-00-00-000Z-ab12cd34/purchase-order.pdf"
+  ])("canonical and legacy routes download the stored PO at %s", async (storedName) => {
     const fileBytes = new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55]);
     mocks.findCustomerPo.mockResolvedValue({
       customerPoDocumentName: "purchase-order.pdf",
-      customerPoDocumentStoredName: "customer-purchase-orders/purchase-order.pdf",
+      customerPoDocumentStoredName: storedName,
       customerPoDocumentMimeType: "application/pdf",
       customerPoDocumentSize: fileBytes.byteLength,
       customerPoDocumentSha256: createHash("sha256").update(fileBytes).digest("hex")
@@ -134,6 +138,8 @@ describe("canonical download endpoints", () => {
 
     expect(canonical.status).toBe(200);
     expect(legacy.status).toBe(200);
+    expect(mocks.download).toHaveBeenNthCalledWith(1, storedName);
+    expect(mocks.download).toHaveBeenNthCalledWith(2, storedName);
     expect(mocks.findCustomerPo).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "order-1", source: "CUSTOMER_PO" }
@@ -149,6 +155,47 @@ describe("canonical download endpoints", () => {
     expect(new Uint8Array(await legacy.arrayBuffer())).toEqual(
       new Uint8Array(await canonical.arrayBuffer())
     );
+  });
+
+  it.each([
+    "../unsafe.pdf",
+    "customer-purchase-orders/..",
+    "customer-purchase-orders/.",
+    "customer-purchase-orders/../unsafe.pdf",
+    "customer-purchase-orders/%2e%2e.pdf",
+    "customer-purchase-orders/unsafe.pdf\n",
+    "customer-purchase-orders/nested/unsafe.pdf",
+    "demo/umkm-textile-v1/2026-10-14/../unsafe.pdf",
+    "demo/umkm-textile-v1/2026-10-14/./unsafe.pdf",
+    "demo/umkm-textile-v1/2026-10-14//unsafe.pdf",
+    "demo/umkm-textile-v1/2026-10-14/%2e%2e/unsafe.pdf",
+    "demo/umkm-textile-v1/2026-10-14/run/extra/unsafe.pdf",
+    "demo/other-dataset/2026-10-14/unsafe.pdf",
+    "other-folder/unsafe.pdf",
+    "/customer-purchase-orders/unsafe.pdf",
+    "customer-purchase-orders\\unsafe.pdf",
+    "https://example.com/unsafe.pdf"
+  ])("rejects unsafe or unrelated storage path %s before downloading", async (storedName) => {
+    mocks.findCustomerPo.mockResolvedValueOnce({ customerPoDocumentStoredName: storedName });
+    const response = await getCustomerPoDocument(new Request("http://test.local"), context);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Invalid customer PO document path" });
+    expect(mocks.download).not.toHaveBeenCalled();
+  });
+
+  it.each(["size", "sha256"])("still rejects demo PDFs with mismatched %s", async (field) => {
+    const fileBytes = new TextEncoder().encode("%PDF-1.7\nfixture");
+    mocks.findCustomerPo.mockResolvedValueOnce({
+      customerPoDocumentStoredName: "demo/umkm-textile-v1/2026-10-14/purchase-order.pdf",
+      customerPoDocumentSize: fileBytes.byteLength + (field === "size" ? 1 : 0),
+      customerPoDocumentSha256: field === "sha256"
+        ? "0".repeat(64)
+        : createHash("sha256").update(fileBytes).digest("hex")
+    });
+    mocks.download.mockResolvedValueOnce(fileBytes);
+    const response = await getCustomerPoDocument(new Request("http://test.local"), context);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Customer PO document integrity check failed" });
   });
 
   it("rejects unauthenticated and unsafe Customer PO document requests", async () => {

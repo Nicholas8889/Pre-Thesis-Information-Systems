@@ -73,5 +73,17 @@ export async function GET(
 }
 
 function isSafeStoragePath(value: string) {
-  return /^customer-purchase-orders\/[A-Za-z0-9._-]+$/.test(value);
+  const segments = value.split("/");
+  if (segments.some(segment =>
+    !segment || segment === "." || segment === ".." || /[^A-Za-z0-9._-]/.test(segment)
+  )) return false;
+
+  if (segments[0] === "customer-purchase-orders") return segments.length === 2;
+
+  // Demo PDFs use a date folder and, after upload, an optional run folder.
+  return segments[0] === "demo" &&
+    /^umkm-textile-v[0-9]+$/.test(segments[1] ?? "") &&
+    /^\d{4}-\d{2}-\d{2}$/.test(segments[2] ?? "") &&
+    (segments.length === 4 || segments.length === 5) &&
+    /\.pdf$/i.test(segments.at(-1) ?? "");
 }
