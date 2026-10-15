@@ -55,6 +55,7 @@ function renderForm(
 ) {
   return renderToStaticMarkup(
     <SalesOrderForm
+      idempotencyKey="pricing-test-form"
       customers={[{
         id: "customer-1", companyName: "Company A", name: "Contact A",
         outstandingAmount: 0, openInvoiceCount: 0, paymentStatus: "Clean",

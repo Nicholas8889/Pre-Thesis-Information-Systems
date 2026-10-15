@@ -50,7 +50,7 @@ export function CustomerInquiryForm({
             <label className="text-sm font-medium text-ink">Product
               <select value={item.productId} onChange={(event) => {
                 const product = products.find((candidate) => candidate.id === event.target.value);
-                updateItem(index, { productId: event.target.value, itemName: product?.productName ?? "", agreedUnitPrice: product?.listPrice ?? item.agreedUnitPrice });
+                updateItem(index, { productId: event.target.value, itemName: product?.productName ?? "", agreedUnitPrice: "" });
               }} className={inputClass}>
                 <option value="">Not listed / unavailable</option>
                 {products.map((product) => <option key={product.id} value={product.id}>{product.productName}</option>)}

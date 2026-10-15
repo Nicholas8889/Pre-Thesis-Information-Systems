@@ -103,11 +103,6 @@ export default async function DashboardPage() {
     ...status,
     value: metrics.deliveryNoteDistribution[status.label] ?? 0
   }));
-  const reportingPeriod = new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "Asia/Jakarta"
-  }).format(new Date());
 
   if (dashboardRole === "ADMIN") {
     if (!lists.admin) throw new Error("Admin dashboard lists are unavailable");
@@ -286,22 +281,22 @@ export default async function DashboardPage() {
       <DashboardSummary
         items={[
           {
-            label: isSalesDashboard ? "My Sales Value" : "Total Sales Value",
+            label: isSalesDashboard ? "My All-time Order Value" : "All-time Order Value",
             value: formatCurrency(totalSalesOrderValue),
-            description: isSalesDashboard ? "Sales Orders created by you" : "Company Sales Order value",
+            description: "All dates and statuses, including pending and cancelled orders",
             icon: TrendingUp
           },
           {
             label: isSalesDashboard ? "Collected from My Orders" : "Paid Amount",
             value: formatCurrency(totalPaidAmount),
-            description: isSalesDashboard ? "Payments linked to your orders" : "Recorded company payments",
+            description: isSalesDashboard ? "Received from your orders across all dates" : "Received company payments across all dates",
             icon: Banknote,
             tone: "good"
           },
           {
             label: isSalesDashboard ? "My Order Receivables" : "Outstanding Receivables",
             value: formatCurrency(outstandingAmount),
-            description: isSalesDashboard ? "Open balance from your orders" : "Open company invoice balance",
+            description: isSalesDashboard ? "Current open balance from your orders" : "Current open company invoice balance",
             icon: ReceiptText,
             tone: "warning"
           },
@@ -326,7 +321,7 @@ export default async function DashboardPage() {
             </p>
           </div>
           <p className="text-xs font-medium text-ink/70">
-            {isSalesDashboard ? "Your portfolio" : "Company-wide"} · {reportingPeriod}
+            {isSalesDashboard ? "Your portfolio" : "Company-wide"} · All recorded dates
           </p>
         </div>
 
@@ -338,7 +333,7 @@ export default async function DashboardPage() {
             <RevenueTrendChart data={trendData} />
           </InsightPanel>
 
-          <InsightPanel title="Revenue Composition" footer="Current financial position">
+          <InsightPanel title="Invoice Balances" footer="Current paid and outstanding invoice balances">
             <RevenueCompositionChart
               total={totalSalesOrderValue}
               paid={totalPaidAmount}
@@ -789,7 +784,7 @@ function RevenueCompositionChart({
       <div className="min-w-0 flex-1 space-y-2">
         <div className="rounded-md bg-soft px-3 py-2">
           <p className="text-xs font-medium uppercase tracking-wide text-ink/70">
-            Total Sales
+            Total Order Value
           </p>
             <p className="mt-1 whitespace-nowrap text-xs font-semibold tabular-nums text-ink">
               {formatCurrency(total)}

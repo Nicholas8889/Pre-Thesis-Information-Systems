@@ -3,6 +3,7 @@ node_modules
 .next
 .next-local
 .next-order-edit-ui
+.next-uat-admin
 out
 coverage
 .env

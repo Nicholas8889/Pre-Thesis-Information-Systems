@@ -1,7 +1,7 @@
 "use client";
 
 import { FileUp, Plus, Trash2 } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { calculateAdjustedUnitPrice, CREDIT_TERM_OPTIONS } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/format";
 import {
@@ -45,6 +45,7 @@ export function SalesOrderForm({
   customers,
   products,
   ppnRateBasisPoints,
+  idempotencyKey,
   action,
   source = "DIRECT",
   inquiryId = "",
@@ -56,6 +57,8 @@ export function SalesOrderForm({
   customers: CustomerOption[];
   products: ProductOption[];
   ppnRateBasisPoints: number;
+  // Supplied by the server; useId only identifies a component within a tree.
+  idempotencyKey: string;
   action: (formData: FormData) => void | Promise<void>;
   source?: "DIRECT" | "CUSTOMER_PO";
   inquiryId?: string;
@@ -65,7 +68,6 @@ export function SalesOrderForm({
   restrictionMessage?: string;
 }) {
   const isCustomerPo = source === "CUSTOMER_PO";
-  const idempotencyKey = useId();
   const [paymentTermType, setPaymentTermType] = useState("IMMEDIATE");
   const [selectedCustomerId, setSelectedCustomerId] = useState(initialCustomerId);
   const [items, setItems] = useState<DraftItem[]>(initialItems?.length ? initialItems : [createEmptyItem()]);
@@ -143,6 +145,9 @@ export function SalesOrderForm({
       <input type="hidden" name="inquiryId" value={inquiryId} />
       <input type="hidden" name="source" value={source} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+      {inquiryId && <p className="rounded-md bg-soft p-3 text-sm">
+        Items and prices follow the saved inquiry. <a className="font-semibold text-brand underline" href={`/customer-inquiries/${inquiryId}`}>Update agreed prices on the inquiry</a> before converting.
+      </p>}
 
       {isCustomerPo && (
         <div className="grid gap-4 rounded-md border border-line bg-accent/10 p-4 md:grid-cols-2">
@@ -316,6 +321,7 @@ export function SalesOrderForm({
               Product Name
               <select
                 required
+                disabled={Boolean(inquiryId)}
                 value={item.productId}
                 onChange={(event) => selectProduct(index, event.target.value)}
                 className={`${inputClass} mt-1`}
@@ -336,6 +342,7 @@ export function SalesOrderForm({
                 min={1}
                 type="number"
                 value={item.quantity}
+                readOnly={Boolean(inquiryId)}
                 onChange={(event) =>
                   updateItem(index, { quantity: Number(event.target.value) })
                 }
@@ -351,6 +358,7 @@ export function SalesOrderForm({
                 step={1}
                 type="number"
                 value={item.baseUnitPrice}
+                readOnly={Boolean(inquiryId)}
                 onChange={(event) =>
                   updateItem(index, { baseUnitPrice: Number(event.target.value) })
                 }
@@ -366,6 +374,7 @@ export function SalesOrderForm({
                 step={1}
                 type="number"
                 value={item.markupPercent}
+                readOnly={Boolean(inquiryId)}
                 placeholder="Optional"
                 onChange={(event) =>
                   updateItem(index, {
@@ -384,6 +393,7 @@ export function SalesOrderForm({
                 step={1}
                 type="number"
                 value={item.discountPercent}
+                readOnly={Boolean(inquiryId)}
                 placeholder="Optional"
                 onChange={(event) =>
                   updateItem(index, {
@@ -411,6 +421,7 @@ export function SalesOrderForm({
             <button
               type="button"
               onClick={() => removeItem(index)}
+              disabled={Boolean(inquiryId)}
               className="mt-6 flex h-10 w-10 items-center justify-center rounded-md border border-line text-ink/70"
               title="Remove item"
             >
@@ -532,6 +543,7 @@ export function SalesOrderForm({
         <button
           type="button"
           onClick={addItem}
+          disabled={Boolean(inquiryId)}
           className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-4 text-sm font-semibold text-brand"
         >
           <Plus aria-hidden="true" className="h-4 w-4" />

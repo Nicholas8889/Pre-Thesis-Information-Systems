@@ -97,6 +97,11 @@ export async function refreshDashboardAnalysisManually() {
   if (user.role !== "ADMIN" && user.role !== "MANAGER") {
     throw new Error("Only Admin and Manager can refresh dashboard analysis");
   }
+  // This shared routine explicitly writes to public, regardless of search_path.
+  const [scope] = await prisma.$queryRaw<{ schema: string }[]>`SELECT current_schema() AS schema`;
+  if (scope?.schema !== "public") {
+    throw new Error("Shared dashboard analysis cannot run outside the public application schema");
+  }
   const [result] = await prisma.$queryRaw<{ runId: bigint }[]>`
     SELECT dashboard_private.refresh_dashboard_analysis('MANUAL', ${user.id}) AS "runId"
   `;

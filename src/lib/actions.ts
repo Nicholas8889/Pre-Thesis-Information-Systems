@@ -58,6 +58,7 @@ import {
 } from "@/lib/customer-inquiry-conversion";
 import { parseJakartaDateTimeInput } from "@/lib/delivery-note-status";
 import { parseDateOnly } from "@/lib/date-only";
+import { lockActiveCustomer, InactiveCustomerError } from "@/lib/active-customer";
 import {
   haveSameDeliveryDestination,
   normalizeDeliveryDestination
@@ -564,6 +565,60 @@ export async function createCustomerInquiry(formData: FormData) {
   redirectWithMessage(`/customer-inquiries/${inquiry.id}`, "success", "Customer inquiry created");
 }
 
+export async function updateCustomerInquiryPrices(formData: FormData) {
+  const currentUser = await requireCurrentUser();
+  const portfolio = buildPortfolioScope(currentUser);
+  const inquiryId = getRequiredString(formData, "inquiryId");
+  const returnPath = `/customer-inquiries/${encodeURIComponent(inquiryId)}`;
+  const expectedUpdatedAt = new Date(getString(formData, "expectedUpdatedAt"));
+  const itemIds = formData.getAll("itemId").map(String);
+  const rawPrices = formData.getAll("agreedUnitPrice");
+  let prices: Array<number | null>;
+  try {
+    prices = rawPrices.map(parseOptionalInquiryPrice);
+  } catch {
+    redirectWithMessage(returnPath, "error", "Agreed prices must be blank or positive whole numbers");
+  }
+  if (!itemIds.length || itemIds.length !== prices.length || new Set(itemIds).size !== itemIds.length ||
+      !Number.isFinite(expectedUpdatedAt.getTime()) || prices.some(price => price !== null && price > MAX_ORDER_UNIT_PRICE)) {
+    redirectWithMessage(returnPath, "error", "Refresh the inquiry and enter valid agreed prices");
+  }
+  const inquiry = await prisma.customerInquiry.findFirst({
+    where: { id: inquiryId, ...portfolio.inquiryWhere }, include: { items: true }
+  });
+  if (!inquiry || inquiry.status !== "Open" || inquiry.salesOrderId ||
+      inquiry.items.length !== itemIds.length || inquiry.items.some(item => !itemIds.includes(item.id))) {
+    redirectWithMessage(returnPath, "error", "Only the current items of an open inquiry can be updated");
+  }
+  const before = inquiry.items.map(item => ({ itemId: item.id, itemName: item.itemName, agreedUnitPrice: item.agreedUnitPrice }));
+  try {
+    await prisma.$transaction(async tx => {
+      await lockActiveCustomer(tx, inquiry.customerId);
+      const claimed = await tx.customerInquiry.updateMany({
+        where: { id: inquiryId, status: "Open", salesOrderId: null, updatedAt: expectedUpdatedAt, ...portfolio.inquiryWhere },
+        data: { statusNote: "Agreed prices updated", updatedAt: new Date() }
+      });
+      if (claimed.count !== 1) throw new InquiryConversionConflictError();
+      for (let index = 0; index < itemIds.length; index++) {
+        await tx.customerInquiryItem.update({ where: { id: itemIds[index] }, data: { agreedUnitPrice: prices[index] } });
+      }
+      await createAuditTrailLog({
+        actor: currentUser, moduleName: "Customer Inquiry", entityType: "CUSTOMER_INQUIRY", entityId: inquiryId,
+        recordReference: inquiry.inquiryNumber, action: "UPDATED",
+        changeSummary: `Agreed prices updated for inquiry ${inquiry.inquiryNumber}`,
+        actionNote: normalizeActionNote(getString(formData, "confirmationNote")), oldValue: before,
+        newValue: itemIds.map((itemId, index) => ({ itemId, agreedUnitPrice: prices[index] }))
+      }, { transaction: tx });
+    });
+  } catch (error) {
+    if (error instanceof InquiryConversionConflictError) redirectWithMessage(returnPath, "error", "This inquiry changed. Refresh before saving agreed prices");
+    if (error instanceof InactiveCustomerError) redirectWithMessage(returnPath, "error", error.message);
+    throw error;
+  }
+  refreshApp();
+  redirectWithMessage(returnPath, "success", "Agreed prices saved. The inquiry can be converted when every item has an agreed price");
+}
+
 export async function updateCustomerInquiryStatus(formData: FormData) {
   const currentUser = await requireCurrentUser();
   const portfolio = buildPortfolioScope(currentUser);
@@ -721,6 +776,7 @@ export async function createSalesOrder(formData: FormData) {
       .sort();
     if (
       sourceItems.some(item => !item.productId || !item.active || item.baseUnitPrice === null) ||
+      submittedItems.some(item => item.markupPercent !== 0 || item.discountPercent !== 0) ||
       sourceSignature.length !== submittedSignature.length ||
       sourceSignature.some((value, index) => value !== submittedSignature[index])
     ) {
@@ -1477,9 +1533,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
     actionNote = normalizeActionNote(getString(formData, "confirmationNote"));
     const submittedDecisionNote = getString(formData, "decisionNote");
     decisionNote = normalizeActionNote(
-      decision === "Rejected"
-        ? submittedDecisionNote || actionNote
-        : submittedDecisionNote,
+      submittedDecisionNote || actionNote,
       requiresApprovalDecisionNote(decision) ? "required" : "optional"
     );
   } catch (error) {

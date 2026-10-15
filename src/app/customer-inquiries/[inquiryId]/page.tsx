@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { updateCustomerInquiryStatus } from "@/lib/actions";
+import { updateCustomerInquiryPrices, updateCustomerInquiryStatus } from "@/lib/actions";
+import { FlashMessage } from "@/components/flash-message";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { prisma } from "@/lib/prisma";
@@ -11,13 +12,17 @@ import {
 } from "@/lib/customer-inquiry";
 import { requireCurrentUser } from "@/lib/session";
 import { buildPortfolioScope } from "@/lib/portfolio-scope";
+import { getSearchMessage } from "@/lib/workflow";
 
 export default async function CustomerInquiryDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ inquiryId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { inquiryId } = await params;
+  const { success, error } = getSearchMessage((await searchParams) ?? {});
   const currentUser = await requireCurrentUser();
   const portfolio = buildPortfolioScope(currentUser);
   const inquiry = await prisma.customerInquiry.findFirst({
@@ -39,6 +44,7 @@ export default async function CustomerInquiryDetailPage({
         title={inquiry.inquiryNumber}
         description={`${inquiry.customer.companyName} - received ${formatDate(inquiry.inquiryDate)}`}
       />
+      <FlashMessage success={success} error={error} />
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Inquiry Detail</h2>
@@ -93,6 +99,25 @@ export default async function CustomerInquiryDetailPage({
           </table>
         </div>
 
+        {inquiry.status === "Open" && !inquiry.salesOrderId && (
+          <form action={updateCustomerInquiryPrices} className="mt-6 space-y-4 rounded-md border border-line bg-soft p-4">
+            <h3 className="text-base font-semibold">Update Agreed Prices</h3>
+            <p className="text-sm text-ink/80">Enter the prices agreed with the customer before converting this inquiry. Requested prices and production costs are not agreements.</p>
+            <input type="hidden" name="inquiryId" value={inquiry.id} />
+            <input type="hidden" name="expectedUpdatedAt" value={inquiry.updatedAt.toISOString()} />
+            <div className="grid gap-4 md:grid-cols-2">
+              {inquiry.items.map(item => (
+                <label key={item.id} className="text-sm font-medium">
+                  Agreed Unit Price — {item.itemName}
+                  <input type="hidden" name="itemId" value={item.id} />
+                  <input name="agreedUnitPrice" type="number" min={1} step={1} defaultValue={item.agreedUnitPrice ?? ""}
+                    className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2" />
+                </label>
+              ))}
+            </div>
+            <button className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white">Save Agreed Prices</button>
+          </form>
+        )}
         <div className="mt-6 space-y-4 border-t border-line pt-5">
           {canConvert && (
             <div className="flex flex-wrap gap-3">

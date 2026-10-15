@@ -82,7 +82,7 @@ export default async function AuditTrailPage({
       />
 
       <div className="mb-4 rounded-md bg-info/10 px-4 py-3 text-sm text-ink">
-        Audit Trail is read-only. Records are created automatically by the system; Admin can review and filter them but cannot create manual entries.
+        Audit Trail is read-only. Records are created automatically by the system and can be reviewed and filtered here.
       </div>
 
       <section className="rounded-md border border-line bg-white p-5 shadow-card">
@@ -182,13 +182,23 @@ export default async function AuditTrailPage({
                           label="View audit record details"
                           icon={<Eye aria-hidden="true" />}
                         >
-                          <div className="space-y-3 rounded-md bg-soft p-3 text-xs text-ink/80">
-                          <Detail label="Entity ID" value={record.entityId} />
-                          <Detail label="Entity Type" value={record.entityType} />
-                          <Detail label="Full Summary" value={record.changeSummary} />
-                          <Detail label="Confirmation Note" value={record.actionNote ?? "-"} preserve />
-                          <Detail label="Old Value" value={record.oldValue ?? "-"} preserve />
-                          <Detail label="New Value" value={record.newValue ?? "-"} preserve />
+                          <div className="space-y-4 text-sm text-ink/80">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <Detail label="User" value={`${record.actorDisplayName ?? record.actorUsername} (${record.actorUsername})`} />
+                              <Detail label="Date & Time" value={formatDateTime(record.createdAt)} />
+                              <Detail label="Record Reference" value={record.recordReference} />
+                              <Detail label="Action" value={formatActionLabel(record.action)} />
+                            </div>
+                            <Detail label="Summary" value={record.changeSummary} />
+                            <Detail label="Reason / Confirmation Note" value={record.actionNote ?? "-"} preserve />
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <section aria-label="Before" className="min-w-0 rounded-md bg-soft p-3">
+                                <h3 className="mb-3 font-semibold">Before</h3><AuditValue value={record.oldValue} />
+                              </section>
+                              <section aria-label="After" className="min-w-0 rounded-md bg-soft p-3">
+                                <h3 className="mb-3 font-semibold">After</h3><AuditValue value={record.newValue} />
+                              </section>
+                            </div>
                           </div>
                         </TableDetailsAction>
                       </TableActionGroup>
@@ -210,6 +220,23 @@ export default async function AuditTrailPage({
       </section>
     </>
   );
+}
+
+function AuditValue({ value }: { value: string | null }) {
+  if (!value) return <p>—</p>;
+  let parsed: unknown;
+  try { parsed = JSON.parse(value); } catch { return <p className="whitespace-pre-wrap break-words">{value}</p>; }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return <p className="whitespace-pre-wrap break-words">{value}</p>;
+  }
+  const labels: Record<string, string> = { approvalStatus: "Approval Status", decisionNote: "Decision Reason",
+    paymentStatusAtDecision: "Customer Payment Status", outstandingAtDecision: "Customer Outstanding Amount" };
+  return <dl className="space-y-3">{Object.entries(parsed).map(([key, entry]) => (
+    <div key={key} className="min-w-0">
+      <dt className="text-xs font-semibold text-ink/60">{labels[key] ?? key.replace(/([A-Z])/g, " $1").replace(/^./, letter => letter.toUpperCase())}</dt>
+      <dd className="mt-1 whitespace-pre-wrap break-words">{entry === null ? "—" : typeof entry === "object" ? JSON.stringify(entry, null, 2) : String(entry)}</dd>
+    </div>
+  ))}</dl>;
 }
 
 function FilterSelect({

@@ -21,7 +21,7 @@ vi.mock("@/lib/session", () => ({
   requireCurrentUser: vi.fn(async () => actor)
 }));
 
-import { createCustomerInquiry, createSalesOrder } from "../../src/lib/actions";
+import { createCustomerInquiry, createSalesOrder, updateCustomerInquiryPrices } from "../../src/lib/actions";
 
 const prisma = new PrismaClient();
 
@@ -58,7 +58,7 @@ function conversionForm({
 describe("Customer Inquiry agreed-price conversion", () => {
   afterAll(() => prisma.$disconnect());
 
-  it("uses blank agreed-price fallback, snapshots it immutably, and rejects zero/inactive products atomically", async () => {
+  it("records negotiated prices before conversion, protects edits, and rejects unagreed/zero/inactive prices atomically", async () => {
     const marker = `sit_auth_batch3_inquiry_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const user = await prisma.user.create({
       data: {
@@ -136,13 +136,34 @@ describe("Customer Inquiry agreed-price conversion", () => {
       }
       expect(await prisma.customerInquiry.count({ where: { customerId: customer.id } })).toBe(3);
 
-      await expect(createSalesOrder(conversionForm({
+      const conversion = conversionForm({
         customerId: customer.id,
         inquiryId: fallbackInquiry.id,
         productId: product.id,
         baseUnitPrice: 30_000,
         idempotencyKey: successfulKey
-      }))).rejects.toThrow("success=Sales%20order%20created");
+      });
+      await expect(createSalesOrder(conversion)).rejects.toThrow("conversion%20payload%20no%20longer%20matches");
+      expect(await prisma.salesOrder.count({ where: { customerId: customer.id } })).toBe(0);
+      const inquiryItem = await prisma.customerInquiryItem.findFirstOrThrow({ where: { customerInquiryId: fallbackInquiry.id } });
+      const negotiation = new FormData();
+      negotiation.set("inquiryId", fallbackInquiry.id);
+      negotiation.set("expectedUpdatedAt", fallbackInquiry.updatedAt.toISOString());
+      negotiation.append("itemId", inquiryItem.id);
+      negotiation.append("agreedUnitPrice", "30000");
+      const actorId = actor.id;
+      try {
+        actor.id = "foreign-sales-user";
+        await expect(updateCustomerInquiryPrices(negotiation)).rejects.toThrow("Only%20the%20current%20items");
+      } finally { actor.id = actorId; }
+      await expect(updateCustomerInquiryPrices(negotiation)).rejects.toThrow("success=Agreed%20prices%20saved");
+      await expect(updateCustomerInquiryPrices(negotiation)).rejects.toThrow("This%20inquiry%20changed");
+      expect((await prisma.customerInquiryItem.findUniqueOrThrow({ where: { id: inquiryItem.id } })).agreedUnitPrice).toBe(30000);
+      const audit = await prisma.auditTrail.findFirstOrThrow({ where: { entityId: fallbackInquiry.id, action: "UPDATED" } });
+      expect(audit.oldValue).toMatch(/"agreedUnitPrice":\s*null/);
+      expect(audit.newValue).toMatch(/"agreedUnitPrice":\s*30000/);
+      await expect(createSalesOrder(conversion)).rejects.toThrow("success=Sales%20order%20created");
+      await expect(updateCustomerInquiryPrices(negotiation)).rejects.toThrow("Only%20the%20current%20items");
 
       const order = await prisma.salesOrder.findUniqueOrThrow({
         where: { idempotencyKey: successfulKey },

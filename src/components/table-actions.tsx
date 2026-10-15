@@ -144,12 +144,22 @@ export function TableDetailsAction({
   icon: ReactNode;
   children: ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const detailsTriggerRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition>();
+  useEffect(() => {
+    if (open && dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
+  }, [open]);
   return (
-    <details className="table-details-action">
-      <summary
+    <>
+      <button
+        type="button"
+        ref={detailsTriggerRef}
         aria-label={label}
         className="table-action-button"
+        onClick={() => { setTooltipPosition(undefined); setOpen(true); }}
         onMouseEnter={(event) => setTooltipPosition(getTooltipPosition(event.currentTarget))}
         onMouseLeave={() => setTooltipPosition(undefined)}
         onFocus={(event) => setTooltipPosition(getTooltipPosition(event.currentTarget))}
@@ -157,9 +167,19 @@ export function TableDetailsAction({
       >
         {icon}
         <ActionTooltip label={label} position={tooltipPosition} />
-      </summary>
-      <div className="table-details-action-panel">{children}</div>
-    </details>
+      </button>
+      {open && createPortal(
+        <dialog ref={dialogRef} aria-labelledby={titleId} onClose={() => { setOpen(false); detailsTriggerRef.current?.focus(); }}
+          className="fixed inset-0 m-auto max-h-[85vh] w-[calc(100%_-_2rem)] max-w-3xl overflow-y-auto rounded-lg border border-line bg-white p-5 text-ink shadow-2xl backdrop:bg-black/50">
+          <div className="mb-5 flex items-center justify-between gap-4 border-b border-line pb-3">
+            <h2 id={titleId} className="text-lg font-semibold">{label}</h2>
+            <button type="button" autoFocus onClick={() => dialogRef.current?.close()}
+              className="rounded-md border border-line px-3 py-2 text-sm font-semibold">Close</button>
+          </div>
+          {children}
+        </dialog>, document.body
+      )}
+    </>
   );
 }
 

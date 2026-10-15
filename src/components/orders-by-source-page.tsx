@@ -1,5 +1,6 @@
 import { linkedDeliveryNotes } from "@/lib/delivery-note-links";
 import Link from "next/link";
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { ArrowLeft, Check, ClipboardList, Eye, FilePlus2, FileText, Plus, ShoppingCart, X } from "lucide-react";
 import {
@@ -280,8 +281,15 @@ export async function OrdersBySourcePage({
             <EmptyState message={`Add an active customer before creating a ${singularLabel}.`} />
           ) : products.length === 0 ? (
             <EmptyState message={`Add an active product before creating a ${singularLabel}.`} />
+          ) : inquiryId && (!conversionInquiry || !inquiryItems) ? (
+            <p className="rounded-md bg-warning/20 p-4 text-sm">
+              Complete the agreed prices on the open inquiry before converting.
+              {conversionInquiry && <Link className="ml-2 font-semibold text-brand underline" href={`/customer-inquiries/${conversionInquiry.id}`}>Return to inquiry</Link>}
+            </p>
           ) : (
             <SalesOrderForm
+              // A request token must be unique across users and page requests.
+              idempotencyKey={randomUUID()}
               customers={customers}
               products={products}
               ppnRateBasisPoints={ppnRateBasisPoints}

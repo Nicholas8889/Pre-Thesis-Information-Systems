@@ -20,17 +20,18 @@ describe("customer inquiry helpers", () => {
     }
   );
 
-  it("resolves agreed, requested, then active Product list price in canonical order", () => {
+  it("requires explicit agreement instead of treating a request or production cost as agreement", () => {
     expect(resolveAgreedUnitPrice({ agreedUnitPrice: 35_000, requestedUnitPrice: 32_000, productListPrice: 30_000 })).toBe(35_000);
-    expect(resolveAgreedUnitPrice({ agreedUnitPrice: null, requestedUnitPrice: 32_000, productListPrice: 30_000 })).toBe(32_000);
-    expect(resolveAgreedUnitPrice({ agreedUnitPrice: null, requestedUnitPrice: null, productListPrice: 30_000 })).toBe(30_000);
+    expect(resolveAgreedUnitPrice({ agreedUnitPrice: null, requestedUnitPrice: 32_000, productListPrice: 30_000 })).toBeNull();
+    expect(resolveAgreedUnitPrice({ agreedUnitPrice: null, requestedUnitPrice: null, productListPrice: 30_000 })).toBeNull();
     expect(resolveAgreedUnitPrice({ agreedUnitPrice: 0, requestedUnitPrice: 32_000, productListPrice: 30_000 })).toBeNull();
   });
 
-  it("uses the same active-product fallback rule for conversion eligibility", () => {
+  it("requires an active product and explicit agreed price for conversion", () => {
     const activeProduct = { status: "Active", listPrice: 30_000 };
-    expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedUnitPrice: null, requestedUnitPrice: 32_000, product: activeProduct }])).toBe(true);
-    expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedUnitPrice: null, requestedUnitPrice: null, product: activeProduct }])).toBe(true);
+    expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedUnitPrice: 32_000, requestedUnitPrice: 30_000, product: activeProduct }])).toBe(true);
+    expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedUnitPrice: null, requestedUnitPrice: 32_000, product: activeProduct }])).toBe(false);
+    expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedUnitPrice: null, requestedUnitPrice: null, product: activeProduct }])).toBe(false);
     expect(canConvertCustomerInquiryItems([{ productId: null, agreedUnitPrice: 30_000, requestedUnitPrice: null, product: activeProduct }])).toBe(false);
     expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedUnitPrice: 30_000, requestedUnitPrice: null, product: { ...activeProduct, status: "Inactive" } }])).toBe(false);
     expect(canConvertCustomerInquiryItems([{ productId: "product-1", agreedUnitPrice: 0, requestedUnitPrice: 32_000, product: activeProduct }])).toBe(false);

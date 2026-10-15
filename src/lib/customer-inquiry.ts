@@ -10,16 +10,14 @@ export function parseOptionalInquiryPrice(value: unknown) {
 }
 
 export function resolveAgreedUnitPrice({
-  agreedUnitPrice,
-  requestedUnitPrice,
-  productListPrice
+  agreedUnitPrice
 }: {
   agreedUnitPrice: number | null;
   requestedUnitPrice: number | null;
   productListPrice: number;
 }) {
-  const resolved = agreedUnitPrice ?? requestedUnitPrice ?? productListPrice;
-  return Number.isSafeInteger(resolved) && resolved > 0 ? resolved : null;
+  return agreedUnitPrice !== null && Number.isSafeInteger(agreedUnitPrice) && agreedUnitPrice > 0
+    ? agreedUnitPrice : null;
 }
 
 export function canConvertCustomerInquiryItems(

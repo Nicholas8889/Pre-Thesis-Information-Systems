@@ -324,6 +324,10 @@ Customer Inquiry (Open) -> Close or Cancel, or -> Convert to Sales Order / Custo
 
 Conversion is available only when every inquiry item has a matched product and agreed unit price. A Customer PO has its own Customer PO Number and requires a supporting customer PO document.
 
+Save an inquiry while the request is still being negotiated, then use **Update Agreed Prices** on its detail page to record the final agreement. Product selection leaves the agreed price blank. Requested prices and production costs are never used as an implicit agreement. Conversion preserves the saved products, quantities, and agreed prices; return to the inquiry to revise an agreement before converting. Price updates are audited and stale updates are rejected.
+
+Manager and Sales dashboard order value covers **all recorded dates and statuses**, including pending and cancelled orders. Payments Received covers all recorded payment dates, while Outstanding Receivables is the current open invoice balance. These figures are not a selected-month sales report. Audit details open in a dialog with the actor, reference, reason, and readable Before/After values.
+
 Immediate Payment flow:
 
 Sales Order -> Invoice -> Picking & Packing -> Surat Jalan -> Receivables -> Payment
