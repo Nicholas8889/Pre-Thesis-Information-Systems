@@ -23,7 +23,9 @@ export function ActionConfirmationDialog() {
       const form = event.target;
       if (!(form instanceof HTMLFormElement)) return;
       if (form.dataset.noActionConfirmation === "true") return;
-      if (form.method.toLowerCase() === "get") return;
+      // Function actions can omit the method attribute even though React submits
+      // them as POST. Only explicitly declared GET forms should skip confirmation.
+      if (form.getAttribute("method")?.toLowerCase() === "get") return;
       if (bypassForm.current === form) {
         bypassForm.current = null;
         return;
