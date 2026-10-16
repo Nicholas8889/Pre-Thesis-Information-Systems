@@ -50,13 +50,12 @@ export function TableEnhancer() {
 
     const container = document.querySelector("main") ?? document.body;
     enhanceTables();
-    let enhancementScheduled = false;
+    let enhancementFrame: number | null = null;
     const observer = new MutationObserver((mutations) => {
       if (!shouldRefreshTableEnhancements(mutations)) return;
-      if (enhancementScheduled) return;
-      enhancementScheduled = true;
-      requestAnimationFrame(() => {
-        enhancementScheduled = false;
+      if (enhancementFrame !== null) return;
+      enhancementFrame = requestAnimationFrame(() => {
+        enhancementFrame = null;
         enhanceTables();
       });
     });
@@ -67,6 +66,7 @@ export function TableEnhancer() {
 
     return () => {
       observer.disconnect();
+      if (enhancementFrame !== null) cancelAnimationFrame(enhancementFrame);
       [...tableStates.values()].forEach((state) => state.destroy());
     };
   }, [pathname]);

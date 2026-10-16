@@ -713,6 +713,18 @@ textarea:focus-visible {
     margin: 0 !important;
   }
 
+  /* Screen filtering and pagination must never shorten a business document. */
+  table[data-no-table-tools] tbody > tr[hidden] {
+    display: table-row !important;
+  }
+
+  table[data-no-table-tools] .table-cell-content {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+  }
+
   @page {
     margin: 14mm;
   }

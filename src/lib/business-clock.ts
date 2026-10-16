@@ -29,6 +29,10 @@ export function getBusinessDateKeyWib(date: Date) {
   );
 }
 
+export function toBusinessDateInputWib(date: Date) {
+  return new Date(getBusinessDateKeyWib(date)).toISOString().slice(0, 10);
+}
+
 export function isBusinessDateAfterWib(left: Date, right: Date) {
   return getBusinessDateKeyWib(left) > getBusinessDateKeyWib(right);
 }

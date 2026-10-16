@@ -46,6 +46,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 vi.mock("@/lib/actions", () => ({
   createDeliveryNote: vi.fn(),
+  saveDeliveryNoteDraft: vi.fn(),
   updateDeliveryNoteStatus: vi.fn(),
 }));
 vi.mock("@/lib/picking-list-actions", () => ({
@@ -113,6 +114,7 @@ const notes = ["Issued", "Delivered", "Cancelled"].map((status) => ({
   deliveryNoteNumber: `SJ-${status.toUpperCase()}`,
   deliveryDate: new Date("2026-09-12"),
   recipientName: "Recipient",
+  customer: order.customer,
   invoice: null,
   notes: null,
 }));
@@ -333,6 +335,28 @@ describe("warehouse tabs and print views", () => {
     expect(html).toContain("invoices stay separate");
     expect(html).toContain('name="recipientAddress"');
     expect(html).not.toContain("koli");
+  });
+  it.each([undefined, "other-draft"])("keeps the Create form separate from an existing Draft (view=%s)", async view => {
+    const draft = {
+      ...notes[0], id: "other-draft", status: "Draft", deliveryNoteNumber: "SJ-OTHER-CUSTOMER",
+      updatedAt: new Date("2026-10-16T01:00:00Z"), recipientPhone: "08123456789",
+      recipientAddress: "Other destination", customer: {...order.customer, companyName: "Other customer"},
+      salesOrder: order, invoice: null, items: [], sources: []
+    };
+    mocks.notes.mockResolvedValue([draft]); mocks.note.mockResolvedValue(draft);
+    const html = renderToStaticMarkup(await SuratJalanPage({searchParams: Promise.resolve({
+      mode: "create", pickingListId: list.id, ...(view ? {view} : {})
+    })}));
+    expect(html).toContain("Create Draft Surat Jalan");
+    expect(html.match(/name="recipientName"/g)).toHaveLength(1);
+    expect(html).not.toContain('name="id" value="other-draft"');
+    expect(html).not.toContain("Simpan Draft");
+    expect(mocks.noteFirst.mock.calls.some(([args]) => args.include)).toBe(false);
+
+    const editHtml = renderToStaticMarkup(await SuratJalanPage({searchParams: Promise.resolve({view: "other-draft"})}));
+    expect(editHtml).toContain('name="id" value="other-draft"');
+    expect(editHtml).toContain("Simpan Draft");
+    expect(editHtml).not.toContain("Create Draft Surat Jalan");
   });
   it("keeps Picking Lists linked through a combined SJ in Completed history", async () => {
     mocks.lists.mockResolvedValue([{ ...list, deliverySource: { deliveryNote: notes[0] } }]);

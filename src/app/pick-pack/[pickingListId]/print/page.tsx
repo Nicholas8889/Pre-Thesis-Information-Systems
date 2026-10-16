@@ -111,7 +111,7 @@ export default async function PickingListPrintPage({
           </p>
         </section>
 
-        <table className="mt-6 w-full border-collapse text-sm">
+        <table data-no-table-tools className="mt-6 w-full border-collapse text-sm">
           <thead>
             <tr>
               {[

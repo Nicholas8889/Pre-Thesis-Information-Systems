@@ -28,7 +28,9 @@ beforeAll(async () => {
           const props = { defaultValue: "", placeholder: "Search order, PO number, or customer",
             resetHref: "/sales-orders?tab=done", loadedCount: 3, totalCount: 103, page: 1,
             paymentTermType: "CREDIT", empty: false, columnTools: false,
+            pathname: "/sales-orders", noTools: false, localRows: 2,
             columnHref: "/surat-jalan?tab=open&q=SJ&customerId=other&cursor=old&cursorHistory=~", ...overrides };
+          window.fixturePathname = props.pathname;
           root.render(<main className="app-main p-5">
             <section id="server-card" className="shadow-card rounded-md border border-line bg-white p-5">
               <h2 className="mb-4 text-lg font-semibold">Sales Order Records</h2>
@@ -61,8 +63,9 @@ beforeAll(async () => {
             </section>
             <section id="local-card" className="shadow-card mt-5 rounded-md border border-line bg-white p-5">
               <h2 className="mb-4 text-lg font-semibold">Local table</h2>
-              <table><thead><tr><th>Name</th></tr></thead><tbody>
-                <tr><td>Local Alpha</td></tr><tr><td>Local Beta</td></tr>
+              <table key={String(props.noTools)} data-no-table-tools={props.noTools || undefined}><thead><tr><th>Name</th></tr></thead><tbody>
+                {Array.from({length: props.localRows}, (_, i) =>
+                  <tr key={i}><td>{i === 0 ? "Local Alpha" : i === 1 ? "Local Beta" : "Local " + i}</td></tr>)}
               </tbody></table>
             </section>
             <TableEnhancer />
@@ -85,7 +88,7 @@ beforeAll(async () => {
           loader: "js",
           resolveDir: resolve("."),
           contents: path === "next/navigation"
-            ? `export const usePathname = () => "/sales-orders";
+            ? `export const usePathname = () => window.fixturePathname || "/sales-orders";
                export const useRouter = () => ({ replace: (href, options) => window.routerCalls.push({href, options}) });`
             : `import React from "react";
                export default function Link({href, scroll, onClick, ...props}) {
@@ -115,6 +118,51 @@ afterEach(async () => { await page?.close(); });
 afterAll(async () => { await browser?.close(); });
 
 describe("table search toolbar in a browser", () => {
+  it("keeps all document rows without screen search or pagination", async () => {
+    await page.evaluate(() => (window as unknown as {renderFixture: (props: object) => void})
+      .renderFixture({noTools: true, localRows: 15}));
+    await page.waitForFunction(() => document.querySelectorAll('#local-card tbody tr').length === 15 &&
+      !document.querySelector('#local-card [data-table-toolbar]'));
+    expect(await page.locator('#local-card tbody tr:visible').count()).toBe(15);
+    expect(await page.locator('#local-card .table-enhancer-pagination').count()).toBe(0);
+    await page.emulateMedia({media: "print"});
+    expect(await page.locator('#local-card tbody tr:visible').count()).toBe(15);
+  });
+
+  it("prints even previously hidden document rows and preserves screen filtering afterwards", async () => {
+    await page.locator('#local-card input[type=search]').fill('Alpha');
+    expect(await page.locator('#local-card tbody tr:visible').count()).toBe(1);
+    // Simulate a document table that retained screen enhancement before navigation.
+    await page.locator('#local-card table').evaluate(table => table.setAttribute('data-no-table-tools', ''));
+    await page.emulateMedia({media: "print"});
+    expect(await page.locator('#local-card tbody tr:visible').count()).toBe(2);
+    await page.emulateMedia({media: "screen"});
+    expect(await page.locator('#local-card tbody tr:visible').count()).toBe(1);
+  });
+
+  it("cancels pending table work when navigating to a print route", async () => {
+    await page.evaluate(async () => {
+      const pending = new Map<number, FrameRequestCallback>();
+      const originalRequest = window.requestAnimationFrame;
+      const originalCancel = window.cancelAnimationFrame;
+      let nextId = 0;
+      window.requestAnimationFrame = callback => { pending.set(++nextId, callback); return nextId; };
+      window.cancelAnimationFrame = id => { pending.delete(id); };
+      const row = document.createElement('tr'); row.innerHTML = '<td>Late row</td>';
+      document.querySelector('#local-card tbody')!.append(row);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      (window as unknown as {renderFixture: (props: object) => void})
+        .renderFixture({pathname: '/invoices/test/print'});
+      await new Promise(resolve => setTimeout(resolve, 50));
+      window.requestAnimationFrame = originalRequest;
+      window.cancelAnimationFrame = originalCancel;
+      for (const callback of pending.values()) callback(performance.now());
+    });
+    expect(await page.locator('[data-table-enhanced]').count()).toBe(0);
+    expect(await page.locator('[data-table-toolbar]').count()).toBe(1); // server-owned toolbar only
+    expect(await page.locator('#local-card tbody tr:visible').count()).toBe(3);
+  });
+
   it("provides one server search and Reset while preserving the separate local table", async () => {
     expect(await page.locator("#server-card input[type=search]").count()).toBe(1);
     expect(await page.locator("#server-card .table-enhancer-toolbar").count()).toBe(1);

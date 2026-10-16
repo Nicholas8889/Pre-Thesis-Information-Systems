@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { customerInvoiceBalanceSelect } from "../../src/lib/customer-payment-query";
 import { getCustomerPaymentSummary } from "../../src/lib/customer-intelligence";
 import { toJakartaDateTimeInputValue } from "../../src/lib/delivery-note-status";
+import { recordInvoicePayment } from "../../src/lib/payment-recording";
 
 const context = vi.hoisted(() => ({
   tx: null as Prisma.TransactionClient | null,
@@ -197,6 +198,17 @@ describe("combined delivery with the real database", () => {
         where: { customerId }, include: { deliverySources: { include: { deliveryNote: true } } }
       });
       expect(linkedOrders.every(order => order.deliverySources[0].deliveryNote.status === status)).toBe(true);
+      if (status === "Delivered") {
+        // UMKM settlement: two invoices on one delivery, one remaining payment each.
+        for (const invoice of invoicesBefore) {
+          await recordInvoicePayment(tx, { invoiceId: invoice.id, paymentDate: new Date(),
+            amount: invoice.remainingAmount, paymentMethod: "BankTransfer", notes: "Combined delivery settlement" });
+          expect(await tx.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).toMatchObject({
+            status: "Paid", paidAmount: 1000, remainingAmount: 0,
+          });
+        }
+        expect(await summary()).toMatchObject({ outstandingAmount: 0, openInvoiceCount: 0 });
+      }
       throw new Error(ROLLBACK);
     }, { timeout: 45000 })).rejects.toThrow(ROLLBACK);
     context.tx = null;

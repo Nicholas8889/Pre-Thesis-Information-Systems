@@ -24,7 +24,7 @@ vi.mock("@/lib/prisma", () => ({
           $queryRaw: mocks.lock,
           documentSequence: { upsert: mocks.sequence },
           pickingList: { findMany: mocks.lists },
-          deliveryNote: { create: mocks.create, updateMany: mocks.update, findUniqueOrThrow: mocks.findSaved },
+          deliveryNote: { create: mocks.create, updateMany: mocks.update, findUnique: mocks.find, findUniqueOrThrow: mocks.findSaved },
           deliveryNoteItem: { createMany: mocks.items }
         });
         mocks.writes.push("commit");
@@ -33,7 +33,7 @@ vi.mock("@/lib/prisma", () => ({
     }
   }
 }));
-import { createDeliveryNote, updateDeliveryNoteStatus } from "../../src/lib/actions";
+import { createDeliveryNote, saveDeliveryNoteDraft, updateDeliveryNoteStatus } from "../../src/lib/actions";
 
 function packed(id: string, customerId = "customer", destination = "One destination") {
   return {
@@ -48,7 +48,7 @@ function packed(id: string, customerId = "customer", destination = "One destinat
       orderNumber: "SO-" + id, customerPoNumber: id === "b" ? "PO-b" : null,
       source: id === "b" ? "CUSTOMER_PO" : "DIRECT", status: "Invoiced", approvalStatus: "Approved",
       customer: { id: customerId },
-      items: [{ id: "item-" + id, itemName: "Same product", quantity: 5 }],
+      items: [{ id: "item-" + id, itemName: "Same product", quantity: 5, productSkuSnapshot: "SKU-" + id.toUpperCase() as string | null }],
       deliveryNotes: [], deliverySources: [],
       invoice: { id: "INV-" + id, status: "Unpaid", paymentTermType: "IMMEDIATE", deliveryNotes: [], deliverySources: [] }
     }
@@ -107,6 +107,7 @@ describe("combined delivery server actions", () => {
   it("creates one SJ for mixed SO/PO, preserving per-order lines and invoice links", async () => {
     const data = form();
     data.set("items", JSON.stringify([{ quantity: 999 }]));
+    data.set("productCode", "TAMPERED-SKU");
     await expect(createDeliveryNote(data)).rejects.toThrow("tab=open&view=sj");
     expect(mocks.create).toHaveBeenCalledTimes(1);
     expect(mocks.create.mock.calls[0][0].data).toMatchObject({
@@ -118,8 +119,8 @@ describe("combined delivery server actions", () => {
       ] }
     });
     expect(mocks.items.mock.calls[0][0].data).toEqual([
-      { deliveryNoteId: "sj", sourceId: "source-0", pickingListItemId: "pick-item-a", itemName: "Same product", orderedQuantitySnapshot: 5, packedQuantitySnapshot: 5, quantity: 5, outstandingQuantity: 0, unit: "PCS" },
-      { deliveryNoteId: "sj", sourceId: "source-1", pickingListItemId: "pick-item-b", itemName: "Same product", orderedQuantitySnapshot: 5, packedQuantitySnapshot: 5, quantity: 5, outstandingQuantity: 0, unit: "PCS" }
+      { deliveryNoteId: "sj", sourceId: "source-0", pickingListItemId: "pick-item-a", itemName: "Same product", productCode: "SKU-A", orderedQuantitySnapshot: 5, packedQuantitySnapshot: 5, quantity: 5, outstandingQuantity: 0, unit: "PCS" },
+      { deliveryNoteId: "sj", sourceId: "source-1", pickingListItemId: "pick-item-b", itemName: "Same product", productCode: "SKU-B", orderedQuantitySnapshot: 5, packedQuantitySnapshot: 5, quantity: 5, outstandingQuantity: 0, unit: "PCS" }
     ]);
     expect(mocks.writes).toEqual(["begin", "commit"]);
     expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(mocks.lists.mock.invocationCallOrder[0]);
@@ -136,7 +137,7 @@ describe("combined delivery server actions", () => {
       availabilityStatus: "Available",
       notes: null,
     });
-    second.salesOrder.items.push({ id: "item-b-extra", itemName: "Extra packed product", quantity: 3 });
+    second.salesOrder.items.push({ id: "item-b-extra", itemName: "Extra packed product", quantity: 3, productSkuSnapshot: null });
     mocks.lists.mockResolvedValue([packed("a"), second]);
     const data = form();
     data.set("quantity_pick-item-a", "3");
@@ -165,6 +166,23 @@ describe("combined delivery server actions", () => {
     mocks.lists.mockResolvedValue([packed("a")]);
     await expect(createDeliveryNote(form(["a"]))).rejects.toThrow("tab=open&view=sj");
     expect(mocks.create.mock.calls[0][0].data).toMatchObject({ pickingListId: "a", salesOrderId: "SO-a", invoiceId: "INV-a" });
+    expect(mocks.items.mock.calls[0][0].data[0]).toMatchObject({productCode: "SKU-A"});
+  });
+  it("keeps legacy missing SKU nullable instead of taking a submitted product code", async () => {
+    const legacy = packed("a"); legacy.salesOrder.items[0].productSkuSnapshot = null;
+    mocks.lists.mockResolvedValue([legacy]);
+    const data = form(["a"]); data.set("productCode", "TAMPERED");
+    await expect(createDeliveryNote(data)).rejects.toThrow("tab=open&view=sj");
+    expect(mocks.items.mock.calls[0][0].data[0]).toMatchObject({productCode: null});
+  });
+  it("rejects a stale Draft save after the shipment has been issued", async () => {
+    mocks.find.mockResolvedValue({id: "sj", status: "Issued"});
+    const data = form(["a"]);
+    data.set("id", "sj"); data.set("version", "2026-10-16T01:00:00.000Z"); data.set("intent", "save");
+    await expect(saveDeliveryNoteDraft(data)).rejects.toThrow("Issued%20Surat%20Jalan%20is%20locked");
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalled();
+    expect(mocks.writes).toEqual(["begin", "rollback"]);
   });
   it("rejects mixed customers before creating any document", async () => {
     mocks.lists.mockResolvedValue([packed("a"), packed("b", "other")]);
@@ -188,7 +206,7 @@ describe("combined delivery server actions", () => {
       availabilityStatus: "Unavailable",
       notes: "Entire item unavailable",
     });
-    second.salesOrder.items.push({ id: "item-b-zero", itemName: "Unavailable product", quantity: 3 });
+    second.salesOrder.items.push({ id: "item-b-zero", itemName: "Unavailable product", quantity: 3, productSkuSnapshot: null });
     mocks.lists.mockResolvedValue([packed("a"), second]);
     const data = form();
     data.set("quantity_pick-item-b", "4");

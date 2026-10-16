@@ -216,11 +216,11 @@ export default async function SuratJalanPage({
     ...list,
     items: list.items.map(item => ({ ...item, packedQuantity: getPickingDeliveryQuantity(list, item) })),
   }));
-  const selectedId =
-    (requestedNote && visibleStatuses.includes(requestedNote.status)
+  const selectedId = mode === "create"
+    ? undefined
+    : requestedNote && visibleStatuses.includes(requestedNote.status)
       ? requestedNote.id
-      : undefined) ??
-    visibleDeliveryNotes[0]?.id;
+      : visibleDeliveryNotes[0]?.id;
   const selectedDeliveryNote = selectedId
     ? await prisma.deliveryNote.findFirst({
         relationLoadStrategy: "join",

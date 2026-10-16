@@ -29,7 +29,7 @@ export function PickingChecklistPrint({ list }: { list: PrintableSheet }) {
         <p><strong>Created:</strong> {formatDate(list.createdAt)}</p>
         <p><strong>PIC Pick &amp; Pack:</strong> {list.pickerName ?? "—"}</p>
       </section>
-      <table className="mt-6 w-full table-fixed border-collapse text-sm">
+      <table data-no-table-tools className="mt-6 w-full table-fixed border-collapse text-sm">
         <colgroup><col className="w-[8%]" /><col className={isPick ? "w-[72%]" : "w-[47%]"} /><col className="w-[20%]" />{!isPick && <col className="w-[25%]" />}</colgroup>
         <thead><tr>{["No.", "Product", "Ordered quantity", ...(!isPick ? ["Pack check"] : [])].map(label => <th key={label} className="border border-ink/50 px-2 py-3">{label}</th>)}</tr></thead>
         <tbody>{list.items.map((item, index) => (

@@ -984,7 +984,7 @@ export async function createSalesOrder(formData: FormData) {
             creditTermMonths,
             creditTermWeeks,
             status: "Unpaid",
-            notes: actionNote || null
+            notes: null
           }
         }) : null;
 
@@ -1412,7 +1412,7 @@ export async function generateInvoice(formData: FormData) {
           creditTermMonths: salesOrder.creditTermMonths,
           creditTermWeeks: salesOrder.creditTermWeeks,
           status: "Unpaid",
-          notes: actionNote || null
+          notes: null
         }
       });
       const claimedOrder = await tx.salesOrder.updateMany({
@@ -1723,7 +1723,7 @@ export async function decideSalesOrderApproval(formData: FormData) {
             creditTermMonths: currentOrder.creditTermMonths,
             creditTermWeeks: currentOrder.creditTermWeeks,
             status: "Unpaid",
-            notes: actionNote || null
+            notes: null
           }
         });
         const approvedOrder = await tx.salesOrder.findUniqueOrThrow({ where: { id: currentOrder.id } });
@@ -2014,8 +2014,7 @@ export async function cancelInvoice(formData: FormData) {
           version: { increment: 1 },
           cancellationReason,
           cancelledAt: new Date(),
-          cancelledByUserId: currentUser.id,
-          notes: mergeActionNotes(currentInvoice.notes, cancellationReason)
+          cancelledByUserId: currentUser.id
         }
       });
       if (claimedCancellation.count !== 1) {
@@ -2102,7 +2101,7 @@ export async function updateInvoiceNotes(formData: FormData) {
     const invoice = await tx.invoice.update({
       where: { id },
       data: {
-        notes: mergeActionNotes(getString(formData, "notes"), actionNote)
+        notes: getString(formData, "notes").trim() || null
       }
     });
     await createAuditTrailLog({
@@ -2487,7 +2486,7 @@ export async function createDeliveryNote(formData: FormData) {
         salesOrder: { select: {
           customerId: true, orderNumber: true, customerPoNumber: true,
           deliveryDestinationSnapshot: true, status: true, approvalStatus: true,
-          items: { select: { id: true, itemName: true, quantity: true } },
+          items: { select: { id: true, itemName: true, quantity: true, productSkuSnapshot: true } },
           deliverySources: { select: { id: true } },
           invoice: { select: {
             id: true, invoiceNumber: true, status: true, paymentTermType: true,
@@ -2595,6 +2594,7 @@ export async function createDeliveryNote(formData: FormData) {
         sourceId: note.sources.find(source => source.pickingListId === list.id)!.id,
         pickingListItemId: item.id,
         itemName: item.itemName,
+        productCode: list.salesOrder.items.find(source => source.id === item.salesOrderItemId)?.productSkuSnapshot ?? null,
         orderedQuantitySnapshot: item.orderedQuantity,
         packedQuantitySnapshot: getPickingDeliveryQuantity(list, item),
         quantity: finalQuantityByItemId.get(item.id) ?? 0,

@@ -119,7 +119,7 @@ export default async function InvoicePrintPage({
 
         <section className="py-5">
           <div className="overflow-x-auto">
-            <table className="border border-ink/50 text-sm">
+            <table data-no-table-tools className="border border-ink/50 text-sm">
               <thead className="bg-canvas text-left uppercase text-ink">
                 <tr>
                   <th className="border border-ink/50 px-3 py-2">No.</th>

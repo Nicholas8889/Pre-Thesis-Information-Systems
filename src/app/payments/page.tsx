@@ -18,7 +18,8 @@ import { ServerPagination } from "@/components/server-pagination";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { canCreateDeliveryNoteForInvoice, getPaymentTermLabel } from "@/lib/calculations";
-import { getSearchMessage, toDateInputValue } from "@/lib/workflow";
+import { getSearchMessage } from "@/lib/workflow";
+import { toBusinessDateInputWib } from "@/lib/business-clock";
 import {
   getOpenInvoiceWhere,
   withEffectiveInvoiceStatus
@@ -232,7 +233,7 @@ export default async function PaymentsPage({
               status: invoice.status
             }))}
             action={recordPayment}
-            today={toDateInputValue()}
+            today={toBusinessDateInputWib(now)}
             initialInvoiceId={selectedInvoiceId}
             disabled={!canRecordPayment}
             restrictionMessage={getRestrictionMessage("RECORD_PAYMENT")}
