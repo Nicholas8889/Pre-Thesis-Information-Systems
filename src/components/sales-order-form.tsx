@@ -259,7 +259,7 @@ export function SalesOrderForm({
               <h3 className="text-sm font-semibold text-ink">Customer Insight</h3>
               <p className="mt-1 text-xs leading-5 text-ink/80">
                 Pricing guidance does not change payment terms, markup, or discounts automatically.
-                Orders entered by Sales require Manager approval when the customer has an unpaid invoice with a Delivered Surat Jalan.
+                Orders entered by Sales require Manager approval when the customer has an unpaid or partially paid invoice, regardless of delivery status or due date.
               </p>
             </div>
             <span className="w-fit rounded-md bg-info px-2.5 py-1 text-xs font-semibold text-white">
@@ -272,7 +272,7 @@ export function SalesOrderForm({
             <InsightMetric
               label="Outstanding Payment"
               value={formatCurrency(selectedCustomer.outstandingAmount)}
-              help={`${selectedCustomer.openInvoiceCount} open invoice(s) with a Delivered Surat Jalan, including amounts not yet due.`}
+              help={`${selectedCustomer.openInvoiceCount} open invoice(s), including undelivered orders and amounts not yet due.`}
             />
             <InsightMetric
               label="Overdue Invoices"

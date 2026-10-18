@@ -58,11 +58,11 @@ describe("Customer Records payment display", () => {
 
     expect(html).toContain("Outstanding Payment");
     expect(html).toContain(formatCurrency(1_850_000));
-    expect(html).toContain("1 open invoice(s)");
+    expect(html).toContain("2 open invoice(s)");
+    expect(html).toContain(formatCurrency(2_750_000));
     expect(html).toContain('href="/invoices?view=invoice-open"');
     expect(html).not.toContain("INV-CANCELLED");
-    expect(html).not.toContain("INV-PENDING");
-    expect(html).toContain("Delivered Surat Jalan");
+    expect(html).toContain("INV-PENDING");
     expect(html).toContain("Wholesale");
     expect(html).toContain("Make Inactive");
     expect(html).not.toContain("Customer Category");
@@ -89,7 +89,7 @@ describe("Customer Records payment display", () => {
     expect(html).not.toContain("INV-SETTLED");
   });
 
-  it("shows Clean for an unpaid invoice awaiting delivery and outstanding after delivery", async () => {
+  it("shows outstanding for an unpaid invoice both before and after delivery", async () => {
     const record = { ...customer, invoices: [{
       id: "invoice-awaiting", invoiceNumber: "INV-AWAITING", dueDate: new Date("2099-12-31"),
       remainingAmount: 1_850_000, status: "Unpaid", deliveryNotes: [{ status: "Issued" }], salesOrder: { deliveryNotes: [] }
@@ -101,9 +101,9 @@ describe("Customer Records payment display", () => {
       searchParams: Promise.resolve({ view: customer.id })
     }));
     const beforeDelivery = await renderPage();
-    expect(beforeDelivery).toContain(">Clean</span>");
-    expect(beforeDelivery).toContain("Invoices awaiting delivery are not counted yet.");
-    expect(beforeDelivery).not.toContain("Outstanding Invoices");
+    expect(beforeDelivery).toContain(">Outstanding Payment</span>");
+    expect(beforeDelivery).toContain("Outstanding Invoices");
+    expect(beforeDelivery).toContain('href="/invoices?view=invoice-awaiting"');
 
     record.invoices[0].deliveryNotes[0].status = "Delivered";
     const afterDelivery = await renderPage();

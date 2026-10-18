@@ -224,15 +224,15 @@ export default async function CustomersPage({
               title="Payment Status"
               value={selectedPaymentSummary?.paymentStatus ?? "Clean"}
               description={selectedPaymentSummary?.openInvoiceCount
-                ? "This customer has unpaid invoices with a Diterima Surat Jalan, including amounts not yet due."
-                : "No unpaid invoices with a Diterima Surat Jalan. Invoices awaiting delivery are not counted yet."}
+                ? "This customer has unpaid invoices, including undelivered orders and amounts not yet due."
+                : "No unpaid invoices. Undelivered orders with an unpaid invoice are also counted."}
               icon={ShieldCheck}
               tone={selectedPaymentSummary?.openInvoiceCount ? "outstanding" : "clean"}
             />
             <CustomerIntelligenceCard
               title="Outstanding Payment"
               value={formatCurrency(selectedPaymentSummary?.outstandingAmount ?? 0)}
-              description={`${selectedPaymentSummary?.openInvoiceCount ?? 0} open invoice(s) with a Diterima Surat Jalan. Cancelled invoices are excluded.`}
+              description={`${selectedPaymentSummary?.openInvoiceCount ?? 0} open invoice(s). Cancelled invoices are excluded.`}
               icon={Wallet}
               tone={selectedPaymentSummary?.openInvoiceCount ? "outstanding" : "clean"}
             />
@@ -272,7 +272,7 @@ export default async function CustomersPage({
           {selectedPaymentSummary && selectedPaymentSummary.openInvoiceCount > 0 && (
             <section className="mt-5 border-t border-line pt-5">
               <h3 className="mb-3 text-base font-semibold text-ink">Outstanding Invoices</h3>
-              <p className="mb-3 text-sm text-ink/70">Remaining balances for invoices with a Diterima Surat Jalan.</p>
+              <p className="mb-3 text-sm text-ink/70">Remaining balances for unpaid invoices, including undelivered orders and amounts not yet due.</p>
               <div className="overflow-x-auto">
                 <table>
                   <thead className="border-b border-line text-left text-xs uppercase text-ink/70">

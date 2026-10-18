@@ -42,7 +42,7 @@ const helpByRoute: Array<{ match: (pathname: string) => boolean; content: HelpCo
       steps: [
         "Use Add Customer to create a customer master record, with an optional NPWP for tax handling.",
         "Search by contact person, company, phone, or email.",
-        "Use view to review customer segment, payment status, outstanding amount, payment behaviour, and the tax profile. Outstanding Payment starts when an unpaid invoice has a Delivered Surat Jalan."
+        "Use view to review customer segment, payment status, outstanding amount, payment behaviour, and the tax profile. Outstanding Payment includes every non-cancelled invoice with a remaining balance, regardless of delivery status or due date."
       ]
     }
   },

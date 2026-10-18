@@ -287,7 +287,7 @@ describe("combined delivery server actions", () => {
 });
 
 describe("combined delivery projections", () => {
-  it.each(["Issued", "Delivered", "Cancelled"])("counts each invoice once only for Delivered (%s)", status => {
+  it.each(["Issued", "Delivered", "Cancelled"])("counts each unpaid invoice once regardless of delivery (%s)", status => {
     const invoices = [600, 1000, 0].map(remainingAmount => ({
       status: remainingAmount ? "Partial" : "Paid", remainingAmount,
       deliveryNotes: [{ status }],
@@ -295,9 +295,9 @@ describe("combined delivery projections", () => {
       salesOrder: { deliveryNotes: [] }
     }));
     expect(getCustomerPaymentSummary({ invoices })).toEqual({
-      paymentStatus: status === "Delivered" ? "Outstanding Payment" : "Clean",
-      outstandingAmount: status === "Delivered" ? 1600 : 0,
-      openInvoiceCount: status === "Delivered" ? 2 : 0
+      paymentStatus: "Outstanding Payment",
+      outstandingAmount: 1600,
+      openInvoiceCount: 2
     });
   });
   it("deduplicates legacy and source links while keeping shared notes visible", () => {

@@ -852,10 +852,8 @@ export async function createSalesOrder(formData: FormData) {
     customerPoDocumentSize: storedDocument?.size ?? null,
     customerPoDocumentSha256: storedDocument?.sha256 ?? null
   });
-  const paymentSummary = getCustomerPaymentSummary(customer);
-  const needsApproval = requiresManagerApproval(currentUser?.role ?? "", paymentSummary.paymentStatus);
   const issueDate = new Date();
-  const createsInvoice = !needsApproval && currentUser.role !== "SALES";
+  const createsInvoice = currentUser.role !== "SALES";
   const dueDate = getDueDateForPaymentTerm({
     issueDate,
     paymentTermType,
@@ -877,6 +875,19 @@ export async function createSalesOrder(formData: FormData) {
   };
   try {
     result = await prisma.$transaction(async (tx) => {
+        // Re-read balances at save time, after document upload and validation.
+        const approvalCustomer = currentUser.role === "SALES"
+          ? await tx.customer.findFirst({
+              where: { id: customerId, ...portfolio.customerWhere },
+              select: { invoices: {
+                where: { status: { not: "Cancelled" }, remainingAmount: { gt: 0 } },
+                select: customerInvoiceBalanceSelect
+              } }
+            })
+          : customer;
+        if (!approvalCustomer) throw new InactiveCustomerError();
+        const paymentSummary = getCustomerPaymentSummary(approvalCustomer);
+        const needsApproval = requiresManagerApproval(currentUser.role, paymentSummary.paymentStatus);
         const currentProducts = await tx.product.findMany({
           where: { id: { in: productIds }, status: "Active" },
           select: { id: true, listPrice: true }
@@ -1062,6 +1073,7 @@ export async function createSalesOrder(formData: FormData) {
       }, { timeout: 20_000 });
   } catch (error) {
     if (storedDocument) await deleteCustomerPoDocument(storedDocument.storedName).catch(() => undefined);
+    if (error instanceof InactiveCustomerError) redirectWithMessage(`${basePath}?mode=create`, "error", error.message);
     if (error instanceof InquiryConversionConflictError) {
       redirectWithMessage(basePath, "error", "Customer Inquiry was already converted by another request");
     }
@@ -1086,7 +1098,7 @@ export async function createSalesOrder(formData: FormData) {
   }
 
   refreshApp();
-  if (needsApproval) {
+  if (result.salesOrder.approvalStatus === "Pending") {
     redirectWithMessage(`${basePath}?tab=approval`, "success", `${orderLabel} submitted for Manager approval`);
   }
   if (!result.invoice) {

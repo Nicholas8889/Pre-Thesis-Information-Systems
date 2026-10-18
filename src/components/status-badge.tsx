@@ -61,8 +61,8 @@ const statusDescriptions: Record<string, string> = {
   Approved: "Approved by a Manager",
   Rejected: "Rejected by a Manager",
   NotRequired: "Manager approval is not required",
-  "Outstanding Payment": "Customer has an unpaid invoice with a Delivered Surat Jalan, including amounts not yet due",
-  Clean: "Customer has no unpaid invoices with a Delivered Surat Jalan"
+  "Outstanding Payment": "Customer has an unpaid invoice, regardless of delivery status or due date",
+  Clean: "Customer has no unpaid invoices"
 };
 
 export function StatusBadge({ status, label }: { status: string; label?: string }) {

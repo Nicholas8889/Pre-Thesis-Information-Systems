@@ -535,7 +535,7 @@ export const testingEvidence = [
     scenarioName: "Immediate Payment allows Surat Jalan before full payment",
     userRole: "Admin",
     steps:
-      "Create an Immediate Payment order and invoice, complete picking, and issue Surat Jalan before payment. Mark Delivered and verify the remaining balance becomes customer outstanding.",
+      "Create an Immediate Payment order and invoice and verify the unpaid balance is customer outstanding before delivery. Complete picking, issue Surat Jalan, and mark Delivered before payment.",
     expectedResult: "Surat Jalan is allowed before full payment after packing is complete; invoice payment amounts and status remain unchanged.",
     status: "Prepared"
   },

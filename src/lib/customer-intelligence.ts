@@ -23,14 +23,7 @@ type CustomerInvoiceBalance = {
 };
 
 export function isOutstandingInvoice(invoice: CustomerInvoiceBalance) {
-  const hasDeliveredNote =
-    (invoice.deliverySources ?? []).some(source => source.deliveryNote.status === "Delivered") ||
-    invoice.deliveryNotes.some((note) => note.status === "Delivered") ||
-    invoice.salesOrder.deliveryNotes.some(
-      (note) => note.invoiceId === null && note.status === "Delivered"
-    );
-
-  return invoice.status !== "Cancelled" && invoice.remainingAmount > 0 && hasDeliveredNote;
+  return invoice.status !== "Cancelled" && invoice.remainingAmount > 0;
 }
 
 export function getCustomerPaymentSummary(customer: {

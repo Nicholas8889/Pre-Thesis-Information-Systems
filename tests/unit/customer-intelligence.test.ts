@@ -17,22 +17,22 @@ function invoiceBalance(overrides: Partial<InvoiceBalance> = {}): InvoiceBalance
 describe("customer intelligence", () => {
   const now = new Date("2026-06-19T05:00:00.000Z");
 
-  it("is clean when there are no outstanding delivered invoices", () => {
+  it("is clean with no invoices and outstanding immediately on an unpaid invoice", () => {
     expect(getCustomerPaymentSummary({ invoices: [] })).toEqual({
       paymentStatus: "Clean", outstandingAmount: 0, openInvoiceCount: 0
     });
-    expect(getCustomerPaymentSummary({ invoices: [invoiceBalance()] }).paymentStatus).toBe("Clean");
+    expect(getCustomerPaymentSummary({ invoices: [invoiceBalance()] }).paymentStatus).toBe("Outstanding Payment");
   });
 
-  it.each(["Draft", "Issued", "Cancelled"])("does not count an overdue invoice when its Surat Jalan is %s", (status) => {
+  it.each(["Draft", "Issued", "Cancelled"])("counts an unpaid invoice when its Surat Jalan is %s", (status) => {
     expect(getCustomerPaymentSummary({ invoices: [
       invoiceBalance({ status: "Overdue", deliveryNotes: [{ status }] })
-    ] })).toEqual({ paymentStatus: "Clean", outstandingAmount: 0, openInvoiceCount: 0 });
+    ] })).toEqual({ paymentStatus: "Outstanding Payment", outstandingAmount: 100, openInvoiceCount: 1 });
   });
 
-  it("counts the remaining invoice balance after delivery even before the due date", () => {
+  it("counts the remaining invoice balance without delivery even before the due date", () => {
     const invoice = {
-      ...invoiceBalance({ remainingAmount: 1_850_000, deliveryNotes: [{ status: "Delivered" }] }),
+      ...invoiceBalance({ remainingAmount: 1_850_000 }),
       dueDate: new Date("2099-12-31")
     };
     expect(getCustomerPaymentSummary({ invoices: [invoice] })).toEqual({
@@ -40,13 +40,13 @@ describe("customer intelligence", () => {
     });
   });
 
-  it("sums only partial and overdue balances with delivered shipments", () => {
+  it("sums partial and overdue balances regardless of shipments", () => {
     expect(getCustomerPaymentSummary({ invoices: [
       invoiceBalance({ status: "Partial", remainingAmount: 300_000, deliveryNotes: [{ status: "Delivered" }] }),
       invoiceBalance({ status: "Overdue", remainingAmount: 450_000, deliveryNotes: [{ status: "Delivered" }] }),
       invoiceBalance({ status: "Overdue", remainingAmount: 900_000 })
     ] })).toEqual({
-      paymentStatus: "Outstanding Payment", outstandingAmount: 750_000, openInvoiceCount: 2
+      paymentStatus: "Outstanding Payment", outstandingAmount: 1_650_000, openInvoiceCount: 3
     });
   });
 
@@ -64,10 +64,10 @@ describe("customer intelligence", () => {
     ] })).toEqual({ paymentStatus: "Outstanding Payment", outstandingAmount: 100, openInvoiceCount: 1 });
   });
 
-  it("does not use a Sales Order delivery linked explicitly to another invoice", () => {
+  it("counts unpaid balances independently of another invoice's delivery", () => {
     expect(getCustomerPaymentSummary({ invoices: [
       invoiceBalance({ salesOrder: { deliveryNotes: [{ status: "Delivered", invoiceId: "other-invoice" }] } })
-    ] }).paymentStatus).toBe("Clean");
+    ] }).paymentStatus).toBe("Outstanding Payment");
   });
 
   it("counts the full remaining balance once when any of several Surat Jalan is delivered", () => {
@@ -80,11 +80,11 @@ describe("customer intelligence", () => {
     ] })).toEqual({ paymentStatus: "Outstanding Payment", outstandingAmount: 1_850_000, openInvoiceCount: 1 });
   });
 
-  it("stops counting an invoice when its only delivered shipment is reverted", () => {
+  it("keeps counting an unpaid invoice when its delivered shipment is reverted", () => {
     const invoice = invoiceBalance({ deliveryNotes: [{ status: "Delivered" }] });
     expect(getCustomerPaymentSummary({ invoices: [invoice] }).paymentStatus).toBe("Outstanding Payment");
     invoice.deliveryNotes[0].status = "Issued";
-    expect(getCustomerPaymentSummary({ invoices: [invoice] }).paymentStatus).toBe("Clean");
+    expect(getCustomerPaymentSummary({ invoices: [invoice] }).paymentStatus).toBe("Outstanding Payment");
   });
 
   it("returns to Clean on settlement regardless of past lateness", () => {
@@ -104,7 +104,7 @@ describe("customer intelligence", () => {
     expect(getCustomerPaymentSummary({ invoices: [invoice] }).paymentStatus).toBe("Clean");
   });
 
-  it("keeps customer segment while building independent delivery-based payment summaries", () => {
+  it("keeps customer segment while building balance-based payment summaries", () => {
     expect(buildCustomerInsights([
       { id: "one", companyName: "One", name: "First", customerSegment: "Retail",
         invoices: [invoiceBalance({ deliveryNotes: [{ status: "Delivered" }] })] },
@@ -114,7 +114,7 @@ describe("customer intelligence", () => {
       { id: "one", companyName: "One", contactName: "First", customerSegment: "Retail",
         paymentStatus: "Outstanding Payment", outstandingAmount: 100, openInvoiceCount: 1 },
       { id: "two", companyName: "Two", contactName: "Second", customerSegment: "Wholesale",
-        paymentStatus: "Clean", outstandingAmount: 0, openInvoiceCount: 0 }
+        paymentStatus: "Outstanding Payment", outstandingAmount: 900_000, openInvoiceCount: 1 }
     ]);
   });
 

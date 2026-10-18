@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
-// Fetch only the delivery evidence needed for customer payment status.
-// A Surat Jalan linked only to the Sales Order belongs to its unique invoice.
+// Balance determines current outstanding; payment/delivery evidence is also used
+// by the separate historical payment-reliability calculation.
 export const customerInvoiceBalanceSelect = {
   dueDate: true,
   remainingAmount: true,

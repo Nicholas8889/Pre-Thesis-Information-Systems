@@ -101,7 +101,7 @@ export function SalesCustomerInsights({
       <section className="rounded-md border border-line bg-white shadow-card">
         <SectionHeading
           title="Customer Payment Status"
-          description="Review unpaid invoices with a Delivered Surat Jalan, including amounts not yet due."
+          description="Review unpaid invoices, including undelivered orders and amounts not yet due."
           value={`${customers.length} customer(s)`}
         />
         <div className="border-b border-line px-5 py-4">

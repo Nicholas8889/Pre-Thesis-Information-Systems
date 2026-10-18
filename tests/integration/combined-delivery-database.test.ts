@@ -139,7 +139,7 @@ describe("combined delivery with the real database", () => {
         recipientAddress: customer.address,
         updatedAt: note.updatedAt,
       });
-      expect(await summary()).toMatchObject({ outstandingAmount: 0, openInvoiceCount: 0 });
+      expect(await summary()).toMatchObject({ outstandingAmount: 1600, openInvoiceCount: 2 });
       await expect(createDeliveryNote(data)).rejects.toThrow("Picking%20List%20is%20not%20ready");
       expect(await tx.deliveryNote.count({ where: { customerId } })).toBe(1);
       if (status === "Delivered") {
@@ -186,8 +186,8 @@ describe("combined delivery with the real database", () => {
         });
       }
       expect(await summary()).toMatchObject({
-        outstandingAmount: status === "Delivered" ? 1600 : 0,
-        openInvoiceCount: status === "Delivered" ? 2 : 0
+        outstandingAmount: 1600,
+        openInvoiceCount: 2
       });
       for (const invoice of invoicesBefore) {
         expect(await tx.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).toEqual(invoice);

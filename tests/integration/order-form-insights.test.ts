@@ -80,6 +80,10 @@ describe("order form insights integration", () => {
             status: "Unpaid"
           }
         });
+        const beforeDelivery = await loadOrderFormInsights(tx, now);
+        expect(beforeDelivery.customers.find(candidate => candidate.id === customer.id)).toMatchObject({
+          paymentStatus: "Outstanding Payment", outstandingAmount: 220, openInvoiceCount: 1
+        });
         await tx.deliveryNote.create({
           data: {
             deliveryNoteNumber: `SJ-INSIGHT-${marker}`,

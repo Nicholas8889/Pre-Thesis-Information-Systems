@@ -221,8 +221,8 @@ describe("Picking List to Delivered with the real database", () => {
             expect(list.items.every(item => item.isChecked && item.packedQuantity === item.orderedQuantity)).toBe(true);
             expect(list.packedAt).not.toBeNull();
             expect(await summary()).toMatchObject({
-              paymentStatus: "Clean",
-              outstandingAmount: 0,
+              paymentStatus: "Outstanding Payment",
+              outstandingAmount: 1000 - paidAmount,
             });
             await expect(
               reopenPickingList(
@@ -400,8 +400,8 @@ describe("Picking List to Delivered with the real database", () => {
               }),
             ).toBe(1);
             expect(await summary()).toMatchObject({
-              paymentStatus: "Clean",
-              outstandingAmount: 0,
+              paymentStatus: "Outstanding Payment",
+              outstandingAmount: 1000 - paidAmount,
             });
             await expect(
               updateDeliveryNoteStatus(

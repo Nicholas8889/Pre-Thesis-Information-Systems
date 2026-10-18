@@ -11,7 +11,7 @@ const ROLLBACK = "ROLLBACK_CUSTOMER_PAYMENT_STATUS";
 describe("customer payment balances", () => {
   afterAll(() => prisma.$disconnect());
 
-  it("starts outstanding on Delivered, counts each invoice once, and reflects payment and cancellation", async () => {
+  it("starts outstanding before delivery, counts invoices once, and reflects payment and cancellation", async () => {
     const marker = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     let customerId = "";
 
@@ -52,10 +52,10 @@ describe("customer payment balances", () => {
 
       const first = await createInvoice("one", 1_850_000);
       const second = await createInvoice("two", 500_000);
-      await createInvoice("awaiting-delivery", 900_000);
+      const awaitingDelivery = await createInvoice("awaiting-delivery", 900_000);
       const beforeDelivery = await loadSummary();
-      expect(beforeDelivery).toEqual({ paymentStatus: "Clean", outstandingAmount: 0, openInvoiceCount: 0 });
-      expect(requiresManagerApproval("SALES", beforeDelivery.paymentStatus)).toBe(false);
+      expect(beforeDelivery).toEqual({ paymentStatus: "Outstanding Payment", outstandingAmount: 3_250_000, openInvoiceCount: 3 });
+      expect(requiresManagerApproval("SALES", beforeDelivery.paymentStatus)).toBe(true);
 
       const deliveryData = {
         customerId: customer.id, recipientName: customer.name, recipientPhone: "",
@@ -65,17 +65,17 @@ describe("customer payment balances", () => {
         ...deliveryData, deliveryNoteNumber: `TEST-STATUS-SJ-${marker}-direct`,
         invoiceId: first.id, status: "Issued"
       } });
-      expect((await loadSummary()).paymentStatus).toBe("Clean");
+      expect(await loadSummary()).toEqual(beforeDelivery);
 
       await tx.deliveryNote.update({ where: { id: directNote.id }, data: { status: "Delivered" } });
       const afterDelivery = await loadSummary();
       expect(afterDelivery).toEqual({
-        paymentStatus: "Outstanding Payment", outstandingAmount: 1_850_000, openInvoiceCount: 1
+        paymentStatus: "Outstanding Payment", outstandingAmount: 3_250_000, openInvoiceCount: 3
       });
       expect(requiresManagerApproval("SALES", afterDelivery.paymentStatus)).toBe(true);
 
       await tx.deliveryNote.update({ where: { id: directNote.id }, data: { status: "Cancelled" } });
-      expect((await loadSummary()).paymentStatus).toBe("Clean");
+      expect(await loadSummary()).toEqual(beforeDelivery);
       await tx.deliveryNote.update({ where: { id: directNote.id }, data: { status: "Delivered" } });
 
       // Legacy Surat Jalan may point only to the order, without an invoice link.
@@ -89,7 +89,7 @@ describe("customer payment balances", () => {
         invoiceId: first.id, salesOrderId: first.salesOrderId, status: "Delivered"
       } });
       expect(await loadSummary()).toEqual({
-        paymentStatus: "Outstanding Payment", outstandingAmount: 2_350_000, openInvoiceCount: 2
+        paymentStatus: "Outstanding Payment", outstandingAmount: 3_250_000, openInvoiceCount: 3
       });
       expect((await tx.invoice.findUniqueOrThrow({ where: { id: first.id } })).dueDate).toEqual(dueDate);
 
@@ -105,13 +105,15 @@ describe("customer payment balances", () => {
 
       await pay(850_000);
       expect(await loadSummary()).toEqual({
-        paymentStatus: "Outstanding Payment", outstandingAmount: 1_500_000, openInvoiceCount: 2
+        paymentStatus: "Outstanding Payment", outstandingAmount: 2_400_000, openInvoiceCount: 3
       });
       await pay(1_000_000);
       expect(await loadSummary()).toEqual({
-        paymentStatus: "Outstanding Payment", outstandingAmount: 500_000, openInvoiceCount: 1
+        paymentStatus: "Outstanding Payment", outstandingAmount: 1_400_000, openInvoiceCount: 2
       });
       await tx.invoice.update({ where: { id: second.id }, data: { status: "Cancelled" } });
+      expect(await loadSummary()).toEqual({ paymentStatus: "Outstanding Payment", outstandingAmount: 900_000, openInvoiceCount: 1 });
+      await tx.invoice.update({ where: { id: awaitingDelivery.id }, data: { status: "Cancelled" } });
       expect(await loadSummary()).toEqual({ paymentStatus: "Clean", outstandingAmount: 0, openInvoiceCount: 0 });
 
       throw new Error(ROLLBACK);

@@ -206,6 +206,17 @@ export async function OrdersBySourcePage({
         deliveryNotes: linkedDeliveryNotes(selectedOrderRecord)
       }
     : null;
+  const outstandingInvoices = selectedOrder && activeTab === "approval"
+    ? await prisma.invoice.findMany({
+        where: {
+          customerId: selectedOrder.customerId,
+          status: { not: "Cancelled" },
+          remainingAmount: { gt: 0 }
+        },
+        select: { id: true, invoiceNumber: true, remainingAmount: true, dueDate: true },
+        orderBy: [{ dueDate: "asc" }, { id: "asc" }]
+      })
+    : [];
   return (
     <>
       <PageHeader
@@ -383,6 +394,33 @@ export async function OrdersBySourcePage({
             />
             <Detail label="Notes" value={selectedOrder.notes ?? "-"} />
           </div>
+
+          {activeTab === "approval" && (
+            <div className="mb-4 rounded-md border border-line bg-soft p-4 text-sm">
+              <h3 className="font-semibold">Customer unpaid invoices</h3>
+              <p className="mt-1 text-ink/80">
+                Orders entered by Sales require Manager review when the customer has an unpaid invoice,
+                including undelivered orders and amounts not yet due.
+              </p>
+              <p className="mt-2 font-semibold">
+                Current outstanding: {formatCurrency(outstandingInvoices.reduce((sum, invoice) => sum + invoice.remainingAmount, 0))}
+              </p>
+              {outstandingInvoices.length === 0 ? (
+                <p className="mt-2">The customer currently has no unpaid invoices. Review the existing approval request before deciding.</p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {outstandingInvoices.map(invoice => (
+                    <li key={invoice.id}>
+                      <Link className="font-semibold text-brand underline" href={`/invoices?view=${invoice.id}`}>
+                        {invoice.invoiceNumber}
+                      </Link>
+                      {` — Remaining: ${formatCurrency(invoice.remainingAmount)} — Due: ${formatDate(invoice.dueDate)}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table>

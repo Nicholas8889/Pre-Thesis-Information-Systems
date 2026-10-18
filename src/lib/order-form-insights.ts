@@ -41,22 +41,7 @@ export async function loadOrderFormInsights(
       where: {
         customer: { status: "Active", ...customerWhere },
         status: { not: "Cancelled" },
-        remainingAmount: { gt: 0 },
-        OR: [
-          {
-            deliverySources: {
-              some: { deliveryNote: { status: "Delivered" } }
-            }
-          },
-          { deliveryNotes: { some: { status: "Delivered" } } },
-          {
-            salesOrder: {
-              deliveryNotes: {
-                some: { invoiceId: null, status: "Delivered" }
-              }
-            }
-          }
-        ]
+        remainingAmount: { gt: 0 }
       },
       _sum: { remainingAmount: true },
       _count: { _all: true }
