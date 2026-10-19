@@ -13,6 +13,7 @@ import {
 import { requireCurrentUser } from "@/lib/session";
 import { buildPortfolioScope } from "@/lib/portfolio-scope";
 import { getSearchMessage } from "@/lib/workflow";
+import { canRole } from "@/lib/role-access";
 
 export default async function CustomerInquiryDetailPage({
   params,
@@ -24,6 +25,7 @@ export default async function CustomerInquiryDetailPage({
   const { inquiryId } = await params;
   const { success, error } = getSearchMessage((await searchParams) ?? {});
   const currentUser = await requireCurrentUser();
+  const canManageInquiry = canRole(currentUser.role, "MANAGE_CUSTOMER_INQUIRY");
   const portfolio = buildPortfolioScope(currentUser);
   const inquiry = await prisma.customerInquiry.findFirst({
     where: { id: inquiryId, ...portfolio.inquiryWhere },
@@ -36,7 +38,8 @@ export default async function CustomerInquiryDetailPage({
   if (!inquiry) notFound();
 
   const canConvert =
-    inquiry.status === "Open" && canConvertCustomerInquiryItems(inquiry.items);
+    canManageInquiry && canRole(currentUser.role, "CREATE_SALES_ORDER") &&
+    inquiry.status === "Open" && !inquiry.salesOrderId && canConvertCustomerInquiryItems(inquiry.items);
 
   return (
     <>
@@ -99,7 +102,7 @@ export default async function CustomerInquiryDetailPage({
           </table>
         </div>
 
-        {inquiry.status === "Open" && !inquiry.salesOrderId && (
+        {canManageInquiry && inquiry.status === "Open" && !inquiry.salesOrderId && (
           <form action={updateCustomerInquiryPrices} className="mt-6 space-y-4 rounded-md border border-line bg-soft p-4">
             <h3 className="text-base font-semibold">Update Agreed Prices</h3>
             <p className="text-sm text-ink/80">Enter the prices agreed with the customer before converting this inquiry. Requested prices and production costs are not agreements.</p>
@@ -135,7 +138,7 @@ export default async function CustomerInquiryDetailPage({
               </Link>
             </div>
           )}
-          {inquiry.status === "Open" && (
+          {canManageInquiry && inquiry.status === "Open" && (
             <div className="grid gap-3 lg:grid-cols-2">
               <StatusForm
                 inquiryId={inquiry.id}
@@ -160,7 +163,7 @@ export default async function CustomerInquiryDetailPage({
             </Link>
           )}
         </div>
-        {!canConvert && inquiry.status === "Open" && (
+        {canManageInquiry && !canConvert && inquiry.status === "Open" && !inquiry.salesOrderId && (
           <p className="mt-4 rounded-md bg-warning px-3 py-2 text-sm text-strong">
             To convert, link every item to an active product and enter an agreed unit price.
           </p>

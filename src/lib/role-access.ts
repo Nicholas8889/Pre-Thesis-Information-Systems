@@ -1,4 +1,5 @@
 export type RoleCapability =
+  | "MANAGE_CUSTOMER_INQUIRY"
   | "CREATE_SALES_ORDER"
   | "EDIT_SALES_ORDER_ITEMS"
   | "DELETE_SALES_ORDER"
@@ -10,6 +11,7 @@ export type RoleCapability =
   | "CREATE_AUDIT_TRAIL";
 
 export function canRole(role: string | null | undefined, capability: RoleCapability) {
+  if (capability === "MANAGE_CUSTOMER_INQUIRY") return role === "SALES" || role === "MANAGER";
   if (capability === "CREATE_ACCOUNT") return role === "ADMIN";
 
   if (role === "MANAGER") return true;
@@ -34,6 +36,7 @@ export function canRole(role: string | null | undefined, capability: RoleCapabil
 
 export function getRestrictionMessage(capability: RoleCapability) {
   return {
+    MANAGE_CUSTOMER_INQUIRY: "Only Sales and Manager roles can create or update Customer Inquiries.",
     CREATE_SALES_ORDER: "You cannot create Sales Orders. Only Sales and Manager roles can do this.",
     EDIT_SALES_ORDER_ITEMS: "Editing order items requires Sales, Admin or Manager access and an eligible transaction.",
     DELETE_SALES_ORDER: "You cannot delete Sales Orders. Only Admin and Manager roles can do this.",

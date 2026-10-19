@@ -23,7 +23,7 @@ import {
   canFulfillOrder,
 } from "@/lib/picking-list";
 import { parseOptionalNpwp } from "@/lib/npwp";
-import { canRole } from "@/lib/role-access";
+import { canRole, getRestrictionMessage } from "@/lib/role-access";
 import {
   requiresApprovalDecisionNote,
   requiresManagerApproval
@@ -480,6 +480,9 @@ export async function updateProductStatus(formData: FormData) {
 
 export async function createCustomerInquiry(formData: FormData) {
   const currentUser = await requireCurrentUser();
+  if (!canRole(currentUser.role, "MANAGE_CUSTOMER_INQUIRY")) {
+    redirectWithMessage("/customer-inquiries", "error", getRestrictionMessage("MANAGE_CUSTOMER_INQUIRY"));
+  }
   const portfolio = buildPortfolioScope(currentUser);
   const customerId = getRequiredString(formData, "customerId");
   const notes = getString(formData, "notes");
@@ -567,6 +570,9 @@ export async function createCustomerInquiry(formData: FormData) {
 
 export async function updateCustomerInquiryPrices(formData: FormData) {
   const currentUser = await requireCurrentUser();
+  if (!canRole(currentUser.role, "MANAGE_CUSTOMER_INQUIRY")) {
+    redirectWithMessage("/customer-inquiries", "error", getRestrictionMessage("MANAGE_CUSTOMER_INQUIRY"));
+  }
   const portfolio = buildPortfolioScope(currentUser);
   const inquiryId = getRequiredString(formData, "inquiryId");
   const returnPath = `/customer-inquiries/${encodeURIComponent(inquiryId)}`;
@@ -621,6 +627,9 @@ export async function updateCustomerInquiryPrices(formData: FormData) {
 
 export async function updateCustomerInquiryStatus(formData: FormData) {
   const currentUser = await requireCurrentUser();
+  if (!canRole(currentUser.role, "MANAGE_CUSTOMER_INQUIRY")) {
+    redirectWithMessage("/customer-inquiries", "error", getRestrictionMessage("MANAGE_CUSTOMER_INQUIRY"));
+  }
   const portfolio = buildPortfolioScope(currentUser);
   const inquiryId = getRequiredString(formData, "inquiryId");
   const status = getStatus<CustomerInquiryStatus>(formData, "status", ["Closed", "Cancelled"], "Closed");

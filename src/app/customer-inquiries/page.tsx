@@ -19,6 +19,7 @@ import {
 } from "@/lib/pagination";
 import { requireCurrentUser } from "@/lib/session";
 import { buildPortfolioScope } from "@/lib/portfolio-scope";
+import { canRole, getRestrictionMessage } from "@/lib/role-access";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -32,14 +33,16 @@ export default async function CustomerInquiriesPage({
   const { success, error } = getSearchMessage(params);
   const pagination = getCursorPagination(params);
   const currentUser = await requireCurrentUser();
+  const canManageInquiry = canRole(currentUser.role, "MANAGE_CUSTOMER_INQUIRY");
+  const showCreateForm = mode === "create" && canManageInquiry;
   const portfolio = buildPortfolioScope(currentUser);
   const [customers, products, inquiryRecords] = await Promise.all([
-    mode === "create" ? prisma.customer.findMany({
+    showCreateForm ? prisma.customer.findMany({
       where: { status: "Active", ...portfolio.customerWhere },
       orderBy: { companyName: "asc" },
       select: { id: true, companyName: true, name: true }
     }) : Promise.resolve([]),
-    mode === "create" ? prisma.product.findMany({
+    showCreateForm ? prisma.product.findMany({
       where: { status: "Active" },
       orderBy: { productName: "asc" },
       select: { id: true, productName: true, listPrice: true }
@@ -60,7 +63,7 @@ export default async function CustomerInquiriesPage({
         title="Customer Inquiry"
         description="Record customer product requests, negotiate terms, and convert approved requests into Sales Orders or Customer Purchase Orders."
         action={
-          <Link
+          canManageInquiry && <Link
             href="/customer-inquiries?mode=create"
             className="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white"
           >
@@ -69,9 +72,10 @@ export default async function CustomerInquiriesPage({
           </Link>
         }
       />
-      <FlashMessage success={success} error={error} />
+      <FlashMessage success={success} error={error || (mode === "create" && !canManageInquiry
+        ? getRestrictionMessage("MANAGE_CUSTOMER_INQUIRY") : undefined)} />
 
-      {mode === "create" && (
+      {showCreateForm && (
         <section className="mb-6 rounded-md border border-line bg-white p-5 shadow-card">
           <h2 className="mb-4 text-lg font-semibold">Create Customer Inquiry</h2>
           <CustomerInquiryForm

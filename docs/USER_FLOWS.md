@@ -66,6 +66,7 @@ use the action.
 | View dashboards and operational modules | Yes | Yes | Yes |
 | Manage customer records | Yes | Yes | Yes |
 | Create Customer Inquiry | Yes | No | Yes |
+| Update Inquiry prices, close, cancel, or convert Inquiry | Yes | No | Yes |
 | Create Sales Order or Customer PO | Yes | No | Yes |
 | Delete eligible ongoing Sales Order | Yes | Yes | No |
 | Approve or reject risky Sales Order | Yes | No | No |

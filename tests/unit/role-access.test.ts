@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { canRole } from "../../src/lib/role-access";
 
 describe("role capability limitations", () => {
+  it.each([
+    ["MANAGER", true], ["SALES", true], ["ADMIN", false],
+    [undefined, false], [null, false], ["UNKNOWN", false]
+  ])("sets Inquiry mutation access for %s to %s", (role, allowed) => {
+    expect(canRole(role as string | null | undefined, "MANAGE_CUSTOMER_INQUIRY")).toBe(allowed);
+  });
+
   it("allows Manager to perform every managed capability", () => {
     expect(canRole("MANAGER", "CREATE_SALES_ORDER")).toBe(true);
     expect(canRole("MANAGER", "DELETE_SALES_ORDER")).toBe(true);
